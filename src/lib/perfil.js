@@ -227,8 +227,9 @@ export const CHEW = [
 
 // El impacto del dolor y el cribado de ansiedad y depresión viven en `cuestionarios.js`,
 // con sus ítems, su puntuación y sus puntos de corte publicados.
-export { egdc, phq4, hads, resumenInstrumentos, EGDC_ITEMS, EGDC_INTENSIDAD, EGDC_DISCAPACIDAD,
-  EGDC_DIAS, EGDC_GRADOS, PHQ4_ITEMS, PHQ4_OPCIONES, PHQ4_ENUNCIADO, HADS_ITEMS, HADS_DISPONIBLE } from './cuestionarios.js'
+export { egdc, phq9, gravedadPhq9, resumenInstrumentos, EGDC_ITEMS, EGDC_INTENSIDAD, EGDC_DISCAPACIDAD,
+  EGDC_DIAS, EGDC_GRADOS, PHQ9_ITEMS, PHQ9_OPCIONES, PHQ9_ENUNCIADO, PHQ9_ITEM_RIESGO,
+  PHQ9_FUNCIONAL, PHQ9_FUNCIONAL_TEXTO, PHQ9_FUNCIONAL_OPCIONES, AYUDA_RIESGO } from './cuestionarios.js'
 
 // Alfabetización en salud (Chew 2004). Suma 3-15, y el aviso de «limitada» se apoya en el ítem
 // de seguridad rellenando impresos, que es el que mejor discrimina en el original (AUC 0,80):
@@ -254,7 +255,7 @@ export function elegibilidadPaciente(p = {}) {
   return ''
 }
 
-import { EGDC_ITEMS as EGDC_ITEMS_VALIDAR, PHQ4_ITEMS as PHQ4_ITEMS_VALIDAR, resumenInstrumentos as resumenInstrumentosPaciente } from './cuestionarios.js'
+import { EGDC_ITEMS as EGDC_ITEMS_VALIDAR, PHQ9_ITEMS as PHQ9_ITEMS_VALIDAR, resumenInstrumentos as resumenInstrumentosPaciente } from './cuestionarios.js'
 
 // Identidad: va en su propia tabla (`valida.identidades`), no viaja con las valoraciones.
 export const IDENTIDAD_VACIA = Object.freeze({ nombre: '', apellidos: '', email: '', filiacion: '', orcid: '', dois: '' })
@@ -285,8 +286,9 @@ export const PERFIL_PACIENTE_VACIO = Object.freeze({
   // Impacto del dolor: EGDC (Graded Chronic Pain Scale) — 6 ítems 0-10 + días perdidos
   egdc_ahora: '', egdc_peor: '', egdc_medio: '', egdc_dias: '',
   egdc_diaria: '', egdc_social: '', egdc_trabajo: '',
-  // Cribado de ansiedad y depresión (PHQ-4; HADS cuando haya licencia)
-  phq4_nervioso: '', phq4_preocupacion: '', phq4_interes: '', phq4_animo: '',
+  // Cribado de depresión: PHQ-9 (9 ítems que puntúan + el funcional, que no puntúa)
+  phq9_interes: '', phq9_animo: '', phq9_sueno: '', phq9_energia: '', phq9_apetito: '',
+  phq9_fracaso: '', phq9_concentracion: '', phq9_lentitud: '', phq9_muerte: '', phq9_funcional: '',
   // Tratamientos
   tratamientos: [], seguimiento: '',
   // Educación en dolor previa
@@ -370,8 +372,8 @@ export function validarPerfilPaciente(f) {
   if (f.egdc_dias === '' || f.egdc_dias == null || !Number.isFinite(dias) || dias < 0 || dias > 180) {
     return 'Indica cuántos días, de los últimos seis meses, el dolor te impidió hacer tus actividades (de 0 a 180).'
   }
-  for (const [clave] of PHQ4_ITEMS_VALIDAR) {
-    if (f[clave] === '' || f[clave] == null) return 'Contesta las cuatro preguntas sobre cómo te has sentido estas dos semanas.'
+  for (const [clave] of PHQ9_ITEMS_VALIDAR) {
+    if (f[clave] === '' || f[clave] == null) return 'Contesta las nueve preguntas sobre cómo te has sentido estas dos semanas.'
   }
   if (!f.educacion_previa) return 'Indica si alguna vez te han explicado cómo funciona el dolor: es importante para interpretar tus respuestas.'
   for (const [clave] of CHEW) {

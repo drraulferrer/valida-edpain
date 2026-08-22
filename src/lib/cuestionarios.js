@@ -154,6 +154,22 @@ export function phq9(p = {}) {
   }
 }
 
+// --------------------------------------------------------------------------- ayuda
+// Lo que se enseña en cuanto el ítem 9 deja de ser «ningún día». Vive aquí, con el
+// instrumento, porque forma parte de usarlo con responsabilidad y no es un adorno de la
+// interfaz: quien pregunta por ideas de muerte en una web, sin nadie al otro lado, tiene que
+// dar a la vez dónde pedir ayuda y decir la verdad sobre quién lee lo que se contesta.
+export const AYUDA_RIESGO = {
+  titulo: 'Si lo estás pasando mal, pide ayuda ahora',
+  aviso: 'Esta web es un estudio: nadie lee tus respuestas en el momento, así que no las uses para pedir ayuda. Estos teléfonos sí están atendidos.',
+  recursos: [
+    ['024', 'Línea de Atención a la Conducta Suicida del Ministerio de Sanidad. Gratuita, 24 horas y confidencial.'],
+    ['112', 'Emergencias, si hay peligro inmediato.'],
+    ['717 003 717', 'Teléfono de la Esperanza.'],
+  ],
+  cierre: 'Contestar con sinceridad no te deja fuera del estudio ni cambia nada de lo que hagas aquí.',
+}
+
 // --------------------------------------------------------------------------- resumen
 // Una línea por instrumento, para el panel de dirección y para describir al grupo.
 export function resumenInstrumentos(p = {}) {

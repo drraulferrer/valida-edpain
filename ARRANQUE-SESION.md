@@ -207,7 +207,7 @@ para que el servidor no dependa del navegador):
 | Localización | zonas del cuerpo | familias de la CIE-11, en lenguaje llano |
 | Diagnóstico | qué le han dicho (multi) + «no me han dado ninguno» + si se lo explicaron | CIE-11 primario/secundario |
 | Impacto | **EGDC** (Escala de Gradación del Dolor Crónico): 3 de intensidad + 3 de discapacidad (0-10) + días de actividad perdidos → grado 0-IV | Von Korff et al., *Pain* 1992 |
-| Ánimo | **PHQ-4**: GAD-2 + PHQ-2, cribado, no diagnóstico | Kroenke et al., *Psychosomatics* 2009 |
+| Ánimo | **PHQ-9**: nueve ítems, cribado de depresión, no diagnóstico | Kroenke et al., *J Gen Intern Med* 2001 |
 | Tratamientos | qué ha probado (multi) + quién le lleva | conjunto mínimo del NIH Task Force |
 | Educación previa | si le han explicado el dolor, si lee por su cuenta | el sesgo grande de un panel de comprensibilidad |
 | Alfabetización | **3 ítems de Chew** (ayuda para leer, seguridad con impresos, dificultad para entender) | Chew et al., *Fam Med* 2004 |
@@ -227,15 +227,30 @@ Treede et al., *Pain* 2019 (doi:10.1097/j.pain.0000000000001384) · Krebs et al.
 **El PEG salió y entró la EGDC** (`src/lib/cuestionarios.js`, tests en `tests/cuestionarios.test.js`).
 Mismo esquema 0-10 y solo siete ítems, pero da **intensidad característica y discapacidad sobre 100
 y un grado de 0 a IV**, que es lo que permite comparar este panel con la literatura y estratificarlo
-en el informe. Se añade el **PHQ-4** (libre, sin licencia) porque el ánimo y la preocupación cambian
-cómo se lee un texto, y describir eso es parte de describir al panel.
+en el informe. El cribado de ánimo lo hace el **PHQ-9** (23-ago), que sustituye a la vez a la HADS y al PHQ-4 que
+hubo un rato en medio.
 
-**La HADS está implementada pero no distribuida.** La puntuación, los dominios y los cortes (≤7
-normal · 8-10 dudoso · ≥11 caso probable) están escritos y probados, pero los **catorce ítems van
-vacíos a propósito**: el texto es propiedad de **GL Assessment** y reproducirlo en una web exige
-licencia. `HADS_DISPONIBLE` es `false` y la interfaz no la ofrece. El día que haya licencia de la
-versión española, basta rellenar `texto` y `opciones` en los catorce huecos: no hay que tocar nada
-más. Mientras tanto, el cribado de ánimo lo cubre el PHQ-4, que sí es de uso libre.
+**Por qué el PHQ-9 y no la HADS.** El texto de la HADS es propiedad de **GL Assessment** y
+reproducirlo en una web exige licencia: se llegó a implementar su puntuación con los catorce ítems
+vacíos, y se retiró al entrar el PHQ-9. El PHQ-9 es **de uso libre** —no hace falta permiso para
+reproducirlo, traducirlo ni distribuirlo—, son los nueve criterios de depresión mayor del DSM, y está
+validado en español (Diez-Quevedo 2001). Total 0-27, franjas 5/10/15/20 y **corte de decisión en 10**.
+Ojo con no confundir la franja con el corte: un 9 es «leve» pero cribado negativo.
+
+**Lo que obliga su ítem 9.** Pregunta por ideas de muerte, así que el formulario hace dos cosas, y las
+dos están en tests: en cuanto la respuesta deja de ser «ningún día» aparece una caja con el **024**, el
+**112** y el Teléfono de la Esperanza; y **en ningún sitio se promete que alguien lee las respuestas en
+el momento**, porque no es verdad y prometerlo crearía un deber de vigilancia que este estudio no puede
+sostener. La hoja de información lo avisa **antes**, al describir los datos de salud. La dirección ve
+«PHQ-9 ítem 9 marcado» en el resumen del panelista —conviene que lo vea—, pero eso no es un sistema de
+alerta ni se ofrece como tal.
+
+**Los ítems no están tuteados** como el resto del formulario, a propósito: reescribir un ítem validado
+rompe la comparabilidad con los baremos publicados, que es la única razón para usar un instrumento
+validado. La pantalla lo explica en una línea para que no parezca un descuido.
+
+**Lo que se pierde con el cambio**: el PHQ-4 traía dos ítems de **ansiedad** (GAD-2) y el PHQ-9 no
+mide ansiedad. Si hiciera falta recuperarla, el acompañante libre y estándar es el **GAD-7**.
 
 **Al paciente NO se le reconoce autoría, y la hoja se lo dice.** Los textos ya están escritos y los
 firma quien responde de ellos; decir si se entienden es otra cosa. En su lugar se le ofrece lo que

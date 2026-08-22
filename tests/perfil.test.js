@@ -6,7 +6,8 @@ const PACIENTE_OK = {
   nacimiento: '1980-05-12', sexo: 'mujer', duracion_dolor: '1_5a', frecuencia_dolor: 'casi_diario', zonas: ['lumbar'],
   diagnosticos: ['inespecifico'],
   egdc_ahora: 5, egdc_peor: 8, egdc_medio: 5, egdc_dias: 20, egdc_diaria: 5, egdc_social: 6, egdc_trabajo: 4,
-  phq4_nervioso: 2, phq4_preocupacion: 1, phq4_interes: 0, phq4_animo: 0,
+  phq9_interes: 1, phq9_animo: 1, phq9_sueno: 2, phq9_energia: 2, phq9_apetito: 0,
+  phq9_fracaso: 0, phq9_concentracion: 1, phq9_lentitud: 0, phq9_muerte: 0,
   educacion_previa: 'nunca', ayuda_leer: 1, seguridad_formularios: 2, cuesta_entender: 2,
   consentimiento: true,
 }
@@ -71,7 +72,7 @@ describe('panel de paciente', () => {
     expect(validarPerfilPaciente({ ...PACIENTE_OK, egdc_social: '', identidad })).toMatch(/ocio, sociales y familiares/)
     expect(validarPerfilPaciente({ ...PACIENTE_OK, egdc_ahora: 11, identidad })).toMatch(/0 a 10/)
     expect(validarPerfilPaciente({ ...PACIENTE_OK, egdc_dias: 200, identidad })).toMatch(/0 a 180/)
-    expect(validarPerfilPaciente({ ...PACIENTE_OK, phq4_animo: '', identidad })).toMatch(/dos semanas/)
+    expect(validarPerfilPaciente({ ...PACIENTE_OK, phq9_lentitud: '', identidad })).toMatch(/nueve preguntas/)
     expect(validarPerfilPaciente({ ...PACIENTE_OK, educacion_previa: '', identidad })).toMatch(/cómo funciona el dolor/)
     expect(validarPerfilPaciente({ ...PACIENTE_OK, cuesta_entender: '', identidad })).toMatch(/información escrita/)
   })
@@ -91,7 +92,7 @@ describe('panel de paciente', () => {
   })
 
   it('un cero es una respuesta válida en toda escala que empiece en cero', () => {
-    const cero = { ...PACIENTE_OK, identidad, egdc_ahora: 0, egdc_diaria: 0, egdc_dias: 0, phq4_nervioso: 0 }
+    const cero = { ...PACIENTE_OK, identidad, egdc_ahora: 0, egdc_diaria: 0, egdc_dias: 0, phq9_sueno: 0 }
     expect(validarPerfilPaciente(cero)).toBe('')
   })
 

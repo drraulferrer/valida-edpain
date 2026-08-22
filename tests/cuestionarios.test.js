@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
-  egdc, phq4, hads, puntosDias, puntosDiscapacidad, resumenInstrumentos,
-  EGDC_ITEMS, PHQ4_ITEMS, HADS_ITEMS, HADS_DISPONIBLE,
+  egdc, phq9, gravedadPhq9, puntosDias, puntosDiscapacidad, resumenInstrumentos,
+  EGDC_ITEMS, PHQ9_ITEMS, PHQ9_ITEM_RIESGO, PHQ9_FUNCIONAL, AYUDA_RIESGO,
 } from '../src/lib/cuestionarios.js'
 
 // Un caso completo de EGDC: intensidad media 6 → 60/100; discapacidad media 5 → 50/100.
@@ -43,61 +43,68 @@ describe('EGDC · Escala de Gradación del Dolor Crónico', () => {
   })
 })
 
-describe('PHQ-4', () => {
-  const todo = (n) => Object.fromEntries(PHQ4_ITEMS.map(([k]) => [k, n]))
+describe('PHQ-9', () => {
+  const todo = (n) => Object.fromEntries(PHQ9_ITEMS.map(([k]) => [k, n]))
 
-  it('suma las dos subescalas y marca los cortes de 3', () => {
-    const r = phq4({ phq4_nervioso: 2, phq4_preocupacion: 2, phq4_interes: 1, phq4_animo: 0 })
-    expect(r.ansiedad).toBe(4)
-    expect(r.depresion).toBe(1)
-    expect(r.total).toBe(5)
-    expect(r.ansiedad_positiva).toBe(true)
-    expect(r.depresion_positiva).toBe(false)
+  it('son los nueve ítems del instrumento y el total va de 0 a 27', () => {
+    expect(PHQ9_ITEMS.length).toBe(9)
+    expect(phq9(todo(0)).total).toBe(0)
+    expect(phq9(todo(3)).total).toBe(27)
   })
 
-  it('gradúa el total de 0 a 12', () => {
-    expect(phq4(todo(0)).gravedad).toBe('ninguna')
-    expect(phq4(todo(1)).gravedad).toBe('leve')
-    expect(phq4(todo(2)).gravedad).toBe('moderada')
-    expect(phq4(todo(3)).gravedad).toBe('grave')
-    expect(phq4(todo(3)).total).toBe(12)
+  it('reparte las franjas de gravedad de Kroenke 2001', () => {
+    expect([0, 4, 5, 9, 10, 14, 15, 19, 20, 27].map(gravedadPhq9))
+      .toEqual(['mínima o ninguna', 'mínima o ninguna', 'leve', 'leve', 'moderada', 'moderada',
+                'moderadamente grave', 'moderadamente grave', 'grave', 'grave'])
+  })
+
+  it('el corte de decisión del cribado es 10, no la franja', () => {
+    const nueve = { ...todo(1), phq9_animo: 2 }        // 8 × 1 + 2 = 10
+    expect(phq9({ ...todo(1), phq9_animo: 1 }).total).toBe(9)
+    expect(phq9({ ...todo(1), phq9_animo: 1 }).positivo).toBe(false)
+    expect(phq9(nueve).total).toBe(10)
+    expect(phq9(nueve).positivo).toBe(true)
   })
 
   it('un cero es una respuesta, no un hueco', () => {
-    expect(phq4(todo(0)).completo).toBe(true)
-    expect(phq4({ ...todo(0), phq4_animo: '' }).completo).toBe(false)
-  })
-})
-
-describe('HADS', () => {
-  it('no se distribuye sin licencia: la puntuación está, los ítems no', () => {
-    expect(HADS_ITEMS.length).toBe(14)
-    expect(HADS_ITEMS.every((i) => i.texto === '')).toBe(true)
-    expect(HADS_DISPONIBLE).toBe(false)
+    expect(phq9(todo(0)).completo).toBe(true)
+    expect(phq9({ ...todo(0), phq9_lentitud: '' }).completo).toBe(false)
+    expect(phq9({}).total).toBeNull()
   })
 
-  it('cuando haya ítems, cada subescala va de 0 a 21 con los cortes 8 y 11', () => {
-    // Se le pasan unos ítems de prueba, que es justo lo que hará el día que haya licencia.
-    const items = Array.from({ length: 14 }, (_, i) => ({ clave: `h${i}`, dominio: i % 2 === 0 ? 'ansiedad' : 'depresion' }))
-    const resp = (a, d) => Object.fromEntries(items.map((it, i) => [it.clave, i % 2 === 0 ? a : d]))
-    expect(hads(resp(3, 3), items)).toMatchObject({ ansiedad: 21, depresion: 21, categoria_ansiedad: 'caso probable' })
-    expect(hads(resp(1, 0), items)).toMatchObject({ ansiedad: 7, categoria_ansiedad: 'normal', categoria_depresion: 'normal' })
-    // Ocho puntos de ansiedad (2+1+1+1+1+1+1) caen en la franja dudosa.
-    const dudoso = Object.fromEntries(items.map((it, i) => [it.clave, i === 0 ? 2 : i % 2 === 0 ? 1 : 0]))
-    expect(hads(dudoso, items)).toMatchObject({ ansiedad: 8, categoria_ansiedad: 'dudoso' })
-    expect(hads({}, items).completo).toBe(false)
+  it('el ítem 9 se señala aparte, y ya con el cuestionario a medias', () => {
+    // Es lo que dispara los recursos de ayuda en pantalla: no puede esperar a que termine.
+    expect(phq9({ [PHQ9_ITEM_RIESGO]: 1 }).completo).toBe(false)
+    expect(phq9({ [PHQ9_ITEM_RIESGO]: 1 }).riesgo).toBe(true)
+    expect(phq9({ ...todo(0) }).riesgo).toBe(false)
+    expect(phq9({ ...todo(0), [PHQ9_ITEM_RIESGO]: 3 }).riesgo).toBe(true)
+    // Y marcar el ítem 9 no basta para dar positivo el cribado: son cosas distintas.
+    expect(phq9({ ...todo(0), [PHQ9_ITEM_RIESGO]: 3 }).positivo).toBe(false)
   })
 
-  it('sin ítems no aporta nada al resumen', () => {
-    expect(resumenInstrumentos(DOLOR)).not.toMatch(/HADS/)
+  it('el ítem funcional acompaña pero no suma al total', () => {
+    expect(phq9({ ...todo(1), [PHQ9_FUNCIONAL]: 3 }).total).toBe(9)
+    expect(phq9({ ...todo(1), [PHQ9_FUNCIONAL]: 3 }).funcional).toBe(3)
+  })
+
+  it('los recursos de ayuda incluyen los teléfonos atendidos y dicen que aquí no lee nadie', () => {
+    expect(AYUDA_RIESGO.recursos.map(([n]) => n)).toContain('024')
+    expect(AYUDA_RIESGO.recursos.map(([n]) => n)).toContain('112')
+    expect(AYUDA_RIESGO.aviso).toMatch(/nadie lee tus respuestas en el momento/)
   })
 })
 
 describe('resumen para la dirección', () => {
   it('une en una línea lo que esté contestado', () => {
-    const linea = resumenInstrumentos({ ...DOLOR, phq4_nervioso: 3, phq4_preocupacion: 3, phq4_interes: 0, phq4_animo: 0 })
+    const conAnimo = Object.fromEntries(PHQ9_ITEMS.map(([k]) => [k, 2]))
+    const linea = resumenInstrumentos({ ...DOLOR, ...conAnimo })
     expect(linea).toMatch(/EGDC Grado III \(intensidad 60\/100, discapacidad 50\/100\)/)
-    expect(linea).toMatch(/PHQ-4 6\/12 · ansiedad 6\/6 \(\+\) · depresión 0\/6/)
+    expect(linea).toMatch(/PHQ-9 18\/27 · depresión moderadamente grave \(\+\)/)
+  })
+
+  it('el ítem 9 marcado se le enseña a la dirección, aunque el resto esté a medias', () => {
+    expect(resumenInstrumentos({ ...DOLOR, [PHQ9_ITEM_RIESGO]: 2 })).toMatch(/ítem 9 marcado/)
+    expect(resumenInstrumentos({ ...DOLOR })).not.toMatch(/ítem 9/)
   })
 
   it('un perfil vacío no dice nada', () => {

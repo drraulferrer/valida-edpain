@@ -4,7 +4,8 @@ import { ir } from '../App.jsx'
 import HojaInformacion from '../componentes/HojaInformacion.jsx'
 import {
   AMBITOS, AUTOEXPERTISE, CHEW, DIAGNOSTICOS, DISCIPLINAS, DOLOR_PROPIO, DURACION_DOLOR, EDAD_MAXIMA, EDAD_MINIMA,
-  EDUCACION_DOLOR, EGDC_DISCAPACIDAD, EGDC_INTENSIDAD, PHQ4_ENUNCIADO, PHQ4_ITEMS, PHQ4_OPCIONES, SEXO, edadDe,
+  EDUCACION_DOLOR, EGDC_DISCAPACIDAD, EGDC_INTENSIDAD, PHQ9_ENUNCIADO, PHQ9_ITEMS, PHQ9_OPCIONES,
+  PHQ9_ITEM_RIESGO, PHQ9_FUNCIONAL, PHQ9_FUNCIONAL_TEXTO, PHQ9_FUNCIONAL_OPCIONES, AYUDA_RIESGO, SEXO, edadDe,
   EDUCACION_PREVIA, ENTORNOS, ESTUDIOS, EXPLICACION_RECIBIDA, FRECUENCIA_DOLOR, IDENTIDAD_VACIA,
   LECTURA_PROPIA, PERFIL_EXPERTO_VACIO, PERFIL_PACIENTE_VACIO, PUBLICACIONES, PUBLICACIONES_EDU, SEGUIMIENTO,
   SITUACION, TITULACIONES, TRATAMIENTOS, ZONAS_DOLOR,
@@ -434,13 +435,31 @@ export function FormularioPaciente({ inicial = {}, estudio, onEnviar, enviando, 
       <div className="tarjeta">
         <h3>Cómo te has sentido</h3>
         <p className="silencio">
-          <Marcado texto={PHQ4_ENUNCIADO} /> Son cuatro preguntas de cribado: <b>no son un diagnóstico</b> y nadie te va a
-          llamar por ellas. Sirven para describir al grupo, porque el ánimo y la preocupación cambian cómo se lee un texto.
+          <Marcado texto={PHQ9_ENUNCIADO} /> Son las nueve preguntas del PHQ-9, un cuestionario de cribado: <b>no son un
+          diagnóstico</b> y nadie te va a llamar por ellas. Sirven para describir al grupo, porque el ánimo cambia cómo se lee
+          un texto. Están tal cual se publicaron, en un castellano algo más formal que el resto: cambiarles las palabras
+          estropearía la comparación con otros estudios.
         </p>
-        {PHQ4_ITEMS.map(([clave, pregunta]) => (
-          <Elegir key={clave} id={`phq4-${clave}`} etiqueta={pregunta} valor={f[clave]}
-            onCambio={(v) => cambiar(clave, v === '' ? '' : Number(v))} opciones={PHQ4_OPCIONES} />
+        {PHQ9_ITEMS.map(([clave, pregunta]) => (
+          <Elegir key={clave} id={`phq9-${clave}`} etiqueta={pregunta} valor={f[clave]}
+            onCambio={(v) => cambiar(clave, v === '' ? '' : Number(v))} opciones={PHQ9_OPCIONES} />
         ))}
+        {/* El ítem 9 pregunta por ideas de muerte: en cuanto deja de ser «ningún día» hay que
+            enseñar dónde pedir ayuda, y decir que aquí no hay nadie leyendo en el momento. */}
+        {Number(f[PHQ9_ITEM_RIESGO]) > 0 && (
+          <div className="plazo-caja peligro" role="status">
+            <p style={{ margin: 0 }}><b>{AYUDA_RIESGO.titulo}</b></p>
+            <p className="silencio" style={{ margin: '0.35rem 0' }}>{AYUDA_RIESGO.aviso}</p>
+            <ul style={{ margin: '0.35rem 0' }}>
+              {AYUDA_RIESGO.recursos.map(([numero, que]) => (
+                <li key={numero}><b><a href={`tel:${numero.replace(/\s/g, '')}`}>{numero}</a></b> · {que}</li>
+              ))}
+            </ul>
+            <p className="silencio" style={{ margin: 0 }}>{AYUDA_RIESGO.cierre}</p>
+          </div>
+        )}
+        <Elegir id="phq9-funcional" etiqueta={PHQ9_FUNCIONAL_TEXTO} opcional valor={f[PHQ9_FUNCIONAL]}
+          onCambio={(v) => cambiar(PHQ9_FUNCIONAL, v === '' ? '' : Number(v))} opciones={PHQ9_FUNCIONAL_OPCIONES} />
       </div>
 
       <div className="tarjeta">

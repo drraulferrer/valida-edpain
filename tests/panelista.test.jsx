@@ -193,9 +193,12 @@ function rellenarPerfilPaciente({ duracion = '1_5a' } = {}) {
     fireEvent.click(within(screen.getByRole('radiogroup', { name: rotulo })).getByRole('radio', { name: String(n) }))
   }
   fireEvent.change(screen.getByLabelText(/cuántos días te impidió el dolor/), { target: { value: '20' } })
-  // PHQ-4: las cuatro de ánimo y preocupación.
-  for (const [rotulo, v] of [[/nervios de punta/, '2'], [/parar de preocuparte/, '1'],
-                             [/Poco interés o alegría/, '0'], [/ánimo bajo/, '0']]) {
+  // PHQ-9: las nueve del cribado de ánimo, tal como están publicadas.
+  for (const [rotulo, v] of [[/Poco interés o placer/, '1'], [/desanimado/, '1'],
+                             [/dificultad para dormirse/, '2'], [/cansado\/a o con poca energía/, '2'],
+                             [/poco apetito/, '0'], [/mal con usted mismo/, '0'],
+                             [/dificultad para concentrarse/, '1'], [/tan despacio/, '0'],
+                             [/estaría mejor muerto/, '0']]) {
     fireEvent.change(screen.getByLabelText(rotulo), { target: { value: v } })
   }
   fireEvent.change(screen.getByLabelText('¿Alguna vez un profesional te ha explicado cómo funciona el dolor?'), { target: { value: 'nunca' } })
@@ -365,13 +368,29 @@ describe('convocatoria de pacientes (#/participar/paciente)', () => {
     expect(d.diagnosticos).toEqual(['fibromialgia'])
     expect([d.egdc_ahora, d.egdc_peor, d.egdc_medio]).toEqual([5, 8, 5])
     expect([d.egdc_diaria, d.egdc_social, d.egdc_trabajo, Number(d.egdc_dias)]).toEqual([5, 6, 4, 20])
-    expect([d.phq4_nervioso, d.phq4_preocupacion, d.phq4_interes, d.phq4_animo]).toEqual([2, 1, 0, 0])
+    expect([d.phq9_interes, d.phq9_animo, d.phq9_sueno, d.phq9_energia]).toEqual([1, 1, 2, 2])
+    expect([d.phq9_apetito, d.phq9_fracaso, d.phq9_concentracion, d.phq9_lentitud, d.phq9_muerte]).toEqual([0, 0, 1, 0, 0])
     expect(d.nacimiento).toBe('1980-05-12')
     expect(d.educacion_previa).toBe('nunca')
     expect([d.ayuda_leer, d.seguridad_formularios, d.cuesta_entender]).toEqual([1, 2, 2])
     // La identidad va aparte: no viaja con el perfil.
     expect(d.identidad).toBeUndefined()
     expect(demo._estado.identidades.some((i) => i.codigo === 'PAC-02')).toBe(true)
+  })
+
+  it('marcar el ítem 9 del PHQ-9 enseña dónde pedir ayuda, sin prometer que alguien lee', async () => {
+    window.location.hash = '#/participar/paciente'
+    render(<App />)
+    await screen.findByLabelText('Correo de contacto')
+    // Antes de tocar nada no hay ningún aviso: aparecer sin motivo sería alarmar por alarmar.
+    expect(screen.queryByText(/Línea de Atención a la Conducta Suicida/)).toBeNull()
+    fireEvent.change(screen.getByLabelText(/estaría mejor muerto/), { target: { value: '1' } })
+    expect(await screen.findByText(/Línea de Atención a la Conducta Suicida/)).toBeTruthy()
+    expect(screen.getByText(/nadie lee tus respuestas en el momento/)).toBeTruthy()
+    expect(screen.getByRole('link', { name: '024' })).toBeTruthy()
+    // Y volver a «ningún día» lo retira.
+    fireEvent.change(screen.getByLabelText(/estaría mejor muerto/), { target: { value: '0' } })
+    expect(screen.queryByText(/Línea de Atención a la Conducta Suicida/)).toBeNull()
   })
 
   it('menos de tres meses de dolor no es dolor crónico y no entra', async () => {
