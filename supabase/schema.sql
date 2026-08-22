@@ -1355,6 +1355,16 @@ begin
         'exhaustividad', cb.exhaustividad, 'falta', cb.falta, 'sobra', cb.sobra)), '[]')
       from valida.cobertura cb join valida.panelistas p on p.id = cb.panelista_id where p.estudio_id = e.id),
     'propuestas_estado', (select coalesce(jsonb_agg(to_jsonb(pe)), '[]') from valida.propuestas_estado pe),
+    -- Estado del respaldo. El respaldo lo hace un script en el Mac de la dirección, así que la
+    -- base no puede lanzarlo; lo que sí puede es saber si toca. `pipeline/respaldo.py` deja un
+    -- evento `respaldo` al terminar, y aquí se compara con el último cierre de ronda: si hay un
+    -- cierre posterior al último respaldo, hay respuestas sin copia y el panel lo avisa.
+    'respaldo', jsonb_build_object(
+      'ultimo', (select jsonb_build_object('en', ev.en, 'detalle', ev.detalle)
+                   from valida.eventos ev where ev.tipo = 'respaldo' order by ev.id desc limit 1),
+      'pendiente_desde', (select min(ev.en) from valida.eventos ev
+                           where ev.tipo in ('ronda_nueva', 'estudio_cerrado')
+                             and ev.id > coalesce((select max(id) from valida.eventos where tipo = 'respaldo'), 0))),
     'rondas', (select coalesce(jsonb_agg(jsonb_build_object('ronda', r.ronda, 'abre_en', r.abre_en, 'cierra_en', r.cierra_en, 'notas', r.notas) order by r.ronda), '[]')
       from valida.rondas r where r.estudio_id = e.id),
     'plazos', (select coalesce(jsonb_agg(jsonb_build_object('panelista', p.codigo, 'ronda', pl.ronda,

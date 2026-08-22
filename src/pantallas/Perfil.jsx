@@ -93,7 +93,11 @@ export function FormularioExperto({ inicial, disciplinaInicial, aniosInicial, do
   }
 
   return (
-    <form onSubmit={enviar}>
+    <form onSubmit={enviar} noValidate>
+      {/* `noValidate`: la validación la llevan `validarPerfil*`, que dicen QUÉ falta y en qué
+          orden, arriba y con un solo estilo. Dejar además la del navegador significaba que un
+          `required` vacío abortaba el envío en silencio —sin nuestro mensaje— y con el globo
+          nativo pegado a un campo que puede estar fuera de la pantalla. */}
       {error && <p className="error" role="alert">{error}</p>}
 
       <div className="tarjeta">
@@ -361,7 +365,11 @@ export function FormularioPaciente({ inicial = {}, estudio, onEnviar, enviando, 
   const volver = () => { setError(''); setPaso(1); arriba() }
 
   return (
-    <form onSubmit={enviar}>
+    <form onSubmit={enviar} noValidate>
+      {/* `noValidate`: la validación la llevan `validarPerfil*`, que dicen QUÉ falta y en qué
+          orden, arriba y con un solo estilo. Dejar además la del navegador significaba que un
+          `required` vacío abortaba el envío en silencio —sin nuestro mensaje— y con el globo
+          nativo pegado a un campo que puede estar fuera de la pantalla. */}
       <div className="pasos-perfil">
         <p className="etiqueta acento" style={{ margin: 0 }}>Paso {paso} de 2</p>
         <p className="silencio" style={{ margin: '0.2rem 0 0' }}>
