@@ -1,0 +1,118 @@
+# ARRANQUE DE SESIÓN — valida.edpain.com
+
+> Léelo entero antes de tocar nada. Última actualización: **22-ago-2026** (sesión de construcción).
+
+## 1 · Qué es
+
+Plataforma del **estudio de validez de contenido** del corpus Educación en Dolor. La evaluación
+metodológica y la spec completa están en `~/specs/valida-edpain.md` (§0 tiene el veredicto en una
+página y §3.8 las decisiones que siguen abiertas). El corpus vive en `~/educacion-en-dolor/`; esta
+plataforma es una **proyección** suya más un almacén de respuestas del panel.
+
+Tres estratos, analizados por separado: `aleatorio` (10 % por dominio con suelo 8, por números
+aleatorios permanentes), `controversia` (todos los `controversia: true`) y `cribado` (≥ 2 señales
+automáticas: G11 + A6 + `certeza: muy_baja`). Hoy: **274 + 70 + 40 = 373 conceptos** en plataforma
+(corpus al 80 %, commit `0746d88`). Al 100 % serán ~460, y **la muestra crece sin re-sortear**.
+
+## 2 · Decisiones cerradas
+
+- **Instrumento**: 4 dimensiones en Likert 1-4 sin punto medio —relevancia · claridad ·
+  representatividad · comprensibilidad— definidas en `valida.dimensiones` (datos, no código).
+  Representatividad absorbe corrección + evidencia del instrumento antiguo. Comprensibilidad la
+  decide el panel de paciente; la del experto es aproximación.
+- **Exhaustividad** se pregunta por módulo (`valida.cobertura`), no por concepto.
+- **Métrica de decisión**: I-CVI (Lynn; 1,00 con n ≤ 5, 0,78 con n ≥ 6) + kappa*. **Comparabilidad**:
+  V de Aiken con IC 95 % ≥ 0,70 (como `consenso_metricas.py` y Di-Bonaventura 2026). Las dos en
+  `src/lib/metricas.js`; cuando discrepan, se informa la discrepancia.
+- **Acceso por clave**, sin Supabase Auth ni correo. Códigos, no nombres. La clave se guarda hasheada.
+- **Base de datos**: el proyecto Supabase ya existente «Delphi Educación en Dolor»
+  (`mmwytewpfnckymjxldye`, org `drraulferrer`, eu-west-2), esquema nuevo `valida`. Su tabla antigua
+  `public.respuestas_consenso` (buzón de `consenso.py`) sigue ahí, intacta.
+- **Hosting**: GitHub Pages (repo público `drraulferrer/valida-edpain`, rama `gh-pages`) con
+  `valida.edpain.com`; DNS en **Cloudflare** (los NS de edpain.com están ahí; Hostinger es solo el
+  registrador). Vercel queda como opción: tu cuenta está logueada en Chrome pero la app de GitHub de
+  Vercel solo ve `el-gremio`; ampliar ese permiso es un OAuth que tienes que hacer tú.
+- **Semilla** del estudio: `edpain-validez-2026` (en `valida.estudios`). No se cambia.
+
+## 3 · Claves (ninguna está en el repositorio)
+
+| Qué | Dónde |
+|---|---|
+| Clave de la **dirección editorial** (código `DIR-00`) | Llavero de macOS: `security find-generic-password -s valida-edpain-direccion -w` |
+| Clave del **panelista de prueba** `PRU-01` (experto, D01+D02, capacidad 40) | Llavero: `security find-generic-password -s valida-edpain-prueba -w` |
+| Clave anon de Supabase (pública por diseño) | `.env` (gitignored) → `VITE_SUPABASE_ANON_KEY`; también `supabase projects api-keys --project-ref mmwytewpfnckymjxldye` |
+| SQL contra la base | `supabase db query --linked --project-ref mmwytewpfnckymjxldye "select …"` (o `-f fichero.sql`) |
+
+Si una clave de panelista se pierde: panel de dirección → Panelistas → «Nueva clave» (la anterior deja
+de valer). La clave de dirección se regenera con SQL: `update valida.panelistas set clave_hash =
+valida.hash_clave('<nueva>') where codigo = 'DIR-00'` y se guarda en el Llavero.
+
+## 4 · Comandos
+
+```bash
+npm run dev:demo                         # interfaz con backend en memoria (claves demo en la pantalla de entrada)
+npm run dev                              # contra Supabase real
+npm test · npm run verify                # tests · tests + build + secretos
+python3 pipeline/importar.py --simular   # qué haría la importación (≈ 30 s: carga y valida el corpus entero)
+python3 pipeline/importar.py             # importa/reimporta (idempotente, nunca borra)
+python3 pipeline/exportar.py --csv       # baja todo a panel/respuestas/ (fuera de Git)
+supabase db query -f supabase/schema.sql --linked --project-ref mmwytewpfnckymjxldye   # reaplicar esquema (idempotente)
+npm run deploy                           # publica en GitHub Pages (exige árbol limpio y verify en verde)
+```
+
+## 5 · Flujo del estudio (lo que decides tú, y en qué orden)
+
+1. **Calibración**: elegir 2 conceptos de práctica y su «modelo» → `valida_dir_calibracion` (todavía
+   sin pantalla; se hace con un RPC o SQL). Sin ellos, el wizard salta la práctica.
+2. **Alta del panel**: Dirección → Panelistas → Alta (código, perfil, disciplina, dominios,
+   capacidad). Guarda la clave que devuelve: no se vuelve a ver.
+3. **Asignar**: Dirección → Cobertura → «Asignar expertos» (k = 7, máx. 3 generalistas por concepto) y
+   «Asignar pacientes» (k = 3). Es idempotente: rellena solo lo que falta. Repetir tras cada alta.
+4. **Ronda 1** abierta: los panelistas entran con su clave. El panel de dirección muestra progreso,
+   tiempos, cobertura y consenso en vivo.
+5. **Cerrar ronda**: exportar (`pipeline/exportar.py`), revisar Consenso, reescribir lo «revisar» con
+   las propuestas, abrir ronda 2 solo con esos conceptos (Dirección → Consenso → Segunda ronda).
+6. **Cerrar el estudio** (Dirección → Estudio). Exportar de nuevo.
+
+**Antes de abrir el panel real**: retirar al panelista de prueba y sus datos —
+
+```sql
+delete from valida.cobertura    where panelista_id = (select id from valida.panelistas where codigo = 'PRU-01');
+delete from valida.valoraciones where panelista_id = (select id from valida.panelistas where codigo = 'PRU-01');
+delete from valida.asignaciones where panelista_id = (select id from valida.panelistas where codigo = 'PRU-01');
+update valida.panelistas set activo = false where codigo = 'PRU-01';
+```
+
+(Es el único borrado previsto, y es de datos de prueba. Las funciones de la plataforma no borran.)
+
+## 6 · Gotchas encontrados construyéndolo (22-ago)
+
+- **`supabase db query --linked --project-ref …` falla a la primera** con «Failed to create login role:
+  connection timeout» y funciona al reintentar un par de veces. No es que la base esté caída
+  (Auth y PostgREST responden): es el mecanismo de «login role» del CLI.
+- **pgcrypto vive en el esquema `extensions`**: con `search_path = valida, public` hay que escribir
+  `extensions.digest(...)` y `extensions.gen_random_bytes(...)`.
+- **plpgsql y parámetros homónimos**: un parámetro `concepto_id` hace ambiguo `on conflict
+  (panelista_id, concepto_id, ronda)`. Solución: `#variable_conflict use_column` en esa función y
+  referencias cualificadas (`funcion.parametro`) en el resto.
+- **pg_safeupdate está activo para los roles de la API** incluso dentro de SECURITY DEFINER: `delete
+  from tabla_temporal` sin WHERE falla. Crear/destruir la temporal en cada llamada.
+- **La cuenta de Supabase de Chrome no es la del CLI**: en «Chrome portatil» la sesión es la org
+  `doctorraulferrer` (Free, 0 proyectos); los proyectos Delphi y el-gremio están en la org
+  `drraulferrer`, a la que llega el CLI. Para ver Delphi en el navegador, cambiar de cuenta.
+- **El número de `controversia: true` es 70, no 120**: contar con `grep` sobre todo el repo incluye
+  las copias de `propuestas/`. Contar solo `conceptos/`.
+- El corpus tarda ~26 s en cargar y validar (`kb.cargar_todo`); `importar.py` lo paga cada vez.
+
+## 7 · Estado al cierre de la sesión y pendientes
+
+Ver §8 (se rellena al final de cada sesión).
+
+## 8 · Dónde lo dejamos
+
+### Sesión 1 (22-ago-2026) · construcción
+
+- Hecho: spec + evaluación metodológica; esquema SQL aplicado y probado de extremo a extremo con
+  datos reales; 373 conceptos importados; app del panelista (wizard experto y paciente) con tests;
+  panel de dirección; pipeline importar/exportar; scripts de verificación y despliegue.
+- Pendiente: ver el final de este fichero, que se actualiza al cerrar la sesión.
