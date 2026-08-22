@@ -131,3 +131,13 @@ describe('aCsv', () => {
     expect(csv.endsWith(',')).toBe(true)
   })
 })
+
+describe('asignaciones por panelista', () => {
+  it('la pestaña Panelistas enseña qué conceptos tiene asignados cada evaluador', async () => {
+    render(<Direccion ruta={{ partes: ['direccion', 'panelistas'], ruta: '/direccion/panelistas' }} />)
+    const boton = await screen.findByRole('button', { name: 'Conceptos de PAN-02' }, { timeout: 4000 })
+    fireEvent.click(boton)
+    expect(await screen.findByText('La sensibilización central amplifica la respuesta a estímulos normales')).toBeTruthy()
+    expect(screen.getAllByText(/hecha/).length).toBeGreaterThan(0)
+  })
+})

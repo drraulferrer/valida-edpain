@@ -251,6 +251,7 @@ export function crearDemo() {
           jueces: asignaciones.filter((a) => a.concepto_id === c.id && a.ronda === ronda_actual && panelistas.find((p) => p.id === a.panelista_id)?.perfil === 'experto').length,
           pacientes: asignaciones.filter((a) => a.concepto_id === c.id && a.ronda === ronda_actual && panelistas.find((p) => p.id === a.panelista_id)?.perfil === 'paciente').length })),
         valoraciones: valoraciones.map((v) => ({ ...v, panelista: codigoDe(v.panelista_id), perfil: panelistas.find((p) => p.id === v.panelista_id)?.perfil, panelista_id: undefined })),
+        asignaciones: asignaciones.map((a) => ({ panelista: codigoDe(a.panelista_id), concepto_id: a.concepto_id, ronda: a.ronda, orden: a.orden, estado: a.estado })),
         cobertura: cobertura.map((x) => ({ ...x, panelista: codigoDe(x.panelista_id), panelista_id: undefined })),
         propuestas_estado,
         eventos_recientes: eventos.slice(-200).reverse(),

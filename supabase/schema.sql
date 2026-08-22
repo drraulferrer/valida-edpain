@@ -886,6 +886,9 @@ begin
         'actualizada_en', v.actualizada_en
       ) order by v.concepto_id, v.ronda, p.codigo), '[]')
       from valida.valoraciones v join valida.panelistas p on p.id = v.panelista_id where p.estudio_id = e.id),
+    'asignaciones', (select coalesce(jsonb_agg(jsonb_build_object('panelista', p.codigo, 'concepto_id', a.concepto_id,
+        'ronda', a.ronda, 'orden', a.orden, 'estado', a.estado) order by p.codigo, a.ronda, a.orden), '[]')
+      from valida.asignaciones a join valida.panelistas p on p.id = a.panelista_id where p.estudio_id = e.id),
     'cobertura', (select coalesce(jsonb_agg(jsonb_build_object('panelista', p.codigo, 'modulo', cb.modulo, 'ronda', cb.ronda,
         'exhaustividad', cb.exhaustividad, 'falta', cb.falta, 'sobra', cb.sobra)), '[]')
       from valida.cobertura cb join valida.panelistas p on p.id = cb.panelista_id where p.estudio_id = e.id),

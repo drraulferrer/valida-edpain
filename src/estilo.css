@@ -311,3 +311,14 @@ table.tabla tr.clic:hover td { background: var(--papel-2); }
 table.tabla tr.fila-detalle td { background: var(--papel-2); }
 .sub-metrica { font-size: 0.72rem; color: var(--tinta-3); margin-top: 0.15rem; white-space: nowrap; }
 .filtros .relleno { flex: 1; }
+
+/* --- dirección: detalle de asignaciones por panelista --- */
+table.tabla tr.fila-detalle > td { background: var(--papel-2); padding: 0.9rem 1rem 1.1rem; }
+.asignadas-mod { margin: 0.6rem 0 0; }
+.asignadas-mod h4 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--tinta-3); margin: 0.6rem 0 0.3rem; }
+.asignadas-mod ol { list-style: none; margin: 0; padding: 0; }
+.asignadas-mod li { display: flex; gap: 0.6rem; align-items: baseline; padding: 0.25rem 0; border-top: 1px solid var(--linea); font-size: 0.9rem; }
+.asignadas-mod li .orden { font-family: var(--mono); font-size: 0.75rem; color: var(--tinta-3); width: 2rem; flex: none; text-align: right; }
+.asignadas-mod li .id { font-family: var(--mono); font-size: 0.75rem; color: var(--tinta-3); flex: none; }
+.asignadas-mod li .t { flex: 1; font-family: var(--serif); }
+.asignadas-mod li .punt { font-family: var(--mono); font-size: 0.78rem; color: var(--tinta-2); flex: none; }

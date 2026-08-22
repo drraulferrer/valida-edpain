@@ -162,6 +162,10 @@ update valida.panelistas set activo = false where codigo = 'PRU-01';
   CNAME lleva horas resolviendo; se re-fijó el dominio por la API y queda un vigilante en la sesión que
   activa `https_enforced` en cuanto el certificado aparezca. Si al retomar sigue sin HTTPS: en GitHub →
   Settings → Pages, quitar y volver a poner `valida.edpain.com` fuerza la emisión.
+- **Panel de dirección → Panelistas**: botón «Conceptos» por evaluador que despliega su bloque (por
+  módulo, en su orden, con estado y puntuaciones). `valida_dir_datos` devuelve ahora también
+  `asignaciones`. Acceso: `http://valida.edpain.com/#/direccion` con la clave del Llavero
+  `valida-edpain-direccion` (código DIR-00).
 
 ### Sesión 1 (22-ago-2026) · construcción y despliegue
 
