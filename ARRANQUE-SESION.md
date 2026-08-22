@@ -151,6 +151,18 @@ update valida.panelistas set activo = false where codigo = 'PRU-01';
   correo». Para tenerlo del todo automático hace falta una cuenta en Resend (u otro proveedor), verificar
   edpain.com y guardar la API key; Cloudflare Email Routing solo recibe.
 
+## 5e · Control de reintentos en la convocatoria (22-ago, noche)
+
+Quien no alcanza el criterio de Fehring y **vuelve a enviar la solicitud con los datos retocados**
+hasta que le sale, no se da de alta: `valida_solicitar` compara el **hash del correo** con los
+intentos anteriores y, si ya hubo un rechazo, registra el reenvío como `bloqueada` y devuelve
+`{aceptado: false, bloqueado: true}`. La web dice solo «No es posible tramitar esta solicitud» y
+remite al correo del estudio; **no se explica en ningún sitio que exista este control**, ni antes ni
+después. Por eso la pantalla de rechazo ya no ofrece «Corregir mis datos»: invitaba justo a eso.
+El mismo mecanismo evita duplicados: si el correo ya está dado de alta, responde `ya_registrado`.
+La dirección lo ve en Estudio → «reenvíos no tramitados», con nombre y correo para poder responder.
+El código de pruebas queda exento (si no, no se podría ensayar el circuito).
+
 ## 6 · Gotchas encontrados construyéndolo (22-ago)
 
 - **`supabase db query --linked --project-ref …` falla a la primera** con «Failed to create login role:

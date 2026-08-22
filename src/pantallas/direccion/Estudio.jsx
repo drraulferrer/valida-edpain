@@ -128,7 +128,13 @@ export default function Estudio({ datos, clave, recargar }) {
           <Campo id="comite_etica" etiqueta="Comité de ética / dictamen" f={f} cambiar={cambiar} ayuda="Cuando lo haya. Vacío = no se muestra." />
         </div>
         {datos.solicitudes && (
-          <p className="silencio">Solicitudes recibidas: <b>{datos.solicitudes.total}</b> · aceptadas {datos.solicitudes.aceptadas} · rechazadas {datos.solicitudes.rechazadas} · en las últimas 24 h: {datos.solicitudes.hoy}.</p>
+          <p className="silencio">
+            Solicitudes recibidas: <b>{datos.solicitudes.total}</b> · aceptadas {datos.solicitudes.aceptadas} ·
+            no alcanzaron el criterio {datos.solicitudes.rechazadas}
+            {datos.solicitudes.bloqueadas > 0 && <> · <b>reenvíos no tramitados {datos.solicitudes.bloqueadas}</b></>} ·
+            en las últimas 24 h: {datos.solicitudes.hoy}.
+            {datos.solicitudes.bloqueadas > 0 && ' Un reenvío no tramitado es alguien que, tras no alcanzar el criterio, volvió a enviarlo con los datos cambiados: no se le dio de alta y queda registrado con su correo por si hay que responderle.'}
+          </p>
         )}
         <div className="acciones">
           <button type="submit" className="boton" disabled={!!ocupado}>{ocupado === 'guardar' ? 'Guardando…' : 'Guardar configuración'}</button>

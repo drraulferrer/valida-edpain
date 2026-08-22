@@ -27,7 +27,7 @@ export default function Participar({ onEntrar }) {
   }
 
   if (resultado?.aceptado) return <Aceptado r={resultado} onEntrar={onEntrar} estudio={publico} />
-  if (resultado) return <NoAceptado r={resultado} onReintentar={() => setResultado(null)} estudio={publico} />
+  if (resultado) return <NoAceptado r={resultado} estudio={publico} />
 
   const nombresDominios = Object.fromEntries((publico?.dominios || []).map((d) => [d.id, d.nombre]))
   const abierta = !!publico?.inscripcion_abierta
@@ -157,7 +157,31 @@ function Aceptado({ r, onEntrar, estudio }) {
   )
 }
 
-function NoAceptado({ r, onReintentar, estudio }) {
+function NoAceptado({ r, estudio }) {
+  const contacto = estudio?.contacto_email || 'estudio@edpain.com'
+  if (r.bloqueado || r.ya_registrado) {
+    return (
+      <div className="app">
+        <main className="pantalla centrada">
+          <div className="tarjeta blanca" style={{ padding: '2rem 1.5rem' }}>
+            <p className="etiqueta aviso">Solicitud no tramitada</p>
+            <h1 style={{ marginTop: '0.75rem' }}>
+              {r.ya_registrado ? 'Este correo ya está en el panel.' : 'No es posible tramitar esta solicitud.'}
+            </h1>
+            <p>
+              {r.ya_registrado
+                ? 'Ya hay una alta con este correo. Entra con la clave que recibiste; si la has perdido, escríbenos y te generamos otra.'
+                : 'No podemos darte de alta en el panel con esta solicitud.'}
+            </p>
+            <p className="silencio">
+              Si crees que es un error, escribe a <a href={`mailto:${contacto}`}>{contacto}</a> y lo revisamos contigo.
+            </p>
+            <div className="acciones"><a className="boton" href="#/">Ir a la entrada</a></div>
+          </div>
+        </main>
+      </div>
+    )
+  }
   return (
     <div className="app">
       <main className="pantalla centrada">
@@ -171,13 +195,10 @@ function NoAceptado({ r, onReintentar, estudio }) {
             fijado antes de abrir la convocatoria.
           </p>
           <p className="silencio">
-            Si crees que ha habido un error en algún dato, corrígelo y vuelve a enviarlo. Si tienes dolor persistente y quieres
-            participar en el panel de personas con dolor, escribe a <a href={`mailto:${estudio?.contacto_email || 'estudio@edpain.com'}`}>{estudio?.contacto_email || 'estudio@edpain.com'}</a>.
+            Si crees que hay un error, escribe a <a href={`mailto:${contacto}`}>{contacto}</a>. Si tienes dolor persistente y quieres
+            participar en el panel de personas con dolor, cuéntanoslo en ese mismo correo.
           </p>
-          <div className="acciones">
-            <button type="button" className="boton" onClick={onReintentar}>Corregir mis datos</button>
-            <a className="boton secundario" href="#/">Volver</a>
-          </div>
+          <div className="acciones"><a className="boton secundario" href="#/">Volver</a></div>
         </div>
       </main>
     </div>

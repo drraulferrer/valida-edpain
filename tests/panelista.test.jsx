@@ -224,6 +224,29 @@ describe('convocatoria pública (#/participar)', () => {
     await rellenar({ titulacion: 'grado', anios: 0 })
     expect(await screen.findByText(/no alcanza el mínimo \(0 de 5 puntos\)/)).toBeTruthy()
     expect(demo._estado.panelistas.length).toBe(antes)
+    expect(screen.queryByRole('button', { name: /Corregir/ })).toBeNull()   // no se le invita a reintentar
+  })
+
+  it('quien no alcanzó el criterio y lo reenvía con los datos cambiados no se da de alta', async () => {
+    await rellenar({ titulacion: 'grado', anios: 0 })
+    await screen.findByText(/no alcanza el mínimo/)
+    const antes = demo._estado.panelistas.length
+    cleanup()
+    await rellenar({ titulacion: 'doctorado', anios: 12, formacion: true })   // mismo correo, perfil «mejorado»
+    expect(await screen.findByText(/No es posible tramitar esta solicitud/)).toBeTruthy()
+    expect(screen.getByText(/escribe a/)).toBeTruthy()
+    expect(demo._estado.panelistas.length).toBe(antes)
+    expect(demo._estado.solicitudes.filter((x) => x.bloqueada).length).toBe(1)
+  })
+
+  it('quien ya está dentro no se duplica', async () => {
+    await rellenar({ titulacion: 'doctorado', anios: 10, formacion: true })
+    await screen.findByText(/Solicitud aceptada/)
+    const antes = demo._estado.panelistas.length
+    cleanup()
+    await rellenar({ titulacion: 'doctorado', anios: 10, formacion: true })
+    expect(await screen.findByText(/ya está en el panel/)).toBeTruthy()
+    expect(demo._estado.panelistas.length).toBe(antes)
   })
 })
 

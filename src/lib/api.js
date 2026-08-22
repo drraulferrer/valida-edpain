@@ -19,10 +19,10 @@ export class ErrorApi extends Error {
   }
 }
 
+// 28000 no se traduce aquí: el servidor distingue entre una clave y un código de invitación,
+// y sobrescribirlo con un solo texto confundía los dos casos.
 const MENSAJES = {
-  '28000': 'Esa clave no es válida. Revísala: son tres grupos de cuatro letras y números.',
   '42501': 'No tienes acceso a eso.',
-  '28000': 'Esa clave no es válida. Revísala: son tres grupos de cuatro letras y números.',
   '22023': 'Los datos no son válidos.',
   PGRST301: 'No se pudo conectar. Comprueba la conexión e inténtalo de nuevo.',
 }

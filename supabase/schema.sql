@@ -291,6 +291,14 @@ create table if not exists valida.solicitudes (
   perfil        jsonb not null default '{}',
   panelista_id  integer
 );
+-- Con quién se corresponde cada intento. Sirve para una cosa concreta: detectar a quien, tras
+-- no alcanzar el criterio, vuelve a enviarlo con los datos retocados hasta que le salga. El
+-- hash del correo es lo que se compara; el nombre y el correo quedan para poder responderle.
+alter table valida.solicitudes add column if not exists email_hash text;
+alter table valida.solicitudes add column if not exists nombre text;
+alter table valida.solicitudes add column if not exists email text;
+alter table valida.solicitudes add column if not exists bloqueada boolean not null default false;
+create index if not exists solicitudes_email_hash on valida.solicitudes (estudio_id, email_hash);
 
 create table if not exists valida.eventos (
   id            bigserial primary key,
@@ -325,13 +333,13 @@ language plpgsql as $$
 declare p valida.panelistas;
 begin
   if clave is null or length(clave) < 8 then
-    raise exception 'clave no válida' using errcode = '28000';
+    raise exception 'La clave no es válida.' using errcode = '28000';
   end if;
   select * into p from valida.panelistas
    where clave_hash = valida.hash_clave(clave) and activo;
   if not found then
     insert into valida.eventos (tipo, detalle) values ('intento_fallido', jsonb_build_object('len', length(clave)));
-    raise exception 'clave no válida' using errcode = '28000';
+    raise exception 'La clave no es válida.' using errcode = '28000';
   end if;
   update valida.panelistas set ultimo_acceso = now() where id = p.id;
   return p;
@@ -493,6 +501,12 @@ declare
   e valida.estudios; puntos int; hoy int; nuevo_id int; nuevo_codigo text; nueva text; siguiente int; asignados int;
   dado text := lower(trim(coalesce(codigo_invitacion, '')));
   prueba boolean := false;
+  ident jsonb := coalesce(perfil->'identidad', '{}'::jsonb);
+  correo text := lower(trim(coalesce(ident->>'email', '')));
+  quien text := trim(coalesce(ident->>'nombre', '') || ' ' || coalesce(ident->>'apellidos', ''));
+  huella text;
+  rechazos int := 0;
+  ya_dentro int := 0;
 begin
   select * into e from valida.estudios where id = estudio;
   if not found or e.cerrado_en is not null then
@@ -518,11 +532,31 @@ begin
     raise exception 'hace falta al menos un dominio de competencia' using errcode = '22023';
   end if;
   puntos := valida.fehring(perfil, anios);
+  huella := valida.hash_clave(correo);
+
+  -- ¿Ya está dentro? Se le devuelve a su clave en vez de duplicarlo.
+  select count(*) into ya_dentro from valida.solicitudes s
+   where s.estudio_id = e.id and s.email_hash = huella and s.aceptada;
+  if ya_dentro > 0 then
+    return jsonb_build_object('aceptado', false, 'ya_registrado', true);
+  end if;
+
+  -- Intentos anteriores que no alcanzaron el criterio, con el mismo correo.
+  select count(*) into rechazos from valida.solicitudes s
+   where s.estudio_id = e.id and s.email_hash = huella and not s.aceptada;
 
   if puntos < e.fehring_minimo then
-    insert into valida.solicitudes (estudio_id, aceptada, puntuacion, disciplina, anios, perfil)
-    values (e.id, false, puntos, disciplina, anios, perfil - 'consentimiento_en' - 'identidad');
+    insert into valida.solicitudes (estudio_id, aceptada, puntuacion, disciplina, anios, perfil, email_hash, nombre, email)
+    values (e.id, false, puntos, disciplina, anios, perfil - 'consentimiento_en' - 'identidad', huella, nullif(quien, ''), nullif(correo, ''));
     return jsonb_build_object('aceptado', false, 'puntuacion', puntos, 'minimo', e.fehring_minimo);
+  end if;
+
+  -- Alcanza el criterio, pero ya lo había intentado y no lo alcanzaba: el perfil ha cambiado
+  -- entre un envío y otro. No se crea el panelista; queda registrado para poder responderle.
+  if rechazos > 0 and not prueba then
+    insert into valida.solicitudes (estudio_id, aceptada, puntuacion, disciplina, anios, perfil, email_hash, nombre, email, bloqueada)
+    values (e.id, false, puntos, disciplina, anios, perfil - 'consentimiento_en' - 'identidad', huella, nullif(quien, ''), nullif(correo, ''), true);
+    return jsonb_build_object('aceptado', false, 'bloqueado', true);
   end if;
 
   -- Código PAN-nnn correlativo; la clave se genera aquí y no se vuelve a ver.
@@ -537,8 +571,8 @@ begin
   returning id into nuevo_id;
   update valida.panelistas set perfil_datos = valida_solicitar.perfil - 'identidad', es_prueba = prueba where id = nuevo_id;
   perform valida.guardar_identidad(nuevo_id, valida_solicitar.perfil->'identidad');
-  insert into valida.solicitudes (estudio_id, aceptada, puntuacion, disciplina, anios, perfil, panelista_id)
-  values (e.id, true, puntos, disciplina, anios, perfil - 'consentimiento_en' - 'identidad', nuevo_id);
+  insert into valida.solicitudes (estudio_id, aceptada, puntuacion, disciplina, anios, perfil, panelista_id, email_hash, nombre, email)
+  values (e.id, true, puntos, disciplina, anios, perfil - 'consentimiento_en' - 'identidad', nuevo_id, huella, nullif(quien, ''), nullif(correo, ''));
   asignados := valida.asignar_a(nuevo_id);
   insert into valida.eventos (panelista_id, tipo, detalle) values (nuevo_id, 'inscripcion', jsonb_build_object('puntuacion', puntos, 'asignados', asignados));
   return jsonb_build_object('aceptado', true, 'codigo', nuevo_codigo, 'clave', nueva, 'puntuacion', puntos, 'asignados', asignados, 'prueba', prueba);
@@ -1221,10 +1255,12 @@ begin
         'enviado_en', av.enviado_en, 'pendientes', av.pendientes) order by av.enviado_en desc), '[]')
       from valida.avisos av join valida.panelistas p on p.id = av.panelista_id where p.estudio_id = e.id),
     'solicitudes', (select jsonb_build_object(
-        'total', count(*), 'aceptadas', count(*) filter (where aceptada), 'rechazadas', count(*) filter (where not aceptada),
+        'total', count(*), 'aceptadas', count(*) filter (where aceptada), 'rechazadas', count(*) filter (where not aceptada and not bloqueada),
+        'bloqueadas', count(*) filter (where bloqueada),
         'hoy', count(*) filter (where creada_en > now() - interval '1 day'),
         'ultimas', (select coalesce(jsonb_agg(jsonb_build_object('creada_en', x.creada_en, 'aceptada', x.aceptada, 'puntuacion', x.puntuacion,
-                        'disciplina', x.disciplina, 'anios', x.anios) order by x.creada_en desc), '[]')
+                        'disciplina', x.disciplina, 'anios', x.anios, 'bloqueada', x.bloqueada,
+                        'nombre', x.nombre, 'email', x.email) order by x.creada_en desc), '[]')
                     from (select * from valida.solicitudes where estudio_id = e.id order by creada_en desc limit 30) x))
       from valida.solicitudes where estudio_id = e.id),
     'eventos_recientes', (select coalesce(jsonb_agg(jsonb_build_object('tipo', ev.tipo, 'en', ev.en, 'panelista_id', ev.panelista_id, 'detalle', ev.detalle) order by ev.en desc), '[]')

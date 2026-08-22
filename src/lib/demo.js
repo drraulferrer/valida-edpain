@@ -185,7 +185,18 @@ export function crearDemo() {
       else if (ESTUDIO.codigo_invitacion && dado !== ESTUDIO.codigo_invitacion.toLowerCase()) { const e = new Error('El código de invitación no es válido.'); e.codigo = '28000'; throw e }
       if (!perfil?.consentimiento) { const e = new Error('Falta el consentimiento.'); e.codigo = '22023'; throw e }
       const puntuacion = puntuacionFehring(perfil, anios)
-      if (puntuacion < ESTUDIO.fehring_minimo) { solicitudes.push({ creada_en: new Date().toISOString(), aceptada: false, puntuacion, disciplina, anios }); return { aceptado: false, puntuacion, minimo: ESTUDIO.fehring_minimo } }
+      const correo = String(perfil?.identidad?.email || '').trim().toLowerCase()
+      const quien = `${perfil?.identidad?.nombre || ''} ${perfil?.identidad?.apellidos || ''}`.trim()
+      if (solicitudes.some((x) => x.email_hash === correo && x.aceptada)) return { aceptado: false, ya_registrado: true }
+      const rechazos = solicitudes.filter((x) => x.email_hash === correo && !x.aceptada).length
+      if (puntuacion < ESTUDIO.fehring_minimo) {
+        solicitudes.push({ creada_en: new Date().toISOString(), aceptada: false, bloqueada: false, puntuacion, disciplina, anios, email_hash: correo, nombre: quien, email: correo })
+        return { aceptado: false, puntuacion, minimo: ESTUDIO.fehring_minimo }
+      }
+      if (rechazos > 0 && !prueba) {
+        solicitudes.push({ creada_en: new Date().toISOString(), aceptada: false, bloqueada: true, puntuacion, disciplina, anios, email_hash: correo, nombre: quien, email: correo })
+        return { aceptado: false, bloqueado: true }
+      }
       const n = panelistas.filter((p) => /^PAN-\d+$/.test(p.codigo)).length + 1
       const codigo = `PAN-${String(n).padStart(2, '0')}`
       const clave = `nuev-${Math.random().toString(36).slice(2, 6)}-${Math.random().toString(36).slice(2, 6)}`
@@ -196,7 +207,7 @@ export function crearDemo() {
       let asignados = 0
       conceptos.filter((c) => c.incluido && c.activo).forEach((c, i) => { asignaciones.push({ panelista_id: id, concepto_id: c.id, ronda: ronda_actual, orden: i + 1, estado: 'pendiente' }); asignados += 1 })
       abrirPlazo(id)
-      solicitudes.push({ creada_en: new Date().toISOString(), aceptada: true, puntuacion, disciplina, anios })
+      solicitudes.push({ creada_en: new Date().toISOString(), aceptada: true, bloqueada: false, puntuacion, disciplina, anios, email_hash: correo, nombre: quien, email: correo })
       return { aceptado: true, codigo, clave, puntuacion, asignados, prueba }
     },
     valida_entrar({ clave }) {
@@ -314,7 +325,7 @@ export function crearDemo() {
         rondas, avisos: avisosEnviados.map((a) => ({ ...a, panelista: codigoDe(a.panelista_id) })),
         plazos: plazos.map((pl) => { const d = plazoDe(pl.panelista_id) || {}; return { panelista: codigoDe(pl.panelista_id), ronda: pl.ronda, inicio: pl.inicio, dias: pl.dias, motivo: pl.motivo, fin: d.fin, dias_restantes: d.dias_restantes } }),
         propuestas_estado,
-        solicitudes: { total: solicitudes.length, aceptadas: solicitudes.filter((x) => x.aceptada).length, rechazadas: solicitudes.filter((x) => !x.aceptada).length, hoy: solicitudes.length, ultimas: [...solicitudes].reverse().slice(0, 30) },
+        solicitudes: { total: solicitudes.length, aceptadas: solicitudes.filter((x) => x.aceptada).length, rechazadas: solicitudes.filter((x) => !x.aceptada && !x.bloqueada).length, bloqueadas: solicitudes.filter((x) => x.bloqueada).length, hoy: solicitudes.length, ultimas: [...solicitudes].reverse().slice(0, 30) },
         eventos_recientes: eventos.slice(-200).reverse(),
       })
     },

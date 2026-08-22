@@ -94,15 +94,12 @@ export default function HojaInformacion({ estudio = {}, perfil = 'experto', valo
           </p>
           <p>
             <b>Tus derechos:</b> acceso, rectificación, supresión, limitación, portabilidad y oposición, escribiendo a {contacto}.
-            Si consideras que el tratamiento no se ajusta a la normativa, puedes reclamar ante la Agencia Española de Protección de
-            Datos (www.aepd.es).
           </p>
 
           <h3>7 · Difusión de los resultados</h3>
           <p>
             Los resultados se publicarán de forma agregada en revistas científicas y podrán presentarse en congresos. El panel se
-            describirá por sus características (profesión, titulación, años de experiencia), nunca persona a persona. Si lo deseas,
-            se te enviará un resumen de los resultados al terminar.
+            describirá por sus características (profesión, titulación, años de experiencia), nunca persona a persona.
           </p>
 
           <h3>8 · Verificación</h3>

@@ -219,7 +219,7 @@ export function FormularioExperto({ inicial, disciplinaInicial, aniosInicial, do
         </div>
         {f.publicaciones_educacion && f.publicaciones_educacion !== '0' && (
           <div className="campo">
-            <label htmlFor="id-dois">DOI de tus publicaciones sobre educación en dolor</label>
+            <label htmlFor="id-dois">DOI de algunas de tus publicaciones sobre educación en dolor</label>
             <textarea id="id-dois" value={f.identidad.dois} onChange={(e) => ident('dois', e.target.value)}
               placeholder="10.1097/j.pain.0000000000001939&#10;10.1093/ptj/pzab001" style={{ minHeight: '5rem', fontFamily: 'var(--mono)', fontSize: '0.9rem' }} />
             <p className="ayuda">Uno por línea (o separados por comas). Sirven para verificar el perfil del panel a posteriori, que es lo que hace defendible el criterio de expertise. Vale el DOI solo o la URL completa.</p>
