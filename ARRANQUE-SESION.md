@@ -104,11 +104,38 @@ update valida.panelistas set activo = false where codigo = 'PRU-01';
   (aceptadas y rechazadas, sin datos identificativos) quedan en `valida.solicitudes`.
 - Dirección → Panelistas muestra la puntuación de Fehring de cada experto y el resumen de su perfil.
 
+## 5c · Identidad, hoja de información y estética (22-ago, noche)
+
+- **Estética «Clinical Serenity»** (del export de Stitch, `~/Downloads/stitch_educaci_n_en_dolor_builder.zip`):
+  teal #2F7F8F (hover #1D5866), oro editorial #C9A227, coral #C25E4A solo para lo crítico, verde #4A8A63,
+  neutros cool-slate sobre lienzo #F5F8FA con tarjetas blancas; **Chivo** para titulares e **Inter** para
+  leer (Google Fonts en `index.html`); radios 12 px (controles) y 16 px (contenedores); sombras casi
+  imperceptibles; foco con halo del 15 %. Todo por variables en `src/estilo.css`, con tema oscuro derivado.
+- **Identidad separada de las valoraciones** (`valida.identidades`): nombre, apellidos, correo, filiación,
+  ORCID y DOI. **No** viaja en `valida_dir_datos` ni en las exportaciones —el conjunto de análisis queda
+  seudonimizado— y se consulta con `valida_dir_identidades` desde Dirección → Panelistas → «Ver identidades».
+  Los DOI son obligatorios si se declaran publicaciones sobre educación en dolor (verificación a posteriori).
+- **Hoja de información al participante** (`src/componentes/HojaInformacion.jsx`): 8 apartados estándar
+  (objetivo, participación, voluntariedad, riesgos, autoría de grupo, RGPD con base jurídica/derechos/AEPD,
+  difusión y verificación) + consentimiento explícito. Los datos concretos —IP, contacto, comité, nombre del
+  grupo— viven en `valida.estudios` y se editan en Dirección → Estudio → «Ficha del estudio».
+- **Autoría**: quien complete todas las rondas entra en el **Grupo del Estudio EdPain** (criterio ICMJE de
+  autoría de grupo); se dice en el formulario y en la hoja.
+- **Correo del estudio**: `estudio@edpain.com` → drraulferrer@gmail.com por **Cloudflare Email Routing**
+  (regla activa, MX y SPF propagados el 22-ago; el gmail no aparece en ninguna parte de la web).
+- **Envío de la clave**: la pantalla de alta ofrece copiarla y «Preparar el correo» (mailto con la clave, el
+  enlace y el contacto ya escritos). **No hay envío automático desde el servidor**: haría falta un proveedor
+  (Resend/SES) con dominio verificado y una clave API; Cloudflare Email Routing solo recibe.
+- **Código de pruebas** (`estudios.codigo_pruebas`): funciona aunque la inscripción esté cerrada, marca al
+  panelista `es_prueba` y la dirección lo borra con todo su rastro (`valida_dir_borrar_prueba`).
+
 ## 6 · Gotchas encontrados construyéndolo (22-ago)
 
 - **`supabase db query --linked --project-ref …` falla a la primera** con «Failed to create login role:
   connection timeout» y funciona al reintentar un par de veces. No es que la base esté caída
   (Auth y PostgREST responden): es el mecanismo de «login role» del CLI.
+- **Cloudflare Email Routing: «Registros DNS · Bloqueado» NO es un error**: significa que los MX/TXT los
+  gestiona Cloudflare y están puestos. Comprobar con `dig +short MX edpain.com`.
 - **La columna `perfil` de `panelistas` es el ROL** (experto/paciente/dirección); los datos del perfil van en
   `perfil_datos`. Un `add column if not exists perfil jsonb` no falla: simplemente no hace nada, y el
   siguiente `update` mete JSON en el rol y viola el check.
