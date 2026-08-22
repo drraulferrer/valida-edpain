@@ -362,7 +362,15 @@ export function validarPerfilExperto(f, disciplina, anios, dominios) {
 // en la publicación y (c) vigilar su diversidad. Todo lo demás se puede dejar en blanco: es un
 // panel de pacientes, no un cuestionario clínico, y cada campo obligatorio de más es alguien
 // que abandona el formulario.
-export function validarPerfilPaciente(f) {
+// El formulario de paciente va en dos pasos, así que la validación también: cada paso
+// comprueba lo suyo y `validarPerfilPaciente` los encadena para el envío final y para quien
+// llame por fuera (el backend de demostración, los tests, un guardado parcial).
+//
+// El reparto no es estético. En el paso 1 va lo que decide si se puede seguir —edad, dolor
+// crónico, correo y consentimiento— para que quien no cumple el criterio se entere **antes** de
+// contestar treinta preguntas clínicas, y para que el consentimiento se dé **antes** de dar los
+// datos de salud, no después.
+export function validarPacientePaso1(f) {
   const nac = validarNacimiento(f.nacimiento)
   if (nac) return nac
   const elegible = elegibilidadPaciente(f)
@@ -370,6 +378,13 @@ export function validarPerfilPaciente(f) {
   if (!f.frecuencia_dolor) return 'Indica cada cuánto te duele.'
   if (!f.zonas?.length) return 'Marca al menos una zona donde te duela.'
   if (!f.diagnosticos?.length) return 'Marca qué te han dicho que tienes; si no te han dado ningún diagnóstico, hay una opción para eso.'
+  const identidad = validarIdentidad(f.identidad, { exigirNombre: false })
+  if (identidad) return identidad
+  if (!f.consentimiento) return 'Para participar hace falta aceptar la información del estudio.'
+  return ''
+}
+
+export function validarPacientePaso2(f) {
   // Se valida en el mismo orden en que se pregunta, para que el aviso señale el primer hueco
   // que la persona ve al subir, no uno de más abajo.
   const conDolor = Number(f[EGDC_DIAS_DOLOR_VALIDAR])
@@ -399,13 +414,13 @@ export function validarPerfilPaciente(f) {
   for (const [clave] of CHEW) {
     if (!f[clave]) return 'Contesta las tres últimas preguntas sobre la información escrita de salud: sirven para saber a quién le resultan claros estos textos.'
   }
-  const identidad = validarIdentidad(f.identidad, { exigirNombre: false })
-  if (identidad) return identidad
-  if (!f.consentimiento) return 'Para participar hace falta aceptar la información del estudio.'
   return ''
 }
 
-// Lo que se manda al servidor: el perfil con la identidad ya normalizada (DOI como lista).
+export function validarPerfilPaciente(f) {
+  return validarPacientePaso1(f) || validarPacientePaso2(f)
+}
+
 export function prepararPerfil(f, previo = {}) {
   const i = f.identidad || {}
   return {

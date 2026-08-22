@@ -11,7 +11,7 @@ import {
   EDUCACION_PREVIA, ENTORNOS, ESTUDIOS, EXPLICACION_RECIBIDA, FRECUENCIA_DOLOR, IDENTIDAD_VACIA,
   LECTURA_PROPIA, PERFIL_EXPERTO_VACIO, PERFIL_PACIENTE_VACIO, PUBLICACIONES, PUBLICACIONES_EDU, SEGUIMIENTO,
   SITUACION, TITULACIONES, TRATAMIENTOS, ZONAS_DOLOR,
-  elegibilidadPaciente, prepararPerfil, validarPerfilExperto, validarPerfilPaciente,
+  elegibilidadPaciente, prepararPerfil, validarPerfilExperto, validarPacientePaso1, validarPerfilPaciente,
 } from '../lib/perfil.js'
 
 // Se rellena una vez, antes de las instrucciones. Caracteriza el panel (CREDES), permite calcular
@@ -338,19 +338,43 @@ export function FormularioPaciente({ inicial = {}, estudio, onEnviar, enviando, 
     return { ...prev, [k]: ya.includes(id) ? ya.filter((x) => x !== id) : [...ya, id] }
   })
   const noElegible = elegibilidadPaciente(f)
+  // Dos pasos. El primero es corto y decide: si no encajas por edad o por tiempo de dolor, te
+  // enteras ahí y no después de treinta preguntas. Todo vive en el mismo `f`, así que volver
+  // atrás no pierde nada.
+  const [paso, setPaso] = useState(1)
+  const arriba = () => window.scrollTo({ top: 0 })
 
   const enviar = (e) => {
     e.preventDefault()
+    if (paso === 1) {
+      const problema = validarPacientePaso1(f)
+      if (problema) { setError(problema); arriba(); return }
+      setError(''); setPaso(2); arriba()
+      return
+    }
     const problema = validarPerfilPaciente(f)
-    if (problema) { setError(problema); window.scrollTo({ top: 0 }); return }
+    if (problema) { setError(problema); arriba(); return }
     setError('')
     onEnviar(f)
   }
 
+  const volver = () => { setError(''); setPaso(1); arriba() }
+
   return (
     <form onSubmit={enviar}>
+      <div className="pasos-perfil">
+        <p className="etiqueta acento" style={{ margin: 0 }}>Paso {paso} de 2</p>
+        <p className="silencio" style={{ margin: '0.2rem 0 0' }}>
+          {paso === 1
+            ? 'Quién eres y qué te pasa. Son unas pocas preguntas y sirven para saber si encajas en el panel.'
+            : 'Cómo te afecta. Es la parte larga: unos cuatro minutos, y es la única vez que se pregunta.'}
+        </p>
+        <div className="barra"><span style={{ transform: `scaleX(${paso / 2})` }} /></div>
+      </div>
+
       {error && <p className="error" role="alert">{error}</p>}
 
+      {paso === 1 && <>
       <div className="tarjeta">
         <h3>Cómo te avisamos</h3>
         <p className="silencio">
@@ -412,6 +436,10 @@ export function FormularioPaciente({ inicial = {}, estudio, onEnviar, enviando, 
         </div>
       </div>
 
+      <HojaInformacion estudio={estudio} perfil="paciente" valor={f.consentimiento} onCambio={(v) => cambiar('consentimiento', v)} />
+      </>}
+
+      {paso === 2 && <>
       <div className="tarjeta">
         <h3>Cómo te afecta</h3>
         <p className="silencio">
@@ -503,11 +531,22 @@ export function FormularioPaciente({ inicial = {}, estudio, onEnviar, enviando, 
         ))}
       </div>
 
-      <HojaInformacion estudio={estudio} perfil="paciente" valor={f.consentimiento} onCambio={(v) => cambiar('consentimiento', v)} />
+      </>}
+
       {error && <p className="error" role="alert">{error}</p>}
       <div className="acciones">
-        <button className="boton" type="submit" disabled={enviando}>{enviando ? 'Guardando…' : etiquetaBoton}</button>
+        {paso === 2 && (
+          <button className="boton fantasma" type="button" onClick={volver}>Volver</button>
+        )}
+        <button className="boton" type="submit" disabled={enviando || (paso === 1 && !!noElegible)}>
+          {paso === 1 ? 'Seguir' : enviando ? 'Guardando…' : etiquetaBoton}
+        </button>
       </div>
+      {paso === 1 && (
+        <p className="silencio" style={{ fontSize: '0.85rem' }}>
+          En el paso siguiente se pregunta por tu dolor con más detalle. Nada se envía hasta que lo termines.
+        </p>
+      )}
     </form>
   )
 }

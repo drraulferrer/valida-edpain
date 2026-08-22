@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { puntuacionFehring, esExpertoFehring, validarPerfilExperto, validarPerfilPaciente, validarIdentidad, partirDois, prepararPerfil, resumenPerfil, elegibilidadPaciente, alfabetizacionChew, edadDe, validarNacimiento } from '../src/lib/perfil.js'
+import { puntuacionFehring, esExpertoFehring, validarPerfilExperto, validarPerfilPaciente, validarPacientePaso1, validarPacientePaso2, validarIdentidad, partirDois, prepararPerfil, resumenPerfil, elegibilidadPaciente, alfabetizacionChew, edadDe, validarNacimiento } from '../src/lib/perfil.js'
 
 // Un perfil de paciente que cumple todo lo obligatorio, para variarlo campo a campo.
 const PACIENTE_OK = {
@@ -80,6 +80,22 @@ describe('panel de paciente', () => {
     expect(validarPerfilPaciente({ ...PACIENTE_OK, gad7_irritable: '', identidad })).toMatch(/siete primeras/)
     expect(validarPerfilPaciente({ ...PACIENTE_OK, educacion_previa: '', identidad })).toMatch(/cómo funciona el dolor/)
     expect(validarPerfilPaciente({ ...PACIENTE_OK, cuesta_entender: '', identidad })).toMatch(/información escrita/)
+  })
+
+  it('el paso 1 solo mira lo que decide, y el paso 2 solo lo suyo', () => {
+    // Con el paso 1 entero, el 1 pasa aunque no haya ni una pregunta de salud contestada.
+    const soloPaso1 = {
+      nacimiento: '1980-05-12', duracion_dolor: '1_5a', frecuencia_dolor: 'casi_diario',
+      zonas: ['lumbar'], diagnosticos: ['inespecifico'], identidad, consentimiento: true,
+    }
+    expect(validarPacientePaso1(soloPaso1)).toBe('')
+    expect(validarPacientePaso2(soloPaso1)).not.toBe('')
+    expect(validarPerfilPaciente(soloPaso1)).toBe(validarPacientePaso2(soloPaso1))
+
+    // Y al revés: el paso 2 no se mete en si hay correo o consentimiento.
+    expect(validarPacientePaso2({ ...PACIENTE_OK })).toBe('')
+    expect(validarPacientePaso1({ ...PACIENTE_OK, consentimiento: false, identidad }))
+      .toMatch(/aceptar la información/)
   })
 
   it('«no me han dado ningún diagnóstico» es una respuesta válida', () => {

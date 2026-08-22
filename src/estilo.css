@@ -133,6 +133,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .pantalla.ancha { max-width: var(--ancho-panel); }
 .pantalla.centrada { display: flex; flex-direction: column; justify-content: center; min-height: 70dvh; }
 
+/* Cabecera de los dos pasos del formulario de paciente: dice dónde estás antes de nada. */
+.pasos-perfil { margin-bottom: 1rem; }
+.pasos-perfil .barra { margin-top: 0.6rem; }
+
 .barra { height: 6px; background: var(--linea); border-radius: 999px; overflow: hidden; }
 .barra > span { display: block; height: 100%; width: 100%; background: var(--acento); transform-origin: left; transition: transform 0.4s ease; }
 .progreso { display: flex; align-items: center; gap: 0.75rem; font-size: 0.85rem; color: var(--tinta-2); margin-bottom: 1.25rem; }

@@ -275,7 +275,22 @@ lo que devuelve la ansiedad que se perdió al retirar el PHQ-4, y con siete íte
 **El ítem de interferencia se pregunta una sola vez**, al final de la tanda: lo traen igual los dos
 cuestionarios, no suma a ningún total, y repetirlo palabra por palabra solo cansaría.
 
-**El formulario de paciente ya son ~35 preguntas**, y eso tiene un coste: en jsdom cada `fireEvent`
+**El formulario de paciente va en DOS PASOS** (23-ago), porque ~35 preguntas de una sentada son
+demasiadas. El reparto no es estético:
+
+- **Paso 1 — quién eres y qué te pasa**: correo, fecha de nacimiento y sexo, tiempo y frecuencia del
+  dolor, zonas, diagnósticos, y la **hoja de información con el consentimiento**. Es corto y es el que
+  decide: quien no llega a los tres meses de dolor lo ve ahí, con el botón «Seguir» deshabilitado, y no
+  contesta treinta preguntas clínicas para nada. Y el consentimiento se da **antes** de entregar los
+  datos de salud, no después, que es como debe ser.
+- **Paso 2 — cómo te afecta**: EGDC, GAD-7, PHQ-9, tratamientos, educación previa y alfabetización.
+
+La validación va partida igual (`validarPacientePaso1` / `validarPacientePaso2` en `src/lib/perfil.js`)
+y `validarPerfilPaciente` las encadena, que es lo que siguen llamando el envío final, el backend de
+demostración y los tests. Todo vive en el mismo estado del formulario: **«Volver» no pierde nada**, y
+hay un test que lo fija.
+
+**Aun partido, son ~35 preguntas**, y eso tiene un coste: en jsdom cada `fireEvent`
 repinta el formulario entero y la suite se pasaba de los 5 s por defecto. Por eso `vite.config.js`
 fija `testTimeout: 20000`. En el navegador no pasa —se contesta una pregunta cada vez—, así que el
 lento es el test, no la web.

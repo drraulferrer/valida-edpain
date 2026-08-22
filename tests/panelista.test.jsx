@@ -177,12 +177,19 @@ describe('flujo del experto', () => {
 
 // El conjunto mínimo de datos del panel de paciente: temporalidad, localización, diagnóstico,
 // impacto (PEG), educación previa y alfabetización en salud (Chew).
-function rellenarPerfilPaciente({ duracion = '1_5a' } = {}) {
+// El formulario de paciente va en dos pasos, así que rellenarlo también.
+// Paso 1: lo que decide si se puede seguir —quién eres, tu dolor y el consentimiento—.
+function rellenarPacientePaso1({ duracion = '1_5a' } = {}) {
   fireEvent.change(screen.getByLabelText('Fecha de nacimiento'), { target: { value: '1980-05-12' } })
   fireEvent.change(screen.getByLabelText('¿Cuánto tiempo llevas con dolor?'), { target: { value: duracion } })
   fireEvent.change(screen.getByLabelText('¿Cada cuánto te duele?'), { target: { value: 'casi_diario' } })
   fireEvent.click(screen.getByLabelText('Espalda baja o lumbares'))
   fireEvent.click(screen.getByLabelText('Fibromialgia'))
+  fireEvent.click(screen.getByLabelText(/He leído la información, he podido preguntar/))
+}
+
+// Paso 2: la parte larga —EGDC, los dos cribados de ánimo, tratamientos y alfabetización—.
+function rellenarPacientePaso2() {
   // EGDC española: días con dolor, tres de intensidad, el tramo de días perdidos y tres de interferencia.
   fireEvent.change(screen.getByLabelText(/Cuántos días ha tenido dolor/), { target: { value: '150' } })
   for (const [rotulo, n] of [[/EN ESTE MOMENTO/, 5],
@@ -214,7 +221,14 @@ function rellenarPerfilPaciente({ duracion = '1_5a' } = {}) {
   fireEvent.change(screen.getByLabelText(/te ayude a leer los papeles/), { target: { value: '1' } })
   fireEvent.change(screen.getByLabelText(/rellenando tú solo o sola/), { target: { value: '2' } })
   fireEvent.change(screen.getByLabelText(/te cuesta entender tu problema de salud/), { target: { value: '2' } })
-  fireEvent.click(screen.getByLabelText(/He leído la información, he podido preguntar/))
+}
+
+const seguirAlPaso2 = () => fireEvent.click(screen.getByRole('button', { name: 'Seguir' }))
+
+function rellenarPerfilPaciente(ajustes = {}) {
+  rellenarPacientePaso1(ajustes)
+  seguirAlPaso2()
+  rellenarPacientePaso2()
 }
 
 describe('flujo del paciente', () => {
@@ -391,10 +405,50 @@ describe('convocatoria de pacientes (#/participar/paciente)', () => {
     expect(demo._estado.identidades.some((i) => i.codigo === 'PAC-02')).toBe(true)
   })
 
+  it('el paso 1 no deja pasar con huecos, y el consentimiento va antes que los datos de salud', async () => {
+    window.location.hash = '#/participar/paciente'
+    render(<App />)
+    await screen.findByLabelText('Correo de contacto')
+    // Las preguntas de salud no están todavía: primero se consiente, luego se contestan.
+    expect(screen.queryByLabelText(/Cuántos días ha tenido dolor/)).toBeNull()
+    expect(screen.getByLabelText(/He leído la información, he podido preguntar/)).toBeTruthy()
+
+    rellenarCorreoPaciente('huecos@ejemplo.org')
+    rellenarPacientePaso1()
+    fireEvent.click(screen.getByLabelText('Espalda baja o lumbares'))   // se desmarca la única zona
+    seguirAlPaso2()
+    expect((await screen.findAllByRole('alert'))[0].textContent).toMatch(/zona/)
+    expect(screen.queryByLabelText(/Cuántos días ha tenido dolor/)).toBeNull()
+
+    fireEvent.click(screen.getByLabelText('Espalda baja o lumbares'))
+    seguirAlPaso2()
+    expect(await screen.findByLabelText(/Cuántos días ha tenido dolor/)).toBeTruthy()
+  })
+
+  it('volver al paso 1 no borra lo que ya se había contestado en el paso 2', async () => {
+    window.location.hash = '#/participar/paciente'
+    render(<App />)
+    await screen.findByLabelText('Correo de contacto')
+    rellenarCorreoPaciente('vuelta@ejemplo.org')
+    rellenarPacientePaso1()
+    seguirAlPaso2()
+    fireEvent.change(await screen.findByLabelText(/Cuántos días ha tenido dolor/), { target: { value: '99' } })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Volver' }))
+    // Estamos en el paso 1 y sigue estando lo suyo…
+    expect(screen.getByLabelText('Fecha de nacimiento').value).toBe('1980-05-12')
+    // …y al volver al 2, lo del 2.
+    seguirAlPaso2()
+    expect((await screen.findByLabelText(/Cuántos días ha tenido dolor/)).value).toBe('99')
+  })
+
   it('marcar el ítem 9 del PHQ-9 enseña dónde pedir ayuda, sin prometer que alguien lee', async () => {
     window.location.hash = '#/participar/paciente'
     render(<App />)
     await screen.findByLabelText('Correo de contacto')
+    rellenarCorreoPaciente('animo@ejemplo.org')
+    rellenarPacientePaso1()
+    seguirAlPaso2()
     // Antes de tocar nada no hay ningún aviso: aparecer sin motivo sería alarmar por alarmar.
     expect(screen.queryByText(/Línea de Atención a la Conducta Suicida/)).toBeNull()
     fireEvent.change(screen.getByLabelText(/estaría mejor muerto/), { target: { value: '1' } })
@@ -406,11 +460,17 @@ describe('convocatoria de pacientes (#/participar/paciente)', () => {
     expect(screen.queryByText(/Línea de Atención a la Conducta Suicida/)).toBeNull()
   })
 
-  it('menos de tres meses de dolor no es dolor crónico y no entra', async () => {
+  it('menos de tres meses de dolor no es dolor crónico: se corta en el paso 1', async () => {
     const antes = demo._estado.panelistas.length
-    await solicitar({ duracion: 'menos_3m', email: 'agudo@ejemplo.org' })
-    const alertas = await screen.findAllByRole('alert')
-    expect(alertas[0].textContent).toMatch(/tres meses/)
+    window.location.hash = '#/participar/paciente'
+    render(<App />)
+    await screen.findByLabelText('Correo de contacto')
+    rellenarCorreoPaciente('agudo@ejemplo.org')
+    rellenarPacientePaso1({ duracion: 'menos_3m' })
+    // Ni siquiera deja pasar al paso 2: se entera antes de contestar treinta preguntas.
+    expect(screen.getByRole('button', { name: 'Seguir' }).disabled).toBe(true)
+    expect(document.querySelector('.aviso-caja').textContent).toMatch(/tres meses o más/)
+    expect(screen.queryByLabelText(/Cuántos días ha tenido dolor/)).toBeNull()
     expect(demo._estado.panelistas.length).toBe(antes)
   })
 
