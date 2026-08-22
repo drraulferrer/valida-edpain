@@ -72,8 +72,10 @@ export default function App() {
   if (ruta.partes[0] === 'direccion') {
     return <Direccion ruta={ruta} />
   }
+  // #/participar elige vía; #/participar/paciente entra directo al panel de personas con dolor
+  // (es el enlace que va en el cartel de la sala de espera y en el correo a las asociaciones).
   if (ruta.partes[0] === 'participar' && !sesion) {
-    return <Participar onEntrar={entrar} />
+    return <Participar onEntrar={entrar} ruta={ruta.partes[1] || ''} />
   }
 
   if (cargando) {

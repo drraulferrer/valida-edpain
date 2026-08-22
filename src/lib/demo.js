@@ -7,7 +7,7 @@
 // Claves de la demo:  demo-expe-rto1 (experto) · demo-paci-ent1 (paciente) · demo-dire-cci1 (dirección)
 // ---------------------------------------------------------------------------
 
-import { puntuacionFehring } from './perfil.js'
+import { elegibilidadPaciente, puntuacionFehring } from './perfil.js'
 
 export const CLAVES_DEMO = { experto: 'demo-expe-rto1', paciente: 'demo-paci-ent1', direccion: 'demo-dire-cci1' }
 
@@ -100,7 +100,7 @@ const CONCEPTOS = [
 
 const ESTUDIO = {
   id: 1, nombre: 'Validez de contenido · demo', corpus_commit: 'demo', semilla: 'valida-2026', fraccion: 0.1, suelo: 8,
-  k_jueces: 7, k_paciente: 3, capacidad: 80, capacidad_paciente: 25, ronda_actual: 1, abierto_en: '2026-09-01T09:00:00Z', cerrado_en: null,
+  k_jueces: 7, k_paciente: 3, capacidad: 80, capacidad_paciente: 25, inscripcion_pacientes_abierta: true, ronda_actual: 1, abierto_en: '2026-09-01T09:00:00Z', cerrado_en: null,
   inscripcion_abierta: true, codigo_invitacion: 'DEMO', codigo_pruebas: 'PRUEBAS', tope_solicitudes_dia: 200, fehring_minimo: 5, plazo_dias: 10,
   investigador_principal: 'Dr. Raúl Ferrer-Peña', contacto_email: 'estudio@edpain.com', grupo_autoria: 'Grupo del Estudio EdPain', comite_etica: null,
   umbrales: { icvi_n_pequeno: 1.0, icvi_n_grande: 0.78, n_corte_icvi: 6, aiken: 0.70, exigir_ic: true, minimo_panel: 5, desacuerdo: 0.30,
@@ -179,44 +179,65 @@ export function crearDemo() {
 
   const fns = {
     valida_publico() {
-      return clon({ nombre: ESTUDIO.nombre, inscripcion_abierta: ESTUDIO.inscripcion_abierta && !cerrado_en, requiere_codigo: !!ESTUDIO.codigo_invitacion,
+      return clon({ nombre: ESTUDIO.nombre, inscripcion_abierta: ESTUDIO.inscripcion_abierta && !cerrado_en,
+        inscripcion_pacientes_abierta: ESTUDIO.inscripcion_pacientes_abierta && !cerrado_en, requiere_codigo: !!ESTUDIO.codigo_invitacion,
         pruebas: !!ESTUDIO.codigo_pruebas && !cerrado_en, investigador_principal: ESTUDIO.investigador_principal,
         contacto_email: ESTUDIO.contacto_email, grupo_autoria: ESTUDIO.grupo_autoria, comite_etica: ESTUDIO.comite_etica,
         fehring_minimo: ESTUDIO.fehring_minimo, dominios: Object.entries(CATALOGO).filter(([, v]) => v.tipo === 'dominio').map(([id, v]) => ({ id, nombre: v.nombre })) })
     },
-    valida_solicitar({ codigo_invitacion, disciplina, anios, dominios, perfil }) {
+    valida_solicitar({ codigo_invitacion, disciplina, anios, dominios, perfil, perfil_solicitado = 'experto' }) {
       const dado = (codigo_invitacion || '').trim().toLowerCase()
+      const esPaciente = perfil_solicitado === 'paciente'
+      const abierta = esPaciente ? ESTUDIO.inscripcion_pacientes_abierta : ESTUDIO.inscripcion_abierta
       let prueba = false
       if (cerrado_en) { const e = new Error('La inscripción no está abierta.'); e.codigo = '42501'; throw e }
       if (ESTUDIO.codigo_pruebas && dado === ESTUDIO.codigo_pruebas.toLowerCase()) prueba = true
-      else if (!ESTUDIO.inscripcion_abierta) { const e = new Error('La inscripción no está abierta.'); e.codigo = '42501'; throw e }
+      else if (!abierta) { const e = new Error('La inscripción no está abierta.'); e.codigo = '42501'; throw e }
       else if (ESTUDIO.codigo_invitacion && dado !== ESTUDIO.codigo_invitacion.toLowerCase()) { const e = new Error('El código de invitación no es válido.'); e.codigo = '28000'; throw e }
       if (!perfil?.consentimiento) { const e = new Error('Falta el consentimiento.'); e.codigo = '22023'; throw e }
-      const puntuacion = puntuacionFehring(perfil, anios)
+      // Al paciente NO se le puntúa: solo se comprueba la elegibilidad (dolor ≥ 3 meses).
+      if (esPaciente) {
+        const motivo = elegibilidadPaciente(perfil)
+        if (motivo) { const e = new Error(motivo); e.codigo = '22023'; throw e }
+      }
+      const puntuacion = esPaciente ? null : puntuacionFehring(perfil, anios)
       const correo = String(perfil?.identidad?.email || '').trim().toLowerCase()
       const quien = `${perfil?.identidad?.nombre || ''} ${perfil?.identidad?.apellidos || ''}`.trim()
       if (solicitudes.some((x) => x.email_hash === correo && x.aceptada)) return { aceptado: false, ya_registrado: true }
       const rechazos = solicitudes.filter((x) => x.email_hash === correo && !x.aceptada).length
-      if (puntuacion < ESTUDIO.fehring_minimo) {
-        solicitudes.push({ creada_en: new Date().toISOString(), aceptada: false, bloqueada: false, puntuacion, disciplina, anios, email_hash: correo, nombre: quien, email: correo })
-        return { aceptado: false, puntuacion, minimo: ESTUDIO.fehring_minimo }
+      if (!esPaciente) {
+        if (puntuacion < ESTUDIO.fehring_minimo) {
+          solicitudes.push({ creada_en: new Date().toISOString(), aceptada: false, bloqueada: false, puntuacion, disciplina, anios, email_hash: correo, nombre: quien, email: correo })
+          return { aceptado: false, puntuacion, minimo: ESTUDIO.fehring_minimo }
+        }
+        if (rechazos > 0 && !prueba) {
+          solicitudes.push({ creada_en: new Date().toISOString(), aceptada: false, bloqueada: true, puntuacion, disciplina, anios, email_hash: correo, nombre: quien, email: correo })
+          return { aceptado: false, bloqueado: true }
+        }
       }
-      if (rechazos > 0 && !prueba) {
-        solicitudes.push({ creada_en: new Date().toISOString(), aceptada: false, bloqueada: true, puntuacion, disciplina, anios, email_hash: correo, nombre: quien, email: correo })
-        return { aceptado: false, bloqueado: true }
-      }
-      const n = panelistas.filter((p) => /^PAN-\d+$/.test(p.codigo)).length + 1
-      const codigo = `PAN-${String(n).padStart(2, '0')}`
+      const prefijo = esPaciente ? 'PAC' : 'PAN'
+      const re = new RegExp(`^${prefijo}-\\d+$`)
+      const n = panelistas.filter((p) => re.test(p.codigo)).length + 1
+      const codigo = `${prefijo}-${String(n).padStart(2, '0')}`
       const clave = `nuev-${Math.random().toString(36).slice(2, 6)}-${Math.random().toString(36).slice(2, 6)}`
       const id = Math.max(...panelistas.map((p) => p.id)) + 1
       const { identidad, ...sinIdentidad } = perfil || {}
-      panelistas.push({ id, codigo, clave, perfil: 'experto', disciplina, anios, dominios_competencia: dominios, capacidad: 80, activo: true, perfil_completado: true, calibracion_hecha: false, alta_en: new Date().toISOString(), ultimo_acceso: null, notas: `${prueba ? 'PRUEBA' : 'inscripción abierta'} · Fehring ${puntuacion}`, perfil_datos: sinIdentidad, es_prueba: prueba })
+      panelistas.push({ id, codigo, clave, perfil: esPaciente ? 'paciente' : 'experto',
+        disciplina: esPaciente ? null : disciplina, anios: esPaciente ? null : anios,
+        dominios_competencia: esPaciente ? [] : dominios, capacidad: esPaciente ? ESTUDIO.capacidad_paciente : 80,
+        activo: true, perfil_completado: true, calibracion_hecha: false, alta_en: new Date().toISOString(), ultimo_acceso: null,
+        notas: `${prueba ? 'PRUEBA' : 'inscripción abierta'} · ${esPaciente ? 'panel de paciente' : `Fehring ${puntuacion}`}`,
+        perfil_datos: sinIdentidad, es_prueba: prueba })
       if (identidad?.email) identidades.push({ panelista_id: id, codigo, ...identidad })
       let asignados = 0
-      conceptos.filter((c) => c.incluido && c.activo).forEach((c, i) => { asignaciones.push({ panelista_id: id, concepto_id: c.id, ronda: ronda_actual, orden: i + 1, estado: 'pendiente' }); asignados += 1 })
+      const cabe = esPaciente ? ESTUDIO.capacidad_paciente : 80
+      conceptos.filter((c) => c.incluido && c.activo && (!esPaciente || c.explicacion_paciente)).forEach((c, i) => {
+        if (asignados >= cabe) return
+        asignaciones.push({ panelista_id: id, concepto_id: c.id, ronda: ronda_actual, orden: i + 1, estado: 'pendiente' }); asignados += 1
+      })
       abrirPlazo(id)
       solicitudes.push({ creada_en: new Date().toISOString(), aceptada: true, bloqueada: false, puntuacion, disciplina, anios, email_hash: correo, nombre: quien, email: correo })
-      return { aceptado: true, codigo, clave, puntuacion, asignados, prueba }
+      return { aceptado: true, codigo, clave, perfil: esPaciente ? 'paciente' : 'experto', puntuacion, asignados, prueba }
     },
     valida_entrar({ clave }) {
       const p = quien(clave)

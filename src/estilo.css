@@ -262,6 +262,38 @@ input.clave { font-family: var(--mono); font-size: 1.4rem; letter-spacing: 0.08e
 .histograma .col .b > span { display: block; width: 100%; background: var(--tinta-3); border-radius: 3px 3px 0 0; opacity: 0.55; min-height: 2px; }
 .histograma .col.mia .b > span { background: var(--acento); opacity: 1; }
 
+/* --- elección de vía en la convocatoria -------------------------------------- */
+.vias { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; margin: 1.2rem 0; }
+@media (max-width: 680px) { .vias { grid-template-columns: 1fr; } }
+.vias .via {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 0.45rem; text-align: left;
+  border: 1.5px solid var(--linea); background: var(--superficie); border-radius: var(--radio-caja);
+  padding: 1.1rem; cursor: pointer; transition: border-color 0.12s, box-shadow 0.12s, transform 0.08s;
+}
+.vias .via:hover:not(:disabled) { border-color: var(--acento); box-shadow: var(--sombra-1); }
+.vias .via:active:not(:disabled) { transform: scale(0.995); }
+.vias .via:disabled { opacity: 0.55; cursor: not-allowed; }
+.vias .via b { font-family: var(--display); font-size: 1.05rem; line-height: 1.3; }
+.vias .via .silencio { font-size: 0.85rem; }
+
+/* --- escala 0-10 del PEG ------------------------------------------------------
+   Botones, no un deslizador: en móvil un slider es un suplicio, y con dolor de manos más.
+   Cada número es un objetivo tocable de 44 px, que es el mínimo recomendado. */
+.escala-0-10 { display: grid; grid-template-columns: repeat(11, 1fr); gap: 0.25rem; }
+.escala-0-10 button {
+  border: 1.5px solid var(--linea); background: var(--superficie); border-radius: var(--radio-ui);
+  min-height: 2.75rem; padding: 0.35rem 0; cursor: pointer; font-family: var(--display);
+  font-size: 0.95rem; font-variant-numeric: tabular-nums; color: var(--tinta-1);
+  transition: border-color 0.12s, background 0.12s, transform 0.08s;
+}
+.escala-0-10 button:hover { border-color: var(--acento); }
+.escala-0-10 button:active { transform: scale(0.96); }
+.escala-0-10 button.sel { background: var(--acento); border-color: var(--acento); color: #fff; }
+.escala-extremos { display: flex; justify-content: space-between; gap: 1rem; margin-top: 0.3rem; }
+@media (max-width: 520px) {
+  .escala-0-10 { grid-template-columns: repeat(6, 1fr); }
+}
+
 /* --- ajustes y banderas ----------------------------------------------------- */
 .ajuste { border: 1px dashed var(--linea); border-radius: 12px; padding: 0.9rem; margin: 0.6rem 0; background: var(--papel); }
 .ajuste .fila { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }

@@ -71,8 +71,8 @@ export function normalizarClave(texto) {
 // --- público (sin clave) ---------------------------------------------------------
 
 export const publico = (estudio = 1) => rpc('valida_publico', { estudio })
-export const solicitar = (estudio, codigo_invitacion, disciplina, anios, dominios, perfil) =>
-  rpc('valida_solicitar', { estudio, codigo_invitacion, disciplina, anios, dominios, perfil })
+export const solicitar = (estudio, codigo_invitacion, disciplina, anios, dominios, perfil, perfil_solicitado = 'experto') =>
+  rpc('valida_solicitar', { estudio, codigo_invitacion, disciplina, anios, dominios, perfil, perfil_solicitado })
 
 // --- panelista ---------------------------------------------------------------
 

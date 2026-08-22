@@ -57,10 +57,180 @@ export const EDUCACION_DOLOR = [
 
 export const DOLOR_PROPIO = [['si', 'Sí'], ['no', 'No'], ['no_digo', 'Prefiero no decirlo']]
 
-// Panel de personas con dolor: perfil breve, sin datos identificativos.
+// ---------------------------------------------------------------------------
+// PANEL DE PERSONAS CON DOLOR
+//
+// Al panel de paciente NO se le puntúa. Fehring mide expertise profesional; aplicárselo a
+// quien participa por su experiencia vivida invertiría el sentido del panel —dejaría fuera
+// justo a quien más falta hace para juzgar si un texto se entiende—. Lo que piden los
+// estándares es otra cosa: **elegibilidad clara** y **descripción rica**.
+//
+//   · Elegibilidad: 18 años o más, dolor de 3 meses o más (definición de dolor crónico de la
+//     IASP para la CIE-11, Treede et al., Pain 2019; doi:10.1097/j.pain.0000000000001384),
+//     leer castellano y consentimiento. Nada más: no hay nota de corte.
+//   · Descripción: el conjunto mínimo de datos sigue el modelo del NIH Task Force para dolor
+//     lumbar crónico (Deyo et al., J Pain 2014; doi:10.1016/j.pain.2014.03.005) —definir con
+//     dos preguntas, clasificar por impacto y describir la muestra con un mínimo común— y las
+//     recomendaciones GRIPP2 de describir quién participó (Staniszewska et al., BMJ 2017).
+//   · Impacto: PEG, tres ítems 0-10 (intensidad, disfrute de la vida, actividad general);
+//     Krebs et al., J Gen Intern Med 2009; doi:10.1007/s11606-009-0981-1.
+//   · Alfabetización en salud: los tres ítems de cribado de Chew et al., Fam Med 2004. Es la
+//     covariable que más pesa en un panel de COMPRENSIBILIDAD: si el panel entero lee bien y
+//     ya sabe de dolor, dirá que todo se entiende. Se mide para poder describirlo y para que
+//     la dirección vigile la diversidad, no para excluir a nadie.
+//
+// Ninguno de estos datos identifica: el nombre y el correo van aparte, en `valida.identidades`.
+// ---------------------------------------------------------------------------
 export const EDAD = ['18-29', '30-44', '45-59', '60-74', '75+']
 export const GENERO = [['mujer', 'Mujer'], ['hombre', 'Hombre'], ['otro', 'Otro'], ['no_digo', 'Prefiero no decirlo']]
-export const ESTUDIOS = [['primarios', 'Primarios'], ['secundarios', 'Secundarios o bachillerato'], ['fp', 'Formación profesional'], ['universitarios', 'Universitarios']]
+export const ESTUDIOS = [['sin_estudios', 'Sin estudios terminados'], ['primarios', 'Primarios'], ['secundarios', 'Secundarios o bachillerato'], ['fp', 'Formación profesional'], ['universitarios', 'Universitarios']]
+export const SITUACION = [
+  ['trabajando', 'Trabajando'],
+  ['baja', 'De baja por el dolor'],
+  ['incapacidad', 'Con una incapacidad reconocida'],
+  ['paro', 'En paro'],
+  ['jubilado', 'Jubilado o jubilada'],
+  ['estudiando', 'Estudiando'],
+  ['otra', 'Otra'],
+]
+
+// TEMPORALIDAD. Menos de 3 meses no es dolor crónico (CIE-11) y no entra en el panel.
+export const DURACION_DOLOR = [
+  ['menos_3m', 'Menos de 3 meses'],
+  ['3_6m', 'Entre 3 y 6 meses'],
+  ['6_12m', 'Entre 6 meses y 1 año'],
+  ['1_5a', 'Entre 1 y 5 años'],
+  ['5_10a', 'Entre 5 y 10 años'],
+  ['mas_10a', 'Más de 10 años'],
+]
+export const DURACION_MINIMA = '3_6m'   // la primera que ya es dolor crónico
+
+export const FRECUENCIA_DOLOR = [
+  ['continuo', 'Todos los días, casi sin descanso'],
+  ['casi_diario', 'Casi todos los días'],
+  ['semanal', 'Varios días a la semana'],
+  ['mensual', 'Algunos días al mes'],
+  ['crisis', 'De vez en cuando, en crisis'],
+]
+
+// LOCALIZACIÓN, por las familias de la CIE-11 pero dicho en llano.
+export const ZONAS_DOLOR = [
+  ['lumbar', 'Espalda baja o lumbares'],
+  ['cervical', 'Cuello, hombros o espalda alta'],
+  ['cabeza', 'Cabeza'],
+  ['cara', 'Cara o mandíbula'],
+  ['articulaciones', 'Articulaciones (rodillas, caderas, manos…)'],
+  ['extremidades', 'Brazos o piernas'],
+  ['abdomen', 'Barriga o zona pélvica'],
+  ['generalizado', 'Por todo el cuerpo'],
+  ['otra', 'Otra zona'],
+]
+
+// DIAGNÓSTICO. Mezcla dolor primario y secundario de la CIE-11, en las palabras que usa la
+// gente. «No me han dado ningún diagnóstico» es una respuesta legítima y frecuente.
+export const DIAGNOSTICOS = [
+  ['inespecifico', 'Dolor de espalda o de cuello, sin una causa concreta'],
+  ['fibromialgia', 'Fibromialgia'],
+  ['artrosis', 'Artrosis o «desgaste»'],
+  ['reumatica', 'Artritis reumatoide u otra enfermedad reumática'],
+  ['migrana', 'Migraña o dolor de cabeza'],
+  ['neuropatico', 'Dolor por un nervio dañado (ciática, neuralgia, neuropatía)'],
+  ['postquirurgico', 'Dolor que empezó tras una operación o una lesión'],
+  ['pelvico', 'Endometriosis u otro dolor pélvico'],
+  ['visceral', 'Dolor digestivo o visceral (colon irritable, cistitis…)'],
+  ['oncologico', 'Dolor relacionado con un cáncer o su tratamiento'],
+  ['sin_diagnostico', 'No me han dado ningún diagnóstico'],
+  ['otro', 'Otro'],
+]
+
+export const EXPLICACION_RECIBIDA = [
+  ['clara', 'Sí, me lo explicaron y lo entendí'],
+  ['confusa', 'Me lo explicaron, pero no lo entendí bien'],
+  ['contradictoria', 'Me han dado explicaciones distintas según el profesional'],
+  ['ninguna', 'Nadie me ha explicado a qué se debe'],
+]
+
+// TRATAMIENTOS.
+export const TRATAMIENTOS = [
+  ['sin_receta', 'Analgésicos sin receta (paracetamol, ibuprofeno…)'],
+  ['con_receta', 'Analgésicos con receta'],
+  ['opioides', 'Opioides (tramadol, morfina, fentanilo…)'],
+  ['neuromoduladores', 'Antidepresivos o antiepilépticos para el dolor'],
+  ['fisioterapia', 'Fisioterapia'],
+  ['ejercicio', 'Ejercicio pautado'],
+  ['psicologia', 'Psicología'],
+  ['infiltraciones', 'Infiltraciones o bloqueos'],
+  ['cirugia', 'Cirugía por este dolor'],
+  ['complementarias', 'Terapias complementarias o naturales'],
+  ['ninguno', 'Ninguno ahora mismo'],
+]
+
+export const SEGUIMIENTO = [
+  ['primaria', 'Mi médica o mi fisio del centro de salud'],
+  ['especialista', 'Un especialista (traumatología, reumatología, neurología…)'],
+  ['unidad_dolor', 'Una unidad del dolor'],
+  ['privada', 'Consulta privada'],
+  ['nadie', 'Ahora mismo nadie'],
+]
+
+// EDUCACIÓN EN DOLOR PREVIA. El sesgo grande de un panel de comprensibilidad: quien ya ha
+// pasado por un programa reconoce el vocabulario y puntúa más alto que quien llega de nuevas.
+export const EDUCACION_PREVIA = [
+  ['nunca', 'Nunca me han explicado cómo funciona el dolor'],
+  ['pasada', 'Alguna vez, por encima'],
+  ['consulta', 'Sí, un profesional me lo explicó con calma'],
+  ['programa', 'He hecho un curso o un grupo sobre dolor'],
+]
+
+export const LECTURA_PROPIA = [
+  ['nada', 'No'],
+  ['poco', 'Alguna cosa suelta'],
+  ['bastante', 'Sí, leo o veo bastante sobre el tema'],
+]
+
+// ALFABETIZACIÓN EN SALUD — Chew et al. (Fam Med 2004), tres ítems de cribado. Las dos escalas
+// van SIEMPRE de mejor (1) a peor (5), para que la suma se lea en una sola dirección.
+export const CHEW_FRECUENCIA = [
+  [1, 'Nunca'], [2, 'Casi nunca'], [3, 'A veces'], [4, 'A menudo'], [5, 'Siempre'],
+]
+export const CHEW_SEGURIDAD = [
+  [1, 'Muchísima'], [2, 'Bastante'], [3, 'Algo'], [4, 'Poca'], [5, 'Ninguna'],
+]
+export const CHEW = [
+  ['ayuda_leer', '¿Con qué frecuencia necesitas que alguien te ayude a leer los papeles del centro de salud o del hospital?', CHEW_FRECUENCIA],
+  ['seguridad_formularios', '¿Qué seguridad tienes rellenando tú solo o sola los impresos médicos?', CHEW_SEGURIDAD],
+  ['cuesta_entender', '¿Con qué frecuencia te cuesta entender tu problema de salud por cómo está escrita la información?', CHEW_FRECUENCIA],
+]
+
+// Impacto del dolor (PEG, Krebs 2009): media de los tres ítems 0-10.
+export function impactoPeg(p = {}) {
+  const v = [p.peg_intensidad, p.peg_disfrute, p.peg_actividad].map(Number).filter((x) => Number.isFinite(x))
+  return v.length === 3 ? v.reduce((s, x) => s + x, 0) / 3 : null
+}
+
+// Alfabetización en salud (Chew 2004). Suma 3-15, y el aviso de «limitada» se apoya en el ítem
+// de seguridad rellenando impresos, que es el que mejor discrimina en el original (AUC 0,80):
+// responder «algo», «poca» o «ninguna» (≥ 3) es la señal validada.
+export function alfabetizacionChew(p = {}) {
+  const items = CHEW.map(([k]) => Number(p[k])).filter((x) => Number.isFinite(x))
+  if (items.length < CHEW.length) return { total: null, limitada: null, completo: false }
+  return {
+    total: items.reduce((s, x) => s + x, 0),
+    limitada: Number(p.seguridad_formularios) >= 3,
+    completo: true,
+  }
+}
+
+// ¿Cumple la elegibilidad del panel de paciente? Devuelve '' si sí, o el motivo si no.
+// Es la MISMA regla que `valida.elegible_paciente` en el esquema: si cambia una, cambia la otra.
+export function elegibilidadPaciente(p = {}) {
+  if (!p.duracion_dolor) return 'Indica cuánto tiempo llevas con dolor.'
+  if (p.duracion_dolor === 'menos_3m') {
+    return 'Este panel es de personas con dolor de tres meses o más. Con menos tiempo todavía no encajarías, '
+      + 'pero puedes escribirnos y te avisamos si abrimos otro grupo.'
+  }
+  return ''
+}
 
 // Identidad: va en su propia tabla (`valida.identidades`), no viaja con las valoraciones.
 export const IDENTIDAD_VACIA = Object.freeze({ nombre: '', apellidos: '', email: '', filiacion: '', orcid: '', dois: '' })
@@ -83,7 +253,20 @@ export const PERFIL_EXPERTO_VACIO = Object.freeze({
 })
 
 export const PERFIL_PACIENTE_VACIO = Object.freeze({
-  edad: '', genero: '', anios_dolor: '', diagnostico: '', estudios: '', educacion_previa: false, consentimiento: false,
+  // Quién es
+  edad: '', genero: '', estudios: '', situacion: '',
+  // El dolor: temporalidad, dónde, qué le han dicho
+  duracion_dolor: '', frecuencia_dolor: '', zonas: [], diagnosticos: [], diagnostico_otro: '',
+  explicacion_recibida: '', diagnostico: '',
+  // Impacto (PEG, 0-10)
+  peg_intensidad: '', peg_disfrute: '', peg_actividad: '',
+  // Tratamientos
+  tratamientos: [], seguimiento: '',
+  // Educación en dolor previa
+  educacion_previa: '', lectura_propia: '',
+  // Alfabetización en salud (Chew)
+  ayuda_leer: '', seguridad_formularios: '', cuesta_entender: '',
+  consentimiento: false,
   identidad: { ...IDENTIDAD_VACIA },
 })
 
@@ -138,9 +321,29 @@ export function validarPerfilExperto(f, disciplina, anios, dominios) {
   return ''
 }
 
+// Obligatorio solo lo que hace falta para (a) decidir la elegibilidad, (b) describir el panel
+// en la publicación y (c) vigilar su diversidad. Todo lo demás se puede dejar en blanco: es un
+// panel de pacientes, no un cuestionario clínico, y cada campo obligatorio de más es alguien
+// que abandona el formulario.
 export function validarPerfilPaciente(f) {
   if (!f.edad) return 'Indica tu franja de edad.'
-  if (f.anios_dolor === '' || f.anios_dolor == null) return 'Indica cuántos años llevas con dolor (puede ser 0).'
+  const elegible = elegibilidadPaciente(f)
+  if (elegible) return elegible
+  if (!f.frecuencia_dolor) return 'Indica cada cuánto te duele.'
+  if (!f.zonas?.length) return 'Marca al menos una zona donde te duela.'
+  if (!f.diagnosticos?.length) return 'Marca qué te han dicho que tienes; si no te han dado ningún diagnóstico, hay una opción para eso.'
+  for (const [clave, etiqueta] of [['peg_intensidad', 'la intensidad de tu dolor'],
+                                   ['peg_disfrute', 'cuánto te ha afectado al disfrute de la vida'],
+                                   ['peg_actividad', 'cuánto te ha afectado a tu actividad']]) {
+    const v = Number(f[clave])
+    if (f[clave] === '' || f[clave] == null || !Number.isFinite(v) || v < 0 || v > 10) {
+      return `Indica ${etiqueta} en la escala de 0 a 10.`
+    }
+  }
+  if (!f.educacion_previa) return 'Indica si alguna vez te han explicado cómo funciona el dolor: es importante para interpretar tus respuestas.'
+  for (const [clave] of CHEW) {
+    if (!f[clave]) return 'Contesta las tres últimas preguntas sobre la información escrita de salud: sirven para saber a quién le resultan claros estos textos.'
+  }
   const identidad = validarIdentidad(f.identidad, { exigirNombre: true })
   if (identidad) return identidad
   if (!f.consentimiento) return 'Para participar hace falta aceptar la información del estudio.'
@@ -164,8 +367,22 @@ export function prepararPerfil(f, previo = {}) {
 // Resumen de una línea para el panel de dirección.
 export function resumenPerfil(p = {}, perfilPanelista = 'experto') {
   if (perfilPanelista === 'paciente') {
-    return [p.edad && `${p.edad} años`, p.genero && p.genero !== 'no_digo' && p.genero, p.anios_dolor != null && p.anios_dolor !== '' && `${p.anios_dolor} años con dolor`,
-      p.diagnostico, p.estudios && `estudios ${p.estudios}`, p.educacion_previa ? 'con educación en dolor previa' : null].filter(Boolean).join(' · ')
+    const et = (lista, v) => lista.find(([k]) => k === v)?.[1]
+    const peg = impactoPeg(p)
+    const chew = alfabetizacionChew(p)
+    const dx = (p.diagnosticos || []).map((d) => et(DIAGNOSTICOS, d)).filter(Boolean)
+    return [
+      p.edad && `${p.edad} años`,
+      p.genero && p.genero !== 'no_digo' && et(GENERO, p.genero),
+      p.estudios && `estudios ${et(ESTUDIOS, p.estudios)?.toLowerCase()}`,
+      p.duracion_dolor && `dolor ${et(DURACION_DOLOR, p.duracion_dolor)?.toLowerCase()}`,
+      p.frecuencia_dolor && et(FRECUENCIA_DOLOR, p.frecuencia_dolor)?.toLowerCase(),
+      dx.length && dx.join(', '),
+      peg != null && `PEG ${peg.toFixed(1)}/10`,
+      (p.tratamientos || []).length && `${p.tratamientos.length} tratamientos`,
+      p.educacion_previa && `educación en dolor: ${et(EDUCACION_PREVIA, p.educacion_previa)?.toLowerCase()}`,
+      chew.completo && (chew.limitada ? 'alfabetización en salud limitada' : `alfabetización en salud ${chew.total}/15`),
+    ].filter(Boolean).join(' · ')
   }
   const tit = TITULACIONES.find(([k]) => k === p.titulacion)?.[1]
   return [tit, p.formacion_dolor && (p.formacion_dolor_cual || 'formación específica en dolor'), p.pais,

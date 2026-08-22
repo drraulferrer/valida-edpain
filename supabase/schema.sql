@@ -65,6 +65,9 @@ alter table valida.estudios add column if not exists grupo_autoria text default 
 -- Código de PRUEBAS: funciona con la inscripción CERRADA y crea panelistas marcados como prueba,
 -- para ensayar el circuito completo antes de lanzar la convocatoria. Se borran de un clic.
 alter table valida.estudios add column if not exists codigo_pruebas text;
+-- Interruptor propio para el panel de paciente: se abre y se cierra por separado del de
+-- expertos, porque casi nunca se reclutan a la vez ni al mismo ritmo.
+alter table valida.estudios add column if not exists inscripcion_pacientes_abierta boolean not null default false;
 -- Plazo por defecto que se le da a cada panelista desde que entra en una ronda.
 alter table valida.estudios add column if not exists plazo_dias smallint not null default 10;
 
@@ -294,6 +297,11 @@ create table if not exists valida.solicitudes (
 -- Con quién se corresponde cada intento. Sirve para una cosa concreta: detectar a quien, tras
 -- no alcanzar el criterio, vuelve a enviarlo con los datos retocados hasta que le salga. El
 -- hash del correo es lo que se compara; el nombre y el correo quedan para poder responderle.
+-- `puntuacion` admite NULL: al panel de paciente no se le puntúa, y meter un 0 se leería como
+-- «sacó cero», que es justo lo contrario de lo que pasa. Se guarda también qué panel pedía.
+alter table valida.solicitudes alter column puntuacion drop not null;
+alter table valida.solicitudes add column if not exists perfil_solicitado text not null default 'experto'
+  check (perfil_solicitado in ('experto','paciente'));
 alter table valida.solicitudes add column if not exists email_hash text;
 alter table valida.solicitudes add column if not exists nombre text;
 alter table valida.solicitudes add column if not exists email text;
@@ -433,33 +441,51 @@ language sql immutable as $$
                 and coalesce(perfil->>'formacion_dolor_cual', '') ~* 'm[aá]ster|doctor|tesis' then 1 else 0 end))
 $$;
 
--- Asigna a UN panelista experto hasta su capacidad: primero los conceptos de sus dominios de
--- competencia con menos jueces, después el resto si aún caben generalistas. Orden de lectura
--- agrupado por módulo, como en valida_dir_asignar.
+-- Elegibilidad del panel de paciente. NO es una puntuación: al paciente no se le puntúa.
+-- Es la definición de dolor crónico de la IASP para la CIE-11 (Treede et al., Pain 2019):
+-- dolor que persiste o recurre más de 3 meses. Misma regla que `elegibilidadPaciente`
+-- en src/lib/perfil.js; si cambia una, cambia la otra.
+create or replace function valida.elegible_paciente(perfil jsonb) returns text
+language sql immutable as $$
+  select case
+    when coalesce(perfil->>'duracion_dolor', '') = '' then 'falta cuánto tiempo llevas con dolor'
+    when perfil->>'duracion_dolor' = 'menos_3m' then 'el panel es de personas con dolor de tres meses o más'
+    else '' end
+$$;
+
+-- Asigna a UN panelista hasta su capacidad: primero los conceptos con menos jueces de su
+-- mismo perfil. Para el EXPERTO manda su competencia por dominio (y el tope de generalistas);
+-- para el PACIENTE no hay dominios —juzga si un texto se entiende, no si es correcto— y solo
+-- entran los conceptos que tienen explicación para pacientes. Orden de lectura agrupado por
+-- módulo, como en valida_dir_asignar.
 create or replace function valida.asignar_a(pid int, max_generalistas int default 3) returns int
 language plpgsql as $$
 declare
   p valida.panelistas; e valida.estudios; r int; cap int; hueco int; n int := 0; c record;
+  es_paciente boolean; k int;
 begin
   select * into p from valida.panelistas where id = pid;
   select * into e from valida.estudios where id = p.estudio_id;
   r := e.ronda_actual;
-  cap := coalesce(p.capacidad, e.capacidad);
+  es_paciente := p.perfil = 'paciente';
+  k := case when es_paciente then e.k_paciente else e.k_jueces end;
+  cap := coalesce(p.capacidad, case when es_paciente then e.capacidad_paciente else e.capacidad end);
   select cap - count(*) into hueco from valida.asignaciones a where a.panelista_id = pid and a.ronda = r;
   for c in
-    select co.id, (co.dominio = any(p.dominios_competencia)) as competente,
+    select co.id, (es_paciente or co.dominio = any(p.dominios_competencia)) as competente,
            (select count(*) from valida.asignaciones a join valida.panelistas q on q.id = a.panelista_id
-             where a.concepto_id = co.id and a.ronda = r and q.perfil = 'experto') as jueces,
+             where a.concepto_id = co.id and a.ronda = r and q.perfil = p.perfil) as jueces,
            (select count(*) from valida.asignaciones a join valida.panelistas q on q.id = a.panelista_id
-             where a.concepto_id = co.id and a.ronda = r and q.perfil = 'experto'
+             where a.concepto_id = co.id and a.ronda = r and q.perfil = p.perfil
                and not (co.dominio = any(q.dominios_competencia))) as generalistas
       from valida.conceptos co
      where co.estudio_id = e.id and co.incluido and co.activo
+       and (not es_paciente or coalesce(co.explicacion_paciente, '') <> '')
        and not exists (select 1 from valida.asignaciones a where a.panelista_id = pid and a.concepto_id = co.id and a.ronda = r)
-     order by (co.dominio = any(p.dominios_competencia)) desc, 3 asc, co.prn
+     order by (es_paciente or co.dominio = any(p.dominios_competencia)) desc, 3 asc, co.prn
   loop
     exit when n >= hueco;
-    continue when c.jueces >= e.k_jueces;
+    continue when c.jueces >= k;
     continue when not c.competente and c.generalistas >= max_generalistas;
     insert into valida.asignaciones (panelista_id, concepto_id, ronda, orden) values (pid, c.id, r, 0);
     n := n + 1;
@@ -486,6 +512,7 @@ begin
   if not found then raise exception 'estudio no encontrado' using errcode = '22023'; end if;
   return jsonb_build_object(
     'nombre', e.nombre, 'inscripcion_abierta', e.inscripcion_abierta and e.cerrado_en is null,
+    'inscripcion_pacientes_abierta', e.inscripcion_pacientes_abierta and e.cerrado_en is null,
     'requiere_codigo', e.codigo_invitacion is not null and e.codigo_invitacion <> '',
     'pruebas', e.codigo_pruebas is not null and e.codigo_pruebas <> '' and e.cerrado_en is null,
     'fehring_minimo', e.fehring_minimo, 'investigador_principal', e.investigador_principal,
@@ -495,7 +522,15 @@ begin
 end $$;
 
 -- Solicitud de inscripción. Devuelve la clave EN CLARO una sola vez si se acepta.
-create or replace function public.valida_solicitar(estudio int, codigo_invitacion text, disciplina text, anios int, dominios text[], perfil jsonb) returns jsonb
+-- Dos vías, una función. `perfil_solicitado` decide cuál:
+--
+--   EXPERTO   → puerta de Fehring. Se puntúa el perfil y solo entra quien llega al mínimo;
+--               reintentar con los datos cambiados queda bloqueado y registrado.
+--   PACIENTE  → NO se puntúa. Fehring mide expertise profesional y aplicárselo a quien
+--               participa por su experiencia vivida dejaría fuera justo a quien hace falta
+--               para saber si un texto se entiende. La puerta es de ELEGIBILIDAD: dolor de
+--               3 meses o más (CIE-11) y consentimiento. Nada más.
+create or replace function public.valida_solicitar(estudio int, codigo_invitacion text, disciplina text, anios int, dominios text[], perfil jsonb, perfil_solicitado text default 'experto') returns jsonb
 language plpgsql security definer set search_path = valida, public, pg_temp as $$
 declare
   e valida.estudios; puntos int; hoy int; nuevo_id int; nuevo_codigo text; nueva text; siguiente int; asignados int;
@@ -507,15 +542,23 @@ declare
   huella text;
   rechazos int := 0;
   ya_dentro int := 0;
+  es_paciente boolean := coalesce(perfil_solicitado, 'experto') = 'paciente';
+  motivo text;
+  prefijo text;
+  abierta boolean;
 begin
+  if coalesce(perfil_solicitado, 'experto') not in ('experto', 'paciente') then
+    raise exception 'perfil debe ser experto o paciente' using errcode = '22023';
+  end if;
   select * into e from valida.estudios where id = estudio;
   if not found or e.cerrado_en is not null then
     raise exception 'la inscripción no está abierta' using errcode = '42501';
   end if;
+  abierta := case when es_paciente then e.inscripcion_pacientes_abierta else e.inscripcion_abierta end;
   -- Con la inscripción cerrada solo entra quien traiga el código de pruebas.
   if e.codigo_pruebas is not null and e.codigo_pruebas <> '' and dado = lower(trim(e.codigo_pruebas)) then
     prueba := true;
-  elsif not e.inscripcion_abierta then
+  elsif not abierta then
     raise exception 'la inscripción no está abierta' using errcode = '42501';
   elsif e.codigo_invitacion is not null and e.codigo_invitacion <> ''
      and dado <> lower(trim(e.codigo_invitacion)) then
@@ -528,10 +571,17 @@ begin
   if coalesce((perfil->>'consentimiento')::boolean, false) is not true then
     raise exception 'falta el consentimiento' using errcode = '22023';
   end if;
-  if coalesce(array_length(dominios, 1), 0) = 0 then
+  -- Los dominios de competencia son cosa del experto: el paciente no juzga por dominios.
+  if not es_paciente and coalesce(array_length(dominios, 1), 0) = 0 then
     raise exception 'hace falta al menos un dominio de competencia' using errcode = '22023';
   end if;
-  puntos := valida.fehring(perfil, anios);
+  if es_paciente then
+    motivo := valida.elegible_paciente(perfil);
+    if motivo <> '' then
+      raise exception '%', motivo using errcode = '22023';
+    end if;
+  end if;
+  puntos := case when es_paciente then null else valida.fehring(perfil, anios) end;
   huella := valida.hash_clave(correo);
 
   -- ¿Ya está dentro? Se le devuelve a su clave en vez de duplicarlo.
@@ -545,38 +595,60 @@ begin
   select count(*) into rechazos from valida.solicitudes s
    where s.estudio_id = e.id and s.email_hash = huella and not s.aceptada;
 
-  if puntos < e.fehring_minimo then
-    insert into valida.solicitudes (estudio_id, aceptada, puntuacion, disciplina, anios, perfil, email_hash, nombre, email)
-    values (e.id, false, puntos, disciplina, anios, perfil - 'consentimiento_en' - 'identidad', huella, nullif(quien, ''), nullif(correo, ''));
-    return jsonb_build_object('aceptado', false, 'puntuacion', puntos, 'minimo', e.fehring_minimo);
+  -- PUERTA DE FEHRING: solo para el experto.
+  if not es_paciente then
+    if puntos < e.fehring_minimo then
+      insert into valida.solicitudes (estudio_id, aceptada, puntuacion, disciplina, anios, perfil, email_hash, nombre, email, perfil_solicitado)
+      values (e.id, false, puntos, disciplina, anios, perfil - 'consentimiento_en' - 'identidad', huella, nullif(quien, ''), nullif(correo, ''), 'experto');
+      return jsonb_build_object('aceptado', false, 'puntuacion', puntos, 'minimo', e.fehring_minimo);
+    end if;
+
+    -- Alcanza el criterio, pero ya lo había intentado y no lo alcanzaba: el perfil ha cambiado
+    -- entre un envío y otro. No se crea el panelista; queda registrado para poder responderle.
+    -- Al paciente no le aplica: no hay nota que inflar, así que no hay nada que vigilar.
+    if rechazos > 0 and not prueba then
+      insert into valida.solicitudes (estudio_id, aceptada, puntuacion, disciplina, anios, perfil, email_hash, nombre, email, bloqueada, perfil_solicitado)
+      values (e.id, false, puntos, disciplina, anios, perfil - 'consentimiento_en' - 'identidad', huella, nullif(quien, ''), nullif(correo, ''), true, 'experto');
+      return jsonb_build_object('aceptado', false, 'bloqueado', true);
+    end if;
   end if;
 
-  -- Alcanza el criterio, pero ya lo había intentado y no lo alcanzaba: el perfil ha cambiado
-  -- entre un envío y otro. No se crea el panelista; queda registrado para poder responderle.
-  if rechazos > 0 and not prueba then
-    insert into valida.solicitudes (estudio_id, aceptada, puntuacion, disciplina, anios, perfil, email_hash, nombre, email, bloqueada)
-    values (e.id, false, puntos, disciplina, anios, perfil - 'consentimiento_en' - 'identidad', huella, nullif(quien, ''), nullif(correo, ''), true);
-    return jsonb_build_object('aceptado', false, 'bloqueado', true);
-  end if;
-
-  -- Código PAN-nnn correlativo; la clave se genera aquí y no se vuelve a ver.
-  select coalesce(max(substring(codigo from '^PAN-(\d+)$')::int), 0) + 1 into siguiente
-    from valida.panelistas where estudio_id = e.id and codigo ~ '^PAN-\d+$';
-  nuevo_codigo := 'PAN-' || lpad(siguiente::text, 2, '0');
+  -- Código correlativo: PAN-nn para expertos, PAC-nn para pacientes. La clave se genera aquí
+  -- y no se vuelve a ver.
+  prefijo := case when es_paciente then 'PAC' else 'PAN' end;
+  select coalesce(max(substring(codigo from '^' || prefijo || '-(\d+)$')::int), 0) + 1 into siguiente
+    from valida.panelistas where estudio_id = e.id and codigo ~ ('^' || prefijo || '-\d+$');
+  -- Anchura mínima de 2, nunca truncada: `lpad(n::text, 2, '0')` a secas RECORTA cuando el
+  -- número tiene más dígitos, así que el panelista 100 salía «PAC-10» y chocaba con el 10.
+  -- (`to_char(n,'FM00')` tampoco vale: desborda a «##».)
+  nuevo_codigo := prefijo || '-' || lpad(siguiente::text, greatest(2, length(siguiente::text)), '0');
   nueva := valida.clave_nueva();
   insert into valida.panelistas (estudio_id, codigo, clave_hash, perfil, disciplina, anios, dominios_competencia,
                                  perfil_completado, notas)
-  values (e.id, nuevo_codigo, valida.hash_clave(nueva), 'experto', disciplina, anios, dominios, true,
-          case when prueba then 'PRUEBA · ' else 'inscripción abierta · ' end || 'Fehring ' || puntos)
+  values (e.id, nuevo_codigo, valida.hash_clave(nueva),
+          case when es_paciente then 'paciente' else 'experto' end,
+          case when es_paciente then null else disciplina end,
+          case when es_paciente then null else anios end,
+          case when es_paciente then '{}'::text[] else dominios end, true,
+          case when prueba then 'PRUEBA · ' else 'inscripción abierta · ' end
+          || case when es_paciente then 'panel de paciente' else 'Fehring ' || puntos end)
   returning id into nuevo_id;
   update valida.panelistas set perfil_datos = valida_solicitar.perfil - 'identidad', es_prueba = prueba where id = nuevo_id;
   perform valida.guardar_identidad(nuevo_id, valida_solicitar.perfil->'identidad');
-  insert into valida.solicitudes (estudio_id, aceptada, puntuacion, disciplina, anios, perfil, panelista_id, email_hash, nombre, email)
-  values (e.id, true, puntos, disciplina, anios, perfil - 'consentimiento_en' - 'identidad', nuevo_id, huella, nullif(quien, ''), nullif(correo, ''));
+  insert into valida.solicitudes (estudio_id, aceptada, puntuacion, disciplina, anios, perfil, panelista_id, email_hash, nombre, email, perfil_solicitado)
+  values (e.id, true, puntos, disciplina, anios, perfil - 'consentimiento_en' - 'identidad', nuevo_id, huella, nullif(quien, ''), nullif(correo, ''),
+          case when es_paciente then 'paciente' else 'experto' end);
   asignados := valida.asignar_a(nuevo_id);
-  insert into valida.eventos (panelista_id, tipo, detalle) values (nuevo_id, 'inscripcion', jsonb_build_object('puntuacion', puntos, 'asignados', asignados));
-  return jsonb_build_object('aceptado', true, 'codigo', nuevo_codigo, 'clave', nueva, 'puntuacion', puntos, 'asignados', asignados, 'prueba', prueba);
+  insert into valida.eventos (panelista_id, tipo, detalle) values (nuevo_id, 'inscripcion',
+    jsonb_build_object('perfil', case when es_paciente then 'paciente' else 'experto' end,
+                       'puntuacion', puntos, 'asignados', asignados));
+  return jsonb_build_object('aceptado', true, 'codigo', nuevo_codigo, 'clave', nueva,
+                            'perfil', case when es_paciente then 'paciente' else 'experto' end,
+                            'puntuacion', puntos, 'asignados', asignados, 'prueba', prueba);
 end $$;
+
+-- La firma antigua (6 argumentos) se retira para que PostgREST no tenga dos candidatas.
+drop function if exists public.valida_solicitar(int, text, text, int, text[], jsonb);
 
 -- ============================================================================
 -- FUNCIONES DEL PANELISTA (public.valida_*, expuestas por la API)
@@ -972,6 +1044,7 @@ begin
       capacidad_paciente = coalesce((datos->>'capacidad_paciente')::int, capacidad_paciente),
       umbrales = coalesce(datos->'umbrales', umbrales), notas = coalesce(datos->>'notas', notas),
       inscripcion_abierta = coalesce((datos->>'inscripcion_abierta')::boolean, inscripcion_abierta),
+      inscripcion_pacientes_abierta = coalesce((datos->>'inscripcion_pacientes_abierta')::boolean, inscripcion_pacientes_abierta),
       codigo_invitacion = case when datos ? 'codigo_invitacion' then nullif(trim(datos->>'codigo_invitacion'), '') else codigo_invitacion end,
       codigo_pruebas = case when datos ? 'codigo_pruebas' then nullif(trim(datos->>'codigo_pruebas'), '') else codigo_pruebas end,
       tope_solicitudes_dia = coalesce((datos->>'tope_solicitudes_dia')::int, tope_solicitudes_dia),

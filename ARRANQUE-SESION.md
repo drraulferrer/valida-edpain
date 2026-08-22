@@ -179,6 +179,43 @@ caso honrado: quien se equivocó al marcar una casilla aparece ahí y se le pued
 Panelistas. También queda el recuento en Estudio.
 El código de pruebas queda exento (si no, no se podría ensayar el circuito).
 
+## 5e-bis · Convocatoria de pacientes y su conjunto mínimo de datos (22-ago, sesión 3)
+
+`#/participar` pregunta primero **quién eres** y bifurca. Los dos paneles se abren y se cierran
+por separado desde Dirección → Estudio. Enlace directo para carteles y asociaciones:
+**`#/participar/paciente`**.
+
+**Al paciente NO se le puntúa.** Fehring mide expertise profesional; aplicárselo a quien participa
+por su experiencia vivida dejaría fuera justo a quien hace falta para saber si un texto se
+entiende. La puerta es de **elegibilidad**, no de nota: 18 años o más, **dolor de 3 meses o más**
+—definición de dolor crónico de la IASP para la CIE-11 (Treede et al., *Pain* 2019)— y
+consentimiento. El control de reintentos tampoco le aplica: no hay nota que inflar.
+
+**Qué se le pregunta y de dónde sale** (todo en `src/lib/perfil.js`, con la justificación en su
+cabecera; la misma regla de elegibilidad está duplicada a propósito en `valida.elegible_paciente`
+para que el servidor no dependa del navegador):
+
+| Bloque | Qué | Base |
+|---|---|---|
+| Quién es | edad, género, estudios, situación laboral | GRIPP2: describir quién participó |
+| Temporalidad | cuánto tiempo, con qué frecuencia | CIE-11 (≥ 3 meses); modelo de «dos preguntas» del NIH Task Force |
+| Localización | zonas del cuerpo | familias de la CIE-11, en lenguaje llano |
+| Diagnóstico | qué le han dicho (multi) + «no me han dado ninguno» + si se lo explicaron | CIE-11 primario/secundario |
+| Impacto | **PEG**: intensidad, disfrute de la vida, actividad general (0-10) | Krebs et al., *J Gen Intern Med* 2009 |
+| Tratamientos | qué ha probado (multi) + quién le lleva | conjunto mínimo del NIH Task Force |
+| Educación previa | si le han explicado el dolor, si lee por su cuenta | el sesgo grande de un panel de comprensibilidad |
+| Alfabetización | **3 ítems de Chew** (ayuda para leer, seguridad con impresos, dificultad para entender) | Chew et al., *Fam Med* 2004 |
+
+Las dos últimas filas no son decorativas: **si el panel entero lee bien y ya sabe de dolor, dirá
+que todo se entiende y el estudio no vale**. Se miden para poder describir la diversidad del panel
+y para que la dirección la vigile —nunca para excluir—. `resumenPerfil` avisa en la fila del
+panelista cuando la alfabetización sale limitada (señal validada: ≥ 3 en el ítem de rellenar
+impresos, el que mejor discrimina en el original).
+
+Referencias: Deyo et al., *J Pain* 2014 (NIH Task Force, doi:10.1016/j.jpain.2014.03.005) ·
+Treede et al., *Pain* 2019 (doi:10.1097/j.pain.0000000000001384) · Krebs et al. 2009
+(doi:10.1007/s11606-009-0981-1) · Chew et al., *Fam Med* 2004 · Staniszewska et al., *BMJ* 2017 (GRIPP2).
+
 ## 5f · Correo saliente con Resend (22-ago, sesión 3)
 
 Los avisos ya se pueden mandar solos. Montaje:
@@ -245,6 +282,11 @@ python3 pipeline/avisos.py                                # envía de verdad y m
   devolvía `asignadas: 0` y un mensaje neutro, que se lee como «el botón no hace nada». Ahora la RPC
   devuelve también `panelistas_activos` y `capacidad_libre`, y la pantalla distingue los tres casos
   (nadie de alta · todos a tope de capacidad · asignado bien).
+- **`lpad(n::text, 2, '0')` TRUNCA**, no solo rellena: el panelista 100 salía como `PAC-10` y
+  podía chocar con el 10, que ya existía. `to_char(n, 'FM00')` tampoco vale (desborda a `##`). Lo
+  correcto es `lpad(n::text, greatest(2, length(n::text)), '0')`. Afectaba también a `PAN-`.
+- **`solicitudes.puntuacion` era `not null`** y un paciente no tiene puntuación. Se dejó nullable:
+  meter un 0 se leería como «sacó cero», que es justo lo contrario de lo que pasa.
 - **`Api.rpc` de `pipeline/importar.py` aborta con `sys.exit`**, que lanza `SystemExit` —una
   `BaseException`—, así que **`except Exception` no la captura**. Quien tenga que seguir después de
   un fallo (recorrer más pruebas, avisar de lo que quedó a medias) debe usar `Api.intentar`, que
@@ -314,7 +356,12 @@ python3 pipeline/avisos.py                                # envía de verdad y m
 - **`pipeline/humo.py`**: chequeo de humo que recorre las RPC y dice cuáles revientan. Nace de que
   los tres bugs de esta sesión eran errores de runtime de plpgsql que ni los tests de JS ni el
   `create function` pueden coger. Comprobado rompiendo funciones a propósito y viendo que las caza.
-- 80 tests en verde, build limpio, sin secretos en el bundle.
+- **Convocatoria de pacientes abierta** (§5e-bis): vía propia en `#/participar`, interruptor
+  independiente, sin puntuación y con el conjunto mínimo de datos de dolor, diagnósticos,
+  tratamientos, temporalidad, impacto (PEG) y alfabetización en salud (Chew).
+- Probada contra la base real de punta a punta; en el camino salieron dos bugs más: el `lpad` que
+  trunca los códigos a partir del 100 y el `not null` de `solicitudes.puntuacion` (§6).
+- 93 tests en verde, build limpio, sin secretos en el bundle.
 
 
 

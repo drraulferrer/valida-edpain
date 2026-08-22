@@ -24,7 +24,8 @@ const NOMBRE_UMBRAL = {
 }
 
 function formularioDe(estudio) {
-  return { ...Object.fromEntries(CAMPOS_EDITABLES.map((k) => [k, estudio[k] == null ? '' : String(estudio[k])])), inscripcion_abierta: !!estudio.inscripcion_abierta }
+  return { ...Object.fromEntries(CAMPOS_EDITABLES.map((k) => [k, estudio[k] == null ? '' : String(estudio[k])])),
+    inscripcion_abierta: !!estudio.inscripcion_abierta, inscripcion_pacientes_abierta: !!estudio.inscripcion_pacientes_abierta }
 }
 
 function aDatos(f) {
@@ -33,7 +34,7 @@ function aDatos(f) {
     if (k === 'codigo_invitacion' || k === 'codigo_pruebas' || k === 'comite_etica') return [k, f[k].trim()]   // vacío = sin código (el servidor lo pone a null)
     return [k, f[k].trim() === '' ? null : f[k].trim()]
   }))
-  return { ...d, inscripcion_abierta: !!f.inscripcion_abierta }
+  return { ...d, inscripcion_abierta: !!f.inscripcion_abierta, inscripcion_pacientes_abierta: !!f.inscripcion_pacientes_abierta }
 }
 
 export default function Estudio({ datos, clave, recargar }) {
@@ -106,11 +107,24 @@ export default function Estudio({ datos, clave, recargar }) {
           <textarea id="estudio-notas" value={f.notas} onChange={(e) => cambiar('notas', e.target.value)} />
         </div>
 
-        <h3 style={{ marginTop: '1rem' }}>Convocatoria pública (inscripción abierta)</h3>
-        <p className="silencio">Con la inscripción abierta, cualquiera puede rellenar el perfil en <code>#/participar</code>; el servidor calcula la puntuación de Fehring y solo crea el panelista (con clave y bloque asignado) si alcanza el mínimo. El código de invitación va en la convocatoria y frena el ruido; el tope diario frena el abuso.</p>
+        <h3 style={{ marginTop: '1rem' }}>Convocatoria pública</h3>
+        <p className="silencio">
+          En <code>#/participar</code> quien llega elige vía. Los dos paneles se abren y se cierran por separado, porque no se
+          reclutan a la vez. El código de invitación va en la convocatoria y frena el ruido; el tope diario frena el abuso.
+        </p>
         <label className="casilla" style={{ marginBottom: '0.6rem' }}>
           <input type="checkbox" checked={!!f.inscripcion_abierta} onChange={(e) => cambiar('inscripcion_abierta', e.target.checked)} />
-          <span><b>Inscripción abierta</b>{estudio.inscripcion_abierta ? <span className="sub">Abierta ahora: el enlace «Solicita participar» se muestra en la entrada.</span> : <span className="sub">Cerrada: la página de solicitud avisa de que no está abierta.</span>}</span>
+          <span><b>Inscripción abierta · panel experto</b><span className="sub">El servidor calcula la puntuación de Fehring y solo da de alta a quien alcanza el mínimo.{estudio.inscripcion_abierta ? ' Abierta ahora.' : ' Cerrada ahora.'}</span></span>
+        </label>
+        <label className="casilla" style={{ marginBottom: '0.6rem' }}>
+          <input type="checkbox" checked={!!f.inscripcion_pacientes_abierta} onChange={(e) => cambiar('inscripcion_pacientes_abierta', e.target.checked)} />
+          <span>
+            <b>Inscripción abierta · panel de personas con dolor</b>
+            <span className="sub">
+              Aquí <b>no hay nota de corte</b>: solo elegibilidad (dolor de 3 meses o más, CIE-11) y consentimiento. Enlace
+              directo para carteles y asociaciones: <code>#/participar/paciente</code>.{estudio.inscripcion_pacientes_abierta ? ' Abierta ahora.' : ' Cerrada ahora.'}
+            </span>
+          </span>
         </label>
         <div className="panel-dos">
           <Campo id="codigo_invitacion" etiqueta="Código de invitación" f={f} cambiar={cambiar} ayuda="Vacío = sin código. No es secreto: va en el mensaje de la convocatoria." />

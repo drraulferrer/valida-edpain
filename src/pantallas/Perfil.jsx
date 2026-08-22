@@ -3,9 +3,11 @@ import * as api from '../lib/api.js'
 import { ir } from '../App.jsx'
 import HojaInformacion from '../componentes/HojaInformacion.jsx'
 import {
-  AMBITOS, AUTOEXPERTISE, DISCIPLINAS, DOLOR_PROPIO, EDAD, EDUCACION_DOLOR, ENTORNOS, ESTUDIOS, GENERO,
-  IDENTIDAD_VACIA, PERFIL_EXPERTO_VACIO, PERFIL_PACIENTE_VACIO, PUBLICACIONES, PUBLICACIONES_EDU, TITULACIONES,
-  prepararPerfil, validarPerfilExperto, validarPerfilPaciente,
+  AMBITOS, AUTOEXPERTISE, CHEW, DIAGNOSTICOS, DISCIPLINAS, DOLOR_PROPIO, DURACION_DOLOR, EDAD, EDUCACION_DOLOR,
+  EDUCACION_PREVIA, ENTORNOS, ESTUDIOS, EXPLICACION_RECIBIDA, FRECUENCIA_DOLOR, GENERO, IDENTIDAD_VACIA,
+  LECTURA_PROPIA, PERFIL_EXPERTO_VACIO, PERFIL_PACIENTE_VACIO, PUBLICACIONES, PUBLICACIONES_EDU, SEGUIMIENTO,
+  SITUACION, TITULACIONES, TRATAMIENTOS, ZONAS_DOLOR,
+  elegibilidadPaciente, prepararPerfil, validarPerfilExperto, validarPerfilPaciente,
 } from '../lib/perfil.js'
 
 // Se rellena una vez, antes de las instrucciones. Caracteriza el panel (CREDES), permite calcular
@@ -279,96 +281,223 @@ export function FormularioExperto({ inicial, disciplinaInicial, aniosInicial, do
 
 function PerfilPaciente({ sesion, refrescar }) {
   const previo = sesion.perfil_datos || {}
-  const [f, setF] = useState({ ...PERFIL_PACIENTE_VACIO, ...previo, identidad: { ...IDENTIDAD_VACIA, ...(previo.identidad || {}) } })
   const [error, setError] = useState('')
   const [guardando, setGuardando] = useState(false)
-  const cambiar = (k, v) => setF((prev) => ({ ...prev, [k]: v }))
-  const ident = (k, v) => setF((prev) => ({ ...prev, identidad: { ...prev.identidad, [k]: v } }))
-  const grupo = sesion.estudio?.grupo_autoria || 'Grupo del Estudio EdPain'
 
-  const enviar = async (e) => {
-    e.preventDefault()
-    const problema = validarPerfilPaciente(f)
-    if (problema) { setError(problema); window.scrollTo({ top: 0 }); return }
+  const enviar = async (perfil) => {
     setGuardando(true); setError('')
     try {
-      await api.guardarPerfil(sesion.clave, 'persona con dolor', Number(f.anios_dolor),
-        [], prepararPerfil({ ...f, anios_dolor: Number(f.anios_dolor) }, previo))
+      await api.guardarPerfil(sesion.clave, null, null, [], prepararPerfil(perfil, previo))
       await refrescar()
       ir('/instrucciones')
-    } catch (err) { setError(err.message) } finally { setGuardando(false) }
+    } catch (err) { setError(err.message); window.scrollTo({ top: 0 }) } finally { setGuardando(false) }
   }
 
   return (
     <main className="pantalla">
       <p className="etiqueta acento">Antes de empezar</p>
       <h1>Unos datos sobre ti</h1>
-      <p className="silencio">Sirven para describir al grupo de personas con dolor que ha participado, siempre en conjunto, y para avisarte de cada ronda.</p>
+      <p className="silencio">
+        Sirven para describir en la publicación al grupo de personas con dolor que ha participado —siempre en conjunto, nunca
+        una por una— y para avisarte de cada ronda. Es la única vez que te preguntamos esto.
+      </p>
       {error && <p className="error" role="alert">{error}</p>}
-      <form onSubmit={enviar}>
-        <div className="tarjeta">
-          <h3>Cómo te llamamos</h3>
-          <p className="destacado-oro">Si completas <b>todas las rondas</b>, se te reconocerá como miembro del <b>{grupo}</b> en las publicaciones, con tu nombre y apellidos. Si prefieres no figurar, dínoslo y no aparecerás.</p>
-          <div className="panel-dos">
-            <div className="campo">
-              <label htmlFor="pac-nombre">Nombre</label>
-              <input id="pac-nombre" type="text" autoComplete="given-name" value={f.identidad.nombre} onChange={(e) => ident('nombre', e.target.value)} required />
-            </div>
-            <div className="campo">
-              <label htmlFor="pac-apellidos">Apellidos</label>
-              <input id="pac-apellidos" type="text" autoComplete="family-name" value={f.identidad.apellidos} onChange={(e) => ident('apellidos', e.target.value)} required />
-            </div>
-          </div>
-          <div className="campo">
-            <label htmlFor="pac-email">Correo de contacto</label>
-            <input id="pac-email" type="email" autoComplete="email" value={f.identidad.email} onChange={(e) => ident('email', e.target.value)} required />
-            <p className="ayuda">Solo para avisarte cuando haya textos nuevos que leer. No se publica ni se cede a nadie.</p>
-          </div>
-        </div>
-        <div className="tarjeta">
-          <h3>Sobre tu dolor</h3>
-          <div className="panel-dos">
-            <div className="campo">
-              <label htmlFor="edad">Edad</label>
-              <select id="edad" value={f.edad} onChange={(e) => cambiar('edad', e.target.value)}>
-                <option value="">— elige —</option>
-                {EDAD.map((k) => <option key={k} value={k}>{k} años</option>)}
-              </select>
-            </div>
-            <div className="campo">
-              <label htmlFor="genero">Género <span className="silencio">(opcional)</span></label>
-              <select id="genero" value={f.genero} onChange={(e) => cambiar('genero', e.target.value)}>
-                <option value="">— elige —</option>
-                {GENERO.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-            </div>
-            <div className="campo">
-              <label htmlFor="anios-dolor">Años que llevas con dolor</label>
-              <input id="anios-dolor" type="number" min="0" max="90" value={f.anios_dolor} onChange={(e) => cambiar('anios_dolor', e.target.value)} style={{ width: '8rem' }} />
-            </div>
-            <div className="campo">
-              <label htmlFor="estudios">Estudios <span className="silencio">(opcional)</span></label>
-              <select id="estudios" value={f.estudios} onChange={(e) => cambiar('estudios', e.target.value)}>
-                <option value="">— elige —</option>
-                {ESTUDIOS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="campo">
-            <label htmlFor="diagnostico">Tu dolor, en tus palabras <span className="silencio">(opcional: dónde, desde cuándo, qué te han dicho que es)</span></label>
-            <textarea id="diagnostico" value={f.diagnostico} onChange={(e) => cambiar('diagnostico', e.target.value)} />
-          </div>
-          <label className="casilla">
-            <input type="checkbox" checked={!!f.educacion_previa} onChange={(e) => cambiar('educacion_previa', e.target.checked)} />
-            <span>Alguna vez un profesional me ha explicado cómo funciona el dolor (educación en dolor)</span>
-          </label>
-        </div>
-        <HojaInformacion estudio={sesion.estudio} perfil="paciente" valor={f.consentimiento} onCambio={(v) => cambiar('consentimiento', v)} />
-        {error && <p className="error" role="alert">{error}</p>}
-        <div className="acciones">
-          <button className="boton" type="submit" disabled={guardando}>{guardando ? 'Guardando…' : 'Guardar y seguir'}</button>
-        </div>
-      </form>
+      <FormularioPaciente inicial={previo} estudio={sesion.estudio} onEnviar={enviar} enviando={guardando}
+        etiquetaBoton="Guardar y seguir" />
     </main>
+  )
+}
+
+// El mismo formulario en los dos sitios: al entrar con clave (arriba) y en la convocatoria
+// pública (#/participar). Así no hay dos versiones del conjunto mínimo de datos que se
+// desincronicen. Qué se pregunta y por qué, en la cabecera de src/lib/perfil.js.
+export function FormularioPaciente({ inicial = {}, estudio, onEnviar, enviando, etiquetaBoton = 'Enviar' }) {
+  const [f, setF] = useState({
+    ...PERFIL_PACIENTE_VACIO, ...inicial,
+    identidad: { ...IDENTIDAD_VACIA, ...(inicial.identidad || {}) },
+  })
+  const [error, setError] = useState('')
+  const cambiar = (k, v) => setF((prev) => ({ ...prev, [k]: v }))
+  const ident = (k, v) => setF((prev) => ({ ...prev, identidad: { ...prev.identidad, [k]: v } }))
+  const alternar = (k, id) => setF((prev) => {
+    const ya = prev[k] || []
+    return { ...prev, [k]: ya.includes(id) ? ya.filter((x) => x !== id) : [...ya, id] }
+  })
+  const grupo = estudio?.grupo_autoria || 'Grupo del Estudio EdPain'
+  const noElegible = elegibilidadPaciente(f)
+
+  const enviar = (e) => {
+    e.preventDefault()
+    const problema = validarPerfilPaciente(f)
+    if (problema) { setError(problema); window.scrollTo({ top: 0 }); return }
+    setError('')
+    onEnviar(f)
+  }
+
+  return (
+    <form onSubmit={enviar}>
+      {error && <p className="error" role="alert">{error}</p>}
+
+      <div className="tarjeta">
+        <h3>Cómo te llamamos</h3>
+        <p className="destacado-oro">Si completas <b>todas las rondas</b>, se te reconocerá como miembro del <b>{grupo}</b> en las publicaciones, con tu nombre y apellidos. Si prefieres no figurar, dínoslo y no aparecerás.</p>
+        <div className="panel-dos">
+          <div className="campo">
+            <label htmlFor="pac-nombre">Nombre</label>
+            <input id="pac-nombre" type="text" autoComplete="given-name" value={f.identidad.nombre} onChange={(e) => ident('nombre', e.target.value)} required />
+          </div>
+          <div className="campo">
+            <label htmlFor="pac-apellidos">Apellidos</label>
+            <input id="pac-apellidos" type="text" autoComplete="family-name" value={f.identidad.apellidos} onChange={(e) => ident('apellidos', e.target.value)} required />
+          </div>
+        </div>
+        <div className="campo">
+          <label htmlFor="pac-email">Correo de contacto</label>
+          <input id="pac-email" type="email" autoComplete="email" value={f.identidad.email} onChange={(e) => ident('email', e.target.value)} required />
+          <p className="ayuda">Solo para mandarte tu clave y avisarte cuando haya textos nuevos. No se publica ni se cede a nadie.</p>
+        </div>
+      </div>
+
+      <div className="tarjeta">
+        <h3>Quién eres</h3>
+        <div className="panel-dos">
+          <Elegir id="edad" etiqueta="Edad" valor={f.edad} onCambio={(v) => cambiar('edad', v)}
+            opciones={EDAD.map((k) => [k, `${k} años`])} />
+          <Elegir id="genero" etiqueta="Género" opcional valor={f.genero} onCambio={(v) => cambiar('genero', v)} opciones={GENERO} />
+          <Elegir id="estudios" etiqueta="Estudios" opcional valor={f.estudios} onCambio={(v) => cambiar('estudios', v)} opciones={ESTUDIOS} />
+          <Elegir id="situacion" etiqueta="Situación laboral" opcional valor={f.situacion} onCambio={(v) => cambiar('situacion', v)} opciones={SITUACION} />
+        </div>
+      </div>
+
+      <div className="tarjeta">
+        <h3>Tu dolor</h3>
+        <div className="panel-dos">
+          <Elegir id="duracion-dolor" etiqueta="¿Cuánto tiempo llevas con dolor?" valor={f.duracion_dolor}
+            onCambio={(v) => cambiar('duracion_dolor', v)} opciones={DURACION_DOLOR} />
+          <Elegir id="frecuencia-dolor" etiqueta="¿Cada cuánto te duele?" valor={f.frecuencia_dolor}
+            onCambio={(v) => cambiar('frecuencia_dolor', v)} opciones={FRECUENCIA_DOLOR} />
+        </div>
+        {noElegible && f.duracion_dolor === 'menos_3m' && <p className="aviso-caja">{noElegible}</p>}
+
+        <Casillas etiqueta="¿Dónde te duele?" ayuda="Marca todas las que hagan falta."
+          opciones={ZONAS_DOLOR} marcadas={f.zonas} onAlternar={(id) => alternar('zonas', id)} />
+
+        <Casillas etiqueta="¿Qué te han dicho que tienes?" ayuda="Marca lo que te hayan dicho, aunque no estés de acuerdo o te hayan dicho varias cosas."
+          opciones={DIAGNOSTICOS} marcadas={f.diagnosticos} onAlternar={(id) => alternar('diagnosticos', id)} />
+        {(f.diagnosticos || []).includes('otro') && (
+          <div className="campo">
+            <label htmlFor="dx-otro">¿Cuál?</label>
+            <input id="dx-otro" type="text" value={f.diagnostico_otro} onChange={(e) => cambiar('diagnostico_otro', e.target.value)} />
+          </div>
+        )}
+
+        <Elegir id="explicacion-recibida" etiqueta="¿Te han explicado a qué se debe tu dolor?" opcional
+          valor={f.explicacion_recibida} onCambio={(v) => cambiar('explicacion_recibida', v)} opciones={EXPLICACION_RECIBIDA} />
+
+        <div className="campo">
+          <label htmlFor="diagnostico">Tu dolor, en tus palabras <span className="silencio">(opcional)</span></label>
+          <textarea id="diagnostico" value={f.diagnostico} onChange={(e) => cambiar('diagnostico', e.target.value)}
+            placeholder="Lo que quieras contarnos: cómo empezó, cómo es un mal día, qué te preocupa…" />
+        </div>
+      </div>
+
+      <div className="tarjeta">
+        <h3>Cómo te afecta</h3>
+        <p className="silencio">Piensa en la <b>última semana</b>. Es una escala de 0 a 10 que se usa mucho en las consultas del dolor.</p>
+        <Escala0a10 id="peg-intensidad" etiqueta="Tu dolor, de media" izquierda="Ningún dolor" derecha="El peor que puedas imaginar"
+          valor={f.peg_intensidad} onCambio={(v) => cambiar('peg_intensidad', v)} />
+        <Escala0a10 id="peg-disfrute" etiqueta="Cuánto te ha estorbado para disfrutar de la vida" izquierda="Nada" derecha="Del todo"
+          valor={f.peg_disfrute} onCambio={(v) => cambiar('peg_disfrute', v)} />
+        <Escala0a10 id="peg-actividad" etiqueta="Cuánto te ha estorbado para tu actividad de cada día" izquierda="Nada" derecha="Del todo"
+          valor={f.peg_actividad} onCambio={(v) => cambiar('peg_actividad', v)} />
+      </div>
+
+      <div className="tarjeta">
+        <h3>Qué has probado</h3>
+        <Casillas etiqueta="Tratamientos que estés haciendo o hayas hecho por este dolor" ayuda="Marca todos los que apliquen."
+          opciones={TRATAMIENTOS} marcadas={f.tratamientos} onAlternar={(id) => alternar('tratamientos', id)} />
+        <Elegir id="seguimiento" etiqueta="¿Quién te lleva ahora mismo?" opcional valor={f.seguimiento}
+          onCambio={(v) => cambiar('seguimiento', v)} opciones={SEGUIMIENTO} />
+      </div>
+
+      <div className="tarjeta">
+        <h3>Lo que ya sabes sobre el dolor</h3>
+        <p className="silencio">
+          Esto no puntúa ni deja fuera a nadie: al revés. Si el panel entero ya supiera de dolor, diría que todo se entiende y el
+          estudio no valdría. Nos hace falta gente que llegue de nuevas tanto como gente que ya haya pasado por un programa.
+        </p>
+        <Elegir id="educacion-previa" etiqueta="¿Alguna vez un profesional te ha explicado cómo funciona el dolor?"
+          valor={f.educacion_previa} onCambio={(v) => cambiar('educacion_previa', v)} opciones={EDUCACION_PREVIA} />
+        <Elegir id="lectura-propia" etiqueta="¿Lees o ves cosas por tu cuenta sobre el dolor?" opcional
+          valor={f.lectura_propia} onCambio={(v) => cambiar('lectura_propia', v)} opciones={LECTURA_PROPIA} />
+      </div>
+
+      <div className="tarjeta">
+        <h3>La información escrita de salud</h3>
+        <p className="silencio">
+          Tres preguntas cortas y muy usadas. Sirven para saber a quién le resultan claros estos textos: si solo los entiende
+          quien se maneja bien con los papeles del médico, es que hay que reescribirlos.
+        </p>
+        {CHEW.map(([clave, pregunta, escala]) => (
+          <Elegir key={clave} id={`chew-${clave}`} etiqueta={pregunta} valor={f[clave]}
+            onCambio={(v) => cambiar(clave, v === '' ? '' : Number(v))} opciones={escala} />
+        ))}
+      </div>
+
+      <HojaInformacion estudio={estudio} perfil="paciente" valor={f.consentimiento} onCambio={(v) => cambiar('consentimiento', v)} />
+      {error && <p className="error" role="alert">{error}</p>}
+      <div className="acciones">
+        <button className="boton" type="submit" disabled={enviando}>{enviando ? 'Guardando…' : etiquetaBoton}</button>
+      </div>
+    </form>
+  )
+}
+
+// --- piezas del formulario de paciente ---------------------------------------
+
+function Elegir({ id, etiqueta, opciones, valor, onCambio, opcional = false }) {
+  return (
+    <div className="campo">
+      <label htmlFor={id}>{etiqueta}{opcional && <span className="silencio"> (opcional)</span>}</label>
+      <select id={id} value={valor ?? ''} onChange={(e) => onCambio(e.target.value)}>
+        <option value="">— elige —</option>
+        {opciones.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+      </select>
+    </div>
+  )
+}
+
+function Casillas({ etiqueta, ayuda, opciones, marcadas = [], onAlternar }) {
+  return (
+    <div className="campo">
+      <span className="rotulo">{etiqueta}</span>
+      {ayuda && <p className="ayuda">{ayuda}</p>}
+      <div className="casillas">
+        {opciones.map(([k, v]) => (
+          <label key={k} className="casilla">
+            <input type="checkbox" checked={marcadas.includes(k)} onChange={() => onAlternar(k)} />
+            <span>{v}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// 0-10 en botones, no en un deslizador: en móvil un slider es un suplicio y con dolor de manos
+// más. Cada número es un objetivo tocable.
+function Escala0a10({ id, etiqueta, izquierda, derecha, valor, onCambio }) {
+  return (
+    <div className="campo">
+      <span className="rotulo" id={`${id}-rotulo`}>{etiqueta}</span>
+      <div className="escala-0-10" role="radiogroup" aria-labelledby={`${id}-rotulo`}>
+        {Array.from({ length: 11 }, (_, n) => (
+          <button key={n} type="button" role="radio" aria-checked={Number(valor) === n}
+            className={Number(valor) === n ? 'sel' : ''}
+            onClick={() => onCambio(valor === n ? '' : n)}>{n}</button>
+        ))}
+      </div>
+      <p className="ayuda escala-extremos"><span>0 · {izquierda}</span><span>10 · {derecha}</span></p>
+    </div>
   )
 }

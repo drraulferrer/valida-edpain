@@ -23,7 +23,7 @@ vi.mock('../src/lib/api.js', async () => {
     valida_cobertura: { clave: a[0], modulo: a[1], exhaustividad: a[2], falta: a[3], sobra: a[4] },
     valida_evento: { clave: a[0], tipo: a[1], detalle: a[2] },
     valida_publico: { estudio: a[0] },
-    valida_solicitar: { estudio: a[0], codigo_invitacion: a[1], disciplina: a[2], anios: a[3], dominios: a[4], perfil: a[5] },
+    valida_solicitar: { estudio: a[0], codigo_invitacion: a[1], disciplina: a[2], anios: a[3], dominios: a[4], perfil: a[5], perfil_solicitado: a[6] },
   })[nombre]
   let guardada = ''
   return {
@@ -170,14 +170,32 @@ describe('flujo del experto', () => {
   })
 })
 
+// El conjunto mínimo de datos del panel de paciente: temporalidad, localización, diagnóstico,
+// impacto (PEG), educación previa y alfabetización en salud (Chew).
+function rellenarPerfilPaciente({ duracion = '1_5a' } = {}) {
+  fireEvent.change(screen.getByLabelText('Edad'), { target: { value: '45-59' } })
+  fireEvent.change(screen.getByLabelText('¿Cuánto tiempo llevas con dolor?'), { target: { value: duracion } })
+  fireEvent.change(screen.getByLabelText('¿Cada cuánto te duele?'), { target: { value: 'casi_diario' } })
+  fireEvent.click(screen.getByLabelText('Espalda baja o lumbares'))
+  fireEvent.click(screen.getByLabelText('Fibromialgia'))
+  for (const [rotulo, n] of [['Tu dolor, de media', 6],
+                             ['Cuánto te ha estorbado para disfrutar de la vida', 7],
+                             ['Cuánto te ha estorbado para tu actividad de cada día', 5]]) {
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: rotulo })).getByRole('radio', { name: String(n) }))
+  }
+  fireEvent.change(screen.getByLabelText('¿Alguna vez un profesional te ha explicado cómo funciona el dolor?'), { target: { value: 'nunca' } })
+  fireEvent.change(screen.getByLabelText(/te ayude a leer los papeles/), { target: { value: '1' } })
+  fireEvent.change(screen.getByLabelText(/rellenando tú solo o sola/), { target: { value: '2' } })
+  fireEvent.change(screen.getByLabelText(/te cuesta entender tu problema de salud/), { target: { value: '2' } })
+  fireEvent.click(screen.getByLabelText(/He leído la información, he podido preguntar/))
+}
+
 describe('flujo del paciente', () => {
   it('ve solo la explicación de paciente y su instrumento', async () => {
     await entrarComo(CLAVES_DEMO.paciente)
     expect(await screen.findByText('Unos datos sobre ti')).toBeTruthy()
     rellenarIdentidad('paciente@ejemplo.org')
-    fireEvent.change(screen.getByLabelText('Edad'), { target: { value: '45-59' } })
-    fireEvent.change(screen.getByLabelText('Años que llevas con dolor'), { target: { value: '7' } })
-    fireEvent.click(screen.getByLabelText(/He leído la información, he podido preguntar/))
+    rellenarPerfilPaciente()
     fireEvent.click(screen.getByRole('button', { name: 'Guardar y seguir' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Empezar' }))
     fireEvent.click(await screen.findByRole('link', { name: 'Empezar' }))
@@ -206,9 +224,7 @@ describe('flujo del paciente', () => {
     await entrarComo(CLAVES_DEMO.paciente)
     expect(await screen.findByText('Unos datos sobre ti')).toBeTruthy()
     rellenarIdentidad('paciente2@ejemplo.org')
-    fireEvent.change(screen.getByLabelText('Edad'), { target: { value: '45-59' } })
-    fireEvent.change(screen.getByLabelText('Años que llevas con dolor'), { target: { value: '7' } })
-    fireEvent.click(screen.getByLabelText(/He leído la información, he podido preguntar/))
+    rellenarPerfilPaciente()
     fireEvent.click(screen.getByRole('button', { name: 'Guardar y seguir' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Empezar' }))
     fireEvent.click(await screen.findByRole('link', { name: 'Empezar' }))
@@ -223,6 +239,8 @@ describe('convocatoria pública (#/participar)', () => {
   const rellenar = async ({ titulacion, anios, formacion = false, codigo = 'demo' }) => {
     window.location.hash = '#/participar'
     render(<App />)
+    // La convocatoria pregunta primero quién eres: los dos paneles no leen lo mismo.
+    fireEvent.click(await screen.findByRole('button', { name: /Soy profesional con experiencia en dolor/ }))
     fireEvent.change(await screen.findByLabelText(/Código de/), { target: { value: codigo } })
     rellenarIdentidad()
     fireEvent.change(screen.getByLabelText('Disciplina principal'), { target: { value: 'fisioterapia' } })
@@ -277,11 +295,102 @@ describe('convocatoria pública (#/participar)', () => {
   })
 })
 
+describe('convocatoria de pacientes (#/participar/paciente)', () => {
+  const solicitar = async (ajustes = {}) => {
+    window.location.hash = '#/participar/paciente'
+    render(<App />)
+    expect(await screen.findByText('Participar como persona con dolor')).toBeTruthy()
+    await screen.findByLabelText('Nombre')   // el formulario llega cuando responde valida_publico
+    const campoCodigo = screen.queryByLabelText(/Código de/)
+    if (campoCodigo) fireEvent.change(campoCodigo, { target: { value: ajustes.codigo ?? 'demo' } })
+    rellenarIdentidad(ajustes.email || 'dolor@ejemplo.org')
+    rellenarPerfilPaciente(ajustes)
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar solicitud' }))
+  }
+
+  it('el enlace directo entra en la vía de paciente sin pasar por la elección', async () => {
+    window.location.hash = '#/participar/paciente'
+    render(<App />)
+    expect(await screen.findByText('Participar como persona con dolor')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Soy profesional/ })).toBeNull()
+  })
+
+  it('llegar al enlace directo desde la pantalla de elección también funciona', async () => {
+    window.location.hash = '#/participar'
+    render(<App />)
+    await screen.findByRole('button', { name: /Soy profesional/ })
+    // Sin sincronizar la vía con la ruta, el componente ya montado se quedaba en la elección.
+    window.location.hash = '#/participar/paciente'
+    expect(await screen.findByText('Participar como persona con dolor')).toBeTruthy()
+  })
+
+  it('da de alta SIN puntuar: no hay Fehring ni nota de corte', async () => {
+    const antes = demo._estado.panelistas.length
+    await solicitar()
+    expect(await screen.findByText(/Solicitud aceptada/)).toBeTruthy()
+    expect(screen.getByText(/Eres PAC-02/)).toBeTruthy()
+    const nuevo = demo._estado.panelistas.find((p) => p.codigo === 'PAC-02')
+    expect(demo._estado.panelistas.length).toBe(antes + 1)
+    expect(nuevo.perfil).toBe('paciente')
+    expect(nuevo.dominios_competencia).toEqual([])      // el paciente no juzga por dominios
+    expect(nuevo.notas).toMatch(/panel de paciente/)
+    expect(nuevo.notas).not.toMatch(/Fehring/)
+    // Y le queda un bloque asignado, con textos que tienen explicación para pacientes.
+    expect(demo._estado.asignaciones.filter((a) => a.panelista_id === nuevo.id).length).toBeGreaterThan(0)
+  })
+
+  it('guarda el conjunto mínimo de datos: dolor, diagnóstico, impacto, tratamientos y alfabetización', async () => {
+    await solicitar({ email: 'dolor2@ejemplo.org' })
+    await screen.findByText(/Solicitud aceptada/)
+    const nuevo = demo._estado.panelistas.find((p) => p.codigo === 'PAC-02')
+    const d = nuevo.perfil_datos
+    expect(d.duracion_dolor).toBe('1_5a')
+    expect(d.frecuencia_dolor).toBe('casi_diario')
+    expect(d.zonas).toEqual(['lumbar'])
+    expect(d.diagnosticos).toEqual(['fibromialgia'])
+    expect([d.peg_intensidad, d.peg_disfrute, d.peg_actividad]).toEqual([6, 7, 5])
+    expect(d.educacion_previa).toBe('nunca')
+    expect([d.ayuda_leer, d.seguridad_formularios, d.cuesta_entender]).toEqual([1, 2, 2])
+    // La identidad va aparte: no viaja con el perfil.
+    expect(d.identidad).toBeUndefined()
+    expect(demo._estado.identidades.some((i) => i.codigo === 'PAC-02')).toBe(true)
+  })
+
+  it('menos de tres meses de dolor no es dolor crónico y no entra', async () => {
+    const antes = demo._estado.panelistas.length
+    await solicitar({ duracion: 'menos_3m', email: 'agudo@ejemplo.org' })
+    const alertas = await screen.findAllByRole('alert')
+    expect(alertas[0].textContent).toMatch(/tres meses/)
+    expect(demo._estado.panelistas.length).toBe(antes)
+  })
+
+  it('con la inscripción de pacientes cerrada no se puede solicitar', async () => {
+    demo.rpc('valida_dir_estudio', { clave: CLAVES_DEMO.direccion, datos: { inscripcion_pacientes_abierta: false } })
+    window.location.hash = '#/participar/paciente'
+    render(<App />)
+    expect(await screen.findByText(/La inscripción no está abierta/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Enviar solicitud' })).toBeNull()
+    demo.rpc('valida_dir_estudio', { clave: CLAVES_DEMO.direccion, datos: { inscripcion_pacientes_abierta: true } })
+  })
+
+  it('los dos paneles se abren por separado', async () => {
+    demo.rpc('valida_dir_estudio', { clave: CLAVES_DEMO.direccion, datos: { inscripcion_abierta: false, inscripcion_pacientes_abierta: true } })
+    window.location.hash = '#/participar'
+    render(<App />)
+    const experto = await screen.findByRole('button', { name: /Soy profesional con experiencia en dolor/ })
+    const paciente = screen.getByRole('button', { name: /Tengo dolor desde hace tres meses o más/ })
+    expect(experto.textContent).toMatch(/Cerrada ahora mismo/)
+    expect(paciente.textContent).not.toMatch(/Cerrada ahora mismo/)
+    demo.rpc('valida_dir_estudio', { clave: CLAVES_DEMO.direccion, datos: { inscripcion_abierta: true } })
+  })
+})
+
 describe('código de pruebas con la inscripción cerrada', () => {
   it('crea un panelista marcado como prueba y la dirección puede borrarlo', async () => {
     demo.rpc('valida_dir_estudio', { clave: CLAVES_DEMO.direccion, datos: { inscripcion_abierta: false } })
     window.location.hash = '#/participar'
     render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: /Soy profesional con experiencia en dolor/ }))
     fireEvent.click(await screen.findByRole('button', { name: 'Tengo un código de acceso' }))
     fireEvent.change(await screen.findByLabelText(/Código de acceso/), { target: { value: 'PRUEBAS' } })
     rellenarIdentidad('prueba@ejemplo.org')
