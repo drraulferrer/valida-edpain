@@ -110,8 +110,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .lectura li { margin-bottom: 0.3em; }
 .lectura code { font-family: var(--mono); font-size: 0.85em; background: var(--papel-2); padding: 0.05em 0.3em; border-radius: 4px; }
 .lectura h5, .lectura h6 { font-family: var(--sans); margin-top: 1em; }
-.lectura .ref { font-family: var(--mono); font-size: 0.78em; text-decoration: none; background: var(--acento-suave); color: var(--acento-2); padding: 0.05em 0.35em; border-radius: 4px; }
-.lectura .cpt { font-family: var(--mono); font-size: 0.8em; color: var(--tinta-3); }
+.lectura .ref { font-family: inherit; font-size: inherit; color: var(--acento-2); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--acento) 45%, transparent); }
+.lectura .ref:hover { border-bottom-color: var(--acento); }
+.lectura .cpt { font-family: inherit; font-size: inherit; color: var(--tinta); font-style: italic; }
 .marca { display: inline-block; font-family: var(--sans); font-size: 0.8em; background: var(--aviso-suave); color: var(--aviso); padding: 0.1em 0.4em; border-radius: 4px; }
 .titulo-concepto { font-family: var(--serif); font-size: 1.65rem; font-weight: 600; line-height: 1.25; margin: 0.25rem 0 0.75rem; letter-spacing: -0.01em; }
 .miga { font-size: 0.82rem; color: var(--tinta-3); display: flex; flex-wrap: wrap; gap: 0.35rem 0.6rem; align-items: center; }
