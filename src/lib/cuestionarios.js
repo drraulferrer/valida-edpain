@@ -9,13 +9,17 @@
 //          intensidad y discapacidad. Es el instrumento que el propio corpus cita
 //          (REF-0079) para decir que la gravedad es un eje distinto de la duración.
 //
-//   PHQ-4 · Kroenke, Spitzer, Williams y Löwe, Psychosomatics 2009;50(6):613-21,
-//          doi:10.1016/S0033-3182(09)70864-3. Cuatro ítems: GAD-2 (ansiedad) + PHQ-2
-//          (depresión). De uso libre, sin licencia ni permiso.
+//   PHQ-9 · Kroenke, Spitzer y Williams, J Gen Intern Med 2001;16(9):606-13,
+//          doi:10.1046/j.1525-1497.2001.016009606.x. Nueve ítems que son los nueve
+//          criterios de depresión mayor del DSM, 0-3 cada uno. **De uso libre**: no
+//          requiere permiso ni licencia para reproducirlo, traducirlo o distribuirlo, que
+//          es justo lo que descartó a la HADS (texto propiedad de GL Assessment). Validado
+//          en español por Diez-Quevedo et al., Psychosom Med 2001;63(4):679-86.
 //
-//   HADS · Zigmond y Snaith, Acta Psychiatr Scand 1983;67(6):361-70. La puntuación está
-//          implementada, pero **los 14 ítems no se distribuyen aquí**: el texto es
-//          propiedad de GL Assessment y su uso exige licencia. Ver `HADS` más abajo.
+//          Su ítem 9 pregunta por ideas de muerte. Eso obliga a dos cosas que están
+//          implementadas: enseñar recursos de ayuda en cuanto se marca algo distinto de
+//          «ningún día`, y no prometer en ningún sitio que alguien vigila las respuestas
+//          en tiempo real, porque no es verdad.
 // ---------------------------------------------------------------------------
 
 // --------------------------------------------------------------------------- EGDC
@@ -86,69 +90,67 @@ export function egdc(p = {}) {
   return { completo: true, intensidad: ic, discapacidad: pd, dias, puntos, grado, ...EGDC_GRADOS[grado] }
 }
 
-// --------------------------------------------------------------------------- PHQ-4
-export const PHQ4_OPCIONES = [
+// --------------------------------------------------------------------------- PHQ-9
+export const PHQ9_OPCIONES = [
   [0, 'Ningún día'], [1, 'Varios días'], [2, 'Más de la mitad de los días'], [3, 'Casi todos los días'],
 ]
 
-export const PHQ4_ITEMS = [
-  ['phq4_nervioso', 'Sentirte con los nervios de punta, ansioso/a o muy tenso/a', 'ansiedad'],
-  ['phq4_preocupacion', 'No poder parar de preocuparte o controlar la preocupación', 'ansiedad'],
-  ['phq4_interes', 'Poco interés o alegría por hacer cosas', 'depresion'],
-  ['phq4_animo', 'Sentirte con el ánimo bajo, deprimido/a o sin esperanza', 'depresion'],
+// Texto de la versión española del instrumento. **No se reescribe al tuteo del resto del
+// formulario a propósito**: cambiar la redacción de un ítem validado rompe la comparabilidad
+// con los baremos publicados, que es la única razón para usar un instrumento validado.
+export const PHQ9_ENUNCIADO = 'Durante las **últimas 2 semanas**, ¿con qué frecuencia le han molestado los siguientes problemas?'
+
+export const PHQ9_ITEMS = [
+  ['phq9_interes', 'Poco interés o placer en hacer las cosas'],
+  ['phq9_animo', 'Se ha sentido desanimado/a, deprimido/a o sin esperanza'],
+  ['phq9_sueno', 'Ha tenido dificultad para dormirse o para mantenerse dormido/a, o ha dormido demasiado'],
+  ['phq9_energia', 'Se ha sentido cansado/a o con poca energía'],
+  ['phq9_apetito', 'Ha tenido poco apetito o ha comido en exceso'],
+  ['phq9_fracaso', 'Se ha sentido mal con usted mismo/a, o ha sentido que es un fracaso o que se ha fallado a sí mismo/a o a su familia'],
+  ['phq9_concentracion', 'Ha tenido dificultad para concentrarse en algo, como leer el periódico o ver la televisión'],
+  ['phq9_lentitud', 'Se ha movido o ha hablado tan despacio que otras personas podrían haberlo notado; o al contrario, ha estado tan inquieto/a o agitado/a que se ha movido mucho más de lo habitual'],
+  ['phq9_muerte', 'Ha pensado que estaría mejor muerto/a o ha pensado en hacerse daño de alguna manera'],
 ]
 
-export const PHQ4_ENUNCIADO = 'Durante las **últimas dos semanas**, ¿con qué frecuencia te han molestado estos problemas?'
+// El ítem que obliga a enseñar ayuda en pantalla. Se nombra, no se cuenta a mano.
+export const PHQ9_ITEM_RIESGO = 'phq9_muerte'
 
-// Corte de 3 en cada subescala (Kroenke 2009) y gravedad del total 0-12.
-export function phq4(p = {}) {
-  const de = (dominio) => PHQ4_ITEMS.filter(([, , d]) => d === dominio).map(([k]) => num(p[k]))
-  const a = de('ansiedad')
-  const d = de('depresion')
-  const completo = [...a, ...d].every((x) => x != null)
-  if (!completo) return { completo: false, ansiedad: null, depresion: null, total: null }
-  const ansiedad = a.reduce((s, x) => s + x, 0)
-  const depresion = d.reduce((s, x) => s + x, 0)
-  const total = ansiedad + depresion
-  const gravedad = total >= 9 ? 'grave' : total >= 6 ? 'moderada' : total >= 3 ? 'leve' : 'ninguna'
-  return {
-    completo: true, ansiedad, depresion, total, gravedad,
-    ansiedad_positiva: ansiedad >= 3, depresion_positiva: depresion >= 3,
-  }
+// Ítem 10 del instrumento: mide interferencia y **no suma** al total. Opcional aquí.
+export const PHQ9_FUNCIONAL = 'phq9_funcional'
+export const PHQ9_FUNCIONAL_TEXTO = 'Si ha marcado alguno de los problemas anteriores, ¿hasta qué punto le han dificultado hacer su trabajo, ocuparse de las cosas de casa o relacionarse con los demás?'
+export const PHQ9_FUNCIONAL_OPCIONES = [
+  [0, 'Nada difícil'], [1, 'Algo difícil'], [2, 'Muy difícil'], [3, 'Extremadamente difícil'],
+]
+
+// Franjas de gravedad de Kroenke 2001. El corte de decisión es 10: por debajo, cribado negativo.
+export const PHQ9_GRAVEDAD = [
+  [0, 'mínima o ninguna'], [5, 'leve'], [10, 'moderada'], [15, 'moderadamente grave'], [20, 'grave'],
+]
+
+export function gravedadPhq9(total) {
+  if (total == null) return null
+  let etiqueta = null
+  for (const [desde, nombre] of PHQ9_GRAVEDAD) if (total >= desde) etiqueta = nombre
+  return etiqueta
 }
 
-// --------------------------------------------------------------------------- HADS
-//
-// La puntuación está lista; los ítems, no. El texto de la HADS es propiedad de
-// GL Assessment y su reproducción —también en una web— exige licencia, así que aquí no
-// se distribuye. Cuando el estudio tenga la licencia de la versión española, basta con
-// rellenar `texto` en los catorce huecos de abajo y activarla en la configuración del
-// estudio: el cálculo, los cortes y la interfaz ya funcionan.
-export const HADS_OPCIONES_NOTA = 'Cada ítem se puntúa de 0 a 3 con las cuatro respuestas propias del ítem.'
-
-export const HADS_ITEMS = Array.from({ length: 14 }, (_, i) => ({
-  clave: `hads_${String(i + 1).padStart(2, '0')}`,
-  texto: '',                                   // ← licencia
-  dominio: i % 2 === 0 ? 'ansiedad' : 'depresion',   // impares = A, pares = D
-  opciones: [],                                // ← licencia
-}))
-
-export const HADS_DISPONIBLE = HADS_ITEMS.every((i) => i.texto && i.opciones.length)
-
-// Subescalas de 0 a 21. Cortes clásicos: ≤7 normal · 8-10 dudoso · ≥11 caso probable.
-export function hads(p = {}, items = HADS_ITEMS) {
-  const de = (dominio) => items.filter((i) => i.dominio === dominio).map((i) => num(p[i.clave]))
-  const a = de('ansiedad')
-  const d = de('depresion')
-  const completo = [...a, ...d].length > 0 && [...a, ...d].every((x) => x != null)
-  if (!completo) return { completo: false, ansiedad: null, depresion: null }
-  const suma = (v) => v.reduce((s, x) => s + x, 0)
-  const categoria = (v) => (v >= 11 ? 'caso probable' : v >= 8 ? 'dudoso' : 'normal')
-  const ansiedad = suma(a)
-  const depresion = suma(d)
+// Total 0-27, franja de gravedad, corte ≥ 10 y la señal del ítem 9, que se devuelve aparte
+// porque no es una puntuación: es el motivo por el que hay que enseñar ayuda.
+export function phq9(p = {}) {
+  const valores = PHQ9_ITEMS.map(([k]) => num(p[k]))
+  const completo = valores.every((x) => x != null)
+  const riesgo = num(p[PHQ9_ITEM_RIESGO])
+  if (!completo) {
+    return { completo: false, total: null, gravedad: null, positivo: null, riesgo: riesgo != null && riesgo > 0 }
+  }
+  const total = valores.reduce((s, x) => s + x, 0)
   return {
-    completo: true, ansiedad, depresion,
-    categoria_ansiedad: categoria(ansiedad), categoria_depresion: categoria(depresion),
+    completo: true,
+    total,
+    gravedad: gravedadPhq9(total),
+    positivo: total >= 10,           // corte de cribado de depresión mayor
+    riesgo: riesgo > 0,              // ítem 9 marcado: hay que enseñar recursos de ayuda
+    funcional: num(p[PHQ9_FUNCIONAL]),
   }
 }
 
@@ -156,11 +158,11 @@ export function hads(p = {}, items = HADS_ITEMS) {
 // Una línea por instrumento, para el panel de dirección y para describir al grupo.
 export function resumenInstrumentos(p = {}) {
   const g = egdc(p)
-  const e = phq4(p)
-  const h = hads(p)
+  const d = phq9(p)
   return [
     g.completo && `EGDC ${EGDC_GRADOS[g.grado].nombre} (intensidad ${g.intensidad.toFixed(0)}/100, discapacidad ${g.discapacidad.toFixed(0)}/100)`,
-    e.completo && `PHQ-4 ${e.total}/12 · ansiedad ${e.ansiedad}/6${e.ansiedad_positiva ? ' (+)' : ''} · depresión ${e.depresion}/6${e.depresion_positiva ? ' (+)' : ''}`,
-    h.completo && `HADS A ${h.ansiedad}/21 (${h.categoria_ansiedad}) · D ${h.depresion}/21 (${h.categoria_depresion})`,
+    d.completo && `PHQ-9 ${d.total}/27 · depresión ${d.gravedad}${d.positivo ? ' (+)' : ''}`,
+    // El ítem 9 se enseña a la dirección, pero en ninguna pantalla se promete vigilarlo.
+    d.riesgo && 'PHQ-9 ítem 9 marcado',
   ].filter(Boolean).join(' · ')
 }

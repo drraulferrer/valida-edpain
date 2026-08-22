@@ -40,8 +40,10 @@ aleatorios permanentes; decisión del 22-ago justificada en la spec §3.8), `con
   **eu-west-3 = París**), esquema `valida`. Migrado el 22-ago desde «Delphi Educación en Dolor»
   (`mmwytewpfnckymjxldye`, eu-west-2 = **Londres**), que queda **pausado** como marcha atrás. Se movió
   porque los datos de salud del panel de paciente no pueden salir de la UE, y eu-west-2 es Reino Unido.
-  Detalle de la migración en §5h. **Ojo**: `public.respuestas_consenso` (buzón de `consenso.py`, vacía)
-  NO se recreó en el proyecto nuevo: si `consenso.py` la vuelve a necesitar, hay que crearla.
+  Detalle de la migración en §5h. El buzón `public.respuestas_consenso` (de `consenso.py`, del repo
+  del corpus) **también se recreó** en el proyecto nuevo, ya no a mano: lo crea
+  `~/educacion-en-dolor/build/consenso_buzon.sql`, y `panel/envio.yaml` y el Llavero
+  `supabase-consenso` apuntan ya a París.
 - **Hosting**: GitHub Pages (repo público `drraulferrer/valida-edpain`, rama `gh-pages`) con
   `valida.edpain.com`; DNS en **Cloudflare** (los NS de edpain.com están ahí; Hostinger es solo el
   registrador). Vercel queda como opción: tu cuenta está logueada en Chrome pero la app de GitHub de
@@ -358,8 +360,13 @@ EEE evitable. Se migró a `eu-west-3` (París): estado miembro y el más cercano
   panelistas de prueba. Restaurado el 23-ago a su valor de siempre, `PRUEBA-EDPAIN-26`. Al migrar,
   repasar la fila de `valida.estudios` entera contra lo que dice este documento; el resto de la
   configuración (fracción 12 %, suelo 8, k 5/3, plazo 10 días, Fehring ≥ 8, semilla) sí llegó bien.
-- **El proyecto viejo se queda pausado**, no borrado. Es la marcha atrás. Borrarlo es una decisión
-  aparte, y hay que acordarse de `public.respuestas_consenso`.
+- **Lo que no crea `schema.sql` no viaja.** El buzón `public.respuestas_consenso` lo había creado a
+  mano una instrucción comentada de otro repo, así que el proyecto nuevo nació sin él y `consenso.py`
+  habría muerto en silencio al borrar el viejo. Antes de migrar, mirar qué hay en `public` que no sea
+  del esquema propio.
+- Al recrearlo salió un agujero que arrastraba el DDL original: Supabase concede `all privileges` a
+  `anon` sobre lo que se cree en `public`, y ahí va **TRUNCATE, que no pasa por el RLS**. Con la clave
+  pública de los cuadernos se podía vaciar el buzón. Arreglado en `build/consenso_buzon.sql`.
 
 ## 6 · Gotchas encontrados construyéndolo (22-ago)
 

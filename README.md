@@ -7,7 +7,7 @@ seguir el estudio, pipeline de importación/exportación contra el corpus.
 
 - **Spec y evaluación metodológica:** `~/specs/valida-edpain.md`
 - **Continuidad entre sesiones:** `ARRANQUE-SESION.md` (leer antes de tocar nada)
-- **Web:** https://valida.edpain.com · **Base de datos:** Supabase «Delphi Educación en Dolor» (`mmwytewpfnckymjxldye`, eu-west-2)
+- **Web:** https://valida.edpain.com · **Base de datos:** Supabase «valida-edpain» (`nnelofgevsvdaiaryjbk`, **eu-west-3 · París**)
 
 ## Arrancar
 
