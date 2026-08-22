@@ -107,3 +107,8 @@ export const dirPropuesta = (clave, valoracion_id, indice, estado, nota) =>
 export const dirCalibracion = (clave, items) => rpc('valida_dir_calibracion', { clave, items })
 export const dirIdentidades = (clave) => rpc('valida_dir_identidades', { clave })
 export const dirBorrarPrueba = (clave, codigo) => rpc('valida_dir_borrar_prueba', { clave, codigo })
+export const dirAvisos = (clave) => rpc('valida_dir_avisos', { clave })
+export const dirMarcarAvisos = (clave, codigos, tipo) => rpc('valida_dir_marcar_avisos', { clave, codigos, tipo })
+export const dirPlazo = (clave, codigo, dias, motivo) => rpc('valida_dir_plazo', { clave, codigo, dias, motivo })
+export const dirRondaFechas = (clave, ronda, abre_en, cierra_en, notas) =>
+  rpc('valida_dir_ronda_fechas', { clave, ronda, abre_en, cierra_en, notas })

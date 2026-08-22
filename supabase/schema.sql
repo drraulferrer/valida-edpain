@@ -65,6 +65,8 @@ alter table valida.estudios add column if not exists grupo_autoria text default 
 -- Código de PRUEBAS: funciona con la inscripción CERRADA y crea panelistas marcados como prueba,
 -- para ensayar el circuito completo antes de lanzar la convocatoria. Se borran de un clic.
 alter table valida.estudios add column if not exists codigo_pruebas text;
+-- Plazo por defecto que se le da a cada panelista desde que entra en una ronda.
+alter table valida.estudios add column if not exists plazo_dias smallint not null default 10;
 
 -- Las dimensiones del instrumento son datos, no código: cuatro hoy, cinco si se decide
 -- separar corrección de representatividad. El wizard las lee de aquí.
@@ -157,6 +159,7 @@ create table if not exists valida.panelistas (
 );
 
 alter table valida.panelistas add column if not exists es_prueba boolean not null default false;
+alter table valida.panelistas add column if not exists plazo_dias_propio smallint;  -- null = el del estudio
 alter table valida.panelistas add column if not exists perfil_datos jsonb not null default '{}';  -- expertise (Fehring/CREDES) y consentimiento; sin datos identificativos. (`perfil` es el rol)
 
 -- IDENTIDAD, APARTE. Nombre, filiación y correo viven en su propia tabla y NO salen en el
@@ -174,6 +177,40 @@ create table if not exists valida.identidades (
   dois          text[] not null default '{}',
   creada_en     timestamptz not null default now(),
   actualizada_en timestamptz not null default now()
+);
+
+-- CALENDARIO DE RONDAS. Cada ronda tiene su apertura y su cierre; el cierre es un tope duro
+-- (después no se guarda nada), y por debajo cada panelista tiene su propio plazo personal.
+create table if not exists valida.rondas (
+  estudio_id  smallint not null references valida.estudios(id),
+  ronda       smallint not null,
+  abre_en     timestamptz not null default now(),
+  cierra_en   timestamptz,
+  notas       text,
+  primary key (estudio_id, ronda)
+);
+
+-- PLAZO PERSONAL por panelista y ronda: empieza cuando se le asigna el bloque (o cuando se
+-- registra) y dura `dias`. La dirección puede ampliarlo uno a uno sin tocar a los demás.
+create table if not exists valida.plazos (
+  panelista_id   integer not null references valida.panelistas(id) on delete cascade,
+  ronda          smallint not null,
+  inicio         timestamptz not null default now(),
+  dias           smallint not null,
+  motivo         text,
+  actualizado_en timestamptz not null default now(),
+  primary key (panelista_id, ronda)
+);
+
+-- Avisos ya enviados, para no repetirlos. Los que faltan se calculan al vuelo: si el panelista
+-- termina su bloque deja de haber pendientes y los avisos dejan de salir solos.
+create table if not exists valida.avisos (
+  panelista_id integer not null references valida.panelistas(id) on delete cascade,
+  ronda        smallint not null,
+  tipo         text not null check (tipo in ('mitad', 'tres_dias', 'un_dia', 'vencido')),
+  enviado_en   timestamptz not null default now(),
+  pendientes   smallint,
+  primary key (panelista_id, ronda, tipo)
 );
 
 create table if not exists valida.asignaciones (
@@ -326,6 +363,34 @@ begin
   return substr(s, 1, 4) || '-' || substr(s, 5, 4) || '-' || substr(s, 9, 4);
 end $$;
 
+-- El plazo efectivo de un panelista en una ronda: su fin personal y el cierre de la ronda.
+create or replace function valida.plazo_de(pid int, r int) returns jsonb
+language sql stable as $$
+  select jsonb_build_object(
+    'inicio', pl.inicio, 'dias', pl.dias,
+    'fin', pl.inicio + make_interval(days => pl.dias),
+    'cierra_ronda', rd.cierra_en, 'abre_ronda', rd.abre_en,
+    'fin_efectivo', least(pl.inicio + make_interval(days => pl.dias), coalesce(rd.cierra_en, 'infinity'::timestamptz)),
+    'dias_restantes', ceil(extract(epoch from (least(pl.inicio + make_interval(days => pl.dias),
+                       coalesce(rd.cierra_en, 'infinity'::timestamptz)) - now())) / 86400.0),
+    'vencido', least(pl.inicio + make_interval(days => pl.dias), coalesce(rd.cierra_en, 'infinity'::timestamptz)) < now())
+  from valida.plazos pl
+  left join valida.panelistas p on p.id = pl.panelista_id
+  left join valida.rondas rd on rd.estudio_id = p.estudio_id and rd.ronda = pl.ronda
+  where pl.panelista_id = pid and pl.ronda = r
+$$;
+
+-- Abre el plazo de un panelista en una ronda si aún no lo tiene.
+create or replace function valida.abrir_plazo(pid int, r int) returns void
+language plpgsql as $$
+declare d int;
+begin
+  select coalesce(p.plazo_dias_propio, e.plazo_dias) into d
+    from valida.panelistas p join valida.estudios e on e.id = p.estudio_id where p.id = pid;
+  insert into valida.plazos (panelista_id, ronda, dias) values (pid, r, coalesce(d, 10))
+  on conflict (panelista_id, ronda) do nothing;
+end $$;
+
 -- Guarda (o actualiza) la identidad del panelista. Se llama desde `valida_perfil` y
 -- `valida_solicitar` con el bloque `identidad` del perfil; si viene vacío, no hace nada.
 create or replace function valida.guardar_identidad(pid int, ident jsonb) returns void
@@ -397,6 +462,7 @@ begin
             from valida.asignaciones a2 join valida.conceptos co on co.id = a2.concepto_id
            where a2.panelista_id = pid and a2.ronda = r) o
    where a.panelista_id = pid and a.concepto_id = o.concepto_id and a.ronda = r;
+  if n > 0 then perform valida.abrir_plazo(pid, r); end if;
   return n;
 end $$;
 
@@ -500,6 +566,7 @@ begin
   return jsonb_build_object(
     'codigo', p.codigo, 'perfil', p.perfil, 'disciplina', p.disciplina, 'anios', p.anios,
     'dominios_competencia', p.dominios_competencia, 'perfil_datos', p.perfil_datos,
+    'plazo', valida.plazo_de(p.id, e.ronda_actual),
     'perfil_completado', p.perfil_completado, 'calibracion_hecha', p.calibracion_hecha,
     'estudio', jsonb_build_object('id', e.id, 'nombre', e.nombre, 'ronda_actual', e.ronda_actual,
                                   'umbrales', e.umbrales, 'dimensiones', dims,
@@ -596,7 +663,8 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object('modulo', modulo, 'exhaustividad', exhaustividad,
                   'falta', falta, 'sobra', sobra)), '[]') into cob
     from valida.cobertura where panelista_id = p.id and ronda = e.ronda_actual;
-  return jsonb_build_object('ronda', e.ronda_actual, 'items', items, 'nombres', mods, 'cobertura', cob);
+  return jsonb_build_object('ronda', e.ronda_actual, 'items', items, 'nombres', mods, 'cobertura', cob,
+                            'plazo', valida.plazo_de(p.id, e.ronda_actual));
 end $$;
 
 -- Un concepto con la valoración propia (si la hay) y, en ronda ≥ 2, la devolución del grupo.
@@ -663,6 +731,9 @@ begin
   select * into e from valida.estudios where id = p.estudio_id;
   if e.cerrado_en is not null then
     raise exception 'el estudio está cerrado' using errcode = '42501';
+  end if;
+  if coalesce((valida.plazo_de(p.id, e.ronda_actual)->>'vencido')::boolean, false) then
+    raise exception 'tu plazo para esta ronda ha terminado; escribe a la dirección del estudio si necesitas una ampliación' using errcode = '42501';
   end if;
   if not exists (select 1 from valida.asignaciones a
                   where a.panelista_id = p.id and a.concepto_id = valida_guardar.concepto_id and a.ronda = e.ronda_actual) then
@@ -855,6 +926,7 @@ begin
       fraccion = coalesce((datos->>'fraccion')::numeric, fraccion), suelo = coalesce((datos->>'suelo')::int, suelo),
       k_jueces = coalesce((datos->>'k_jueces')::int, k_jueces), k_paciente = coalesce((datos->>'k_paciente')::int, k_paciente),
       capacidad = coalesce((datos->>'capacidad')::int, capacidad),
+     plazo_dias_propio = case when datos ? 'plazo_dias_propio' then nullif(datos->>'plazo_dias_propio', '')::int else plazo_dias_propio end,
       capacidad_paciente = coalesce((datos->>'capacidad_paciente')::int, capacidad_paciente),
       umbrales = coalesce(datos->'umbrales', umbrales), notas = coalesce(datos->>'notas', notas),
       inscripcion_abierta = coalesce((datos->>'inscripcion_abierta')::boolean, inscripcion_abierta),
@@ -864,7 +936,8 @@ begin
       investigador_principal = coalesce(datos->>'investigador_principal', investigador_principal),
       contacto_email = coalesce(datos->>'contacto_email', contacto_email),
       comite_etica = case when datos ? 'comite_etica' then nullif(trim(datos->>'comite_etica'), '') else comite_etica end,
-      grupo_autoria = coalesce(datos->>'grupo_autoria', grupo_autoria)
+      grupo_autoria = coalesce(datos->>'grupo_autoria', grupo_autoria),
+      plazo_dias = coalesce((datos->>'plazo_dias')::int, plazo_dias)
    where id = eid;
   if datos ? 'dimensiones' then
     delete from valida.dimensiones where estudio_id = eid;
@@ -917,6 +990,7 @@ begin
   update valida.panelistas set
      activo = coalesce((datos->>'activo')::boolean, activo),
      capacidad = coalesce((datos->>'capacidad')::int, capacidad),
+     plazo_dias_propio = case when datos ? 'plazo_dias_propio' then nullif(datos->>'plazo_dias_propio', '')::int else plazo_dias_propio end,
      dominios_competencia = coalesce((select array_agg(x) from jsonb_array_elements_text(datos->'dominios_competencia') x), dominios_competencia),
      disciplina = coalesce(datos->>'disciplina', disciplina),
      notas = coalesce(datos->>'notas', notas)
@@ -1020,6 +1094,7 @@ begin
       end if;
       insert into valida.asignaciones (panelista_id, concepto_id, ronda, orden)
       values (cand.id, c.id, r, 0);
+      perform valida.abrir_plazo(cand.id, r);
       update carga set n = n + 1 where panelista_id = cand.id;
       faltan := faltan - 1;
       n_asignadas := n_asignadas + 1;
@@ -1067,6 +1142,10 @@ begin
   on conflict do nothing;
   get diagnostics n = row_count;
   update valida.estudios set ronda_actual = ronda_actual + 1 where id = e.id;
+  insert into valida.rondas (estudio_id, ronda) values (e.id, e.ronda_actual + 1) on conflict do nothing;
+  -- Cada panelista de la nueva ronda arranca su propio plazo desde cero.
+  perform valida.abrir_plazo(x.panelista_id, e.ronda_actual + 1)
+     from (select distinct panelista_id from valida.asignaciones where ronda = e.ronda_actual + 1) x;
   insert into valida.eventos (panelista_id, tipo, detalle) values (d.id, 'ronda_nueva',
     jsonb_build_object('ronda', e.ronda_actual + 1, 'conceptos', coalesce(array_length(conceptos, 1), 0), 'asignaciones', n));
   return jsonb_build_object('ronda', e.ronda_actual + 1, 'asignaciones', n);
@@ -1131,6 +1210,16 @@ begin
         'exhaustividad', cb.exhaustividad, 'falta', cb.falta, 'sobra', cb.sobra)), '[]')
       from valida.cobertura cb join valida.panelistas p on p.id = cb.panelista_id where p.estudio_id = e.id),
     'propuestas_estado', (select coalesce(jsonb_agg(to_jsonb(pe)), '[]') from valida.propuestas_estado pe),
+    'rondas', (select coalesce(jsonb_agg(jsonb_build_object('ronda', r.ronda, 'abre_en', r.abre_en, 'cierra_en', r.cierra_en, 'notas', r.notas) order by r.ronda), '[]')
+      from valida.rondas r where r.estudio_id = e.id),
+    'plazos', (select coalesce(jsonb_agg(jsonb_build_object('panelista', p.codigo, 'ronda', pl.ronda,
+        'inicio', pl.inicio, 'dias', pl.dias, 'motivo', pl.motivo,
+        'fin', pl.inicio + make_interval(days => pl.dias),
+        'dias_restantes', ceil(extract(epoch from (pl.inicio + make_interval(days => pl.dias) - now())) / 86400.0))), '[]')
+      from valida.plazos pl join valida.panelistas p on p.id = pl.panelista_id where p.estudio_id = e.id),
+    'avisos', (select coalesce(jsonb_agg(jsonb_build_object('panelista', p.codigo, 'ronda', av.ronda, 'tipo', av.tipo,
+        'enviado_en', av.enviado_en, 'pendientes', av.pendientes) order by av.enviado_en desc), '[]')
+      from valida.avisos av join valida.panelistas p on p.id = av.panelista_id where p.estudio_id = e.id),
     'solicitudes', (select jsonb_build_object(
         'total', count(*), 'aceptadas', count(*) filter (where aceptada), 'rechazadas', count(*) filter (where not aceptada),
         'hoy', count(*) filter (where creada_en > now() - interval '1 day'),
@@ -1162,6 +1251,119 @@ begin
     ) order by p.codigo), '[]')
     from valida.identidades i join valida.panelistas p on p.id = i.panelista_id
    where p.estudio_id = d.estudio_id);
+end $$;
+
+-- AVISOS QUE TOCA MANDAR AHORA. Se calculan al vuelo: un panelista sale aquí solo si le
+-- quedan conceptos pendientes, así que en cuanto termina su bloque los avisos dejan de
+-- aparecer sin que nadie los cancele. Tipos: mitad del plazo, 3 días, 1 día y vencido.
+-- Devuelve el texto listo para enviar (asunto y cuerpo) y a quién.
+create or replace function public.valida_dir_avisos(clave text) returns jsonb
+language plpgsql security definer set search_path = valida, public, pg_temp as $$
+declare d valida.panelistas; e valida.estudios;
+begin
+  d := valida.direccion(clave);
+  select * into e from valida.estudios where id = d.estudio_id;
+  return (
+    with base as (
+      select p.id, p.codigo, p.perfil, p.es_prueba, i.nombre, i.apellidos, i.email,
+             pl.dias, pl.inicio,
+             (valida.plazo_de(p.id, e.ronda_actual)->>'fin_efectivo')::timestamptz as fin,
+             (valida.plazo_de(p.id, e.ronda_actual)->>'dias_restantes')::numeric as restantes,
+             (select count(*) from valida.asignaciones a
+               where a.panelista_id = p.id and a.ronda = e.ronda_actual and a.estado = 'pendiente') as pendientes,
+             (select count(*) from valida.asignaciones a
+               where a.panelista_id = p.id and a.ronda = e.ronda_actual) as total
+        from valida.panelistas p
+        join valida.plazos pl on pl.panelista_id = p.id and pl.ronda = e.ronda_actual
+        left join valida.identidades i on i.panelista_id = p.id
+       where p.estudio_id = e.id and p.activo and p.perfil <> 'direccion'
+    ), conAviso as (
+      select b.*, case
+          when b.restantes <= 0 then 'vencido'
+          when b.restantes <= 1 then 'un_dia'
+          when b.restantes <= 3 then 'tres_dias'
+          when b.restantes <= b.dias / 2.0 then 'mitad'
+        end as tipo
+        from base b
+       where b.pendientes > 0
+    )
+    select coalesce(jsonb_agg(jsonb_build_object(
+        'codigo', c.codigo, 'nombre', c.nombre, 'apellidos', c.apellidos, 'email', c.email,
+        'perfil', c.perfil, 'es_prueba', c.es_prueba, 'tipo', c.tipo, 'ronda', e.ronda_actual,
+        'pendientes', c.pendientes, 'total', c.total, 'hechas', c.total - c.pendientes,
+        'fin', c.fin, 'dias_restantes', c.restantes,
+        'asunto', case c.tipo
+            when 'vencido' then 'Tu plazo en el estudio EdPain ha terminado'
+            when 'un_dia' then 'Último día para tu bloque del estudio EdPain'
+            when 'tres_dias' then 'Te quedan 3 días para tu bloque del estudio EdPain'
+            else 'Vas por la mitad del plazo del estudio EdPain' end,
+        'cuerpo', concat(
+            'Hola', case when c.nombre is not null then ' ' || c.nombre else '' end, ':', chr(10), chr(10),
+            case c.tipo
+              when 'vencido' then concat('El plazo para valorar tu bloque terminó el ', to_char(c.fin, 'DD/MM/YYYY'), '. Te quedaron ', c.pendientes, ' conceptos sin valorar de ', c.total, '.', chr(10), 'Si quieres seguir participando, responde a este correo y te ampliamos el plazo.')
+              when 'un_dia' then concat('Mañana se cierra tu plazo para valorar el bloque de la ronda ', e.ronda_actual, '. Te faltan ', c.pendientes, ' conceptos de ', c.total, '.')
+              when 'tres_dias' then concat('Te quedan 3 días para terminar tu bloque de la ronda ', e.ronda_actual, '. Llevas ', c.total - c.pendientes, ' de ', c.total, ' y te faltan ', c.pendientes, '.')
+              else concat('Vas por la mitad del plazo de la ronda ', e.ronda_actual, '. Llevas ', c.total - c.pendientes, ' conceptos de ', c.total, ' y te faltan ', c.pendientes, '. El plazo termina el ', to_char(c.fin, 'DD/MM/YYYY'), '.') end,
+            chr(10), chr(10),
+            'Entra con tu clave en https://valida.edpain.com/ y sigue donde lo dejaste; todo se guarda solo.', chr(10), chr(10),
+            'Si ya lo has terminado, ignora este mensaje.', chr(10),
+            'Dudas: ', e.contacto_email, chr(10),
+            e.investigador_principal, ', investigador principal del estudio.')
+      ) order by c.restantes), '[]')
+      from conAviso c
+     where c.tipo is not null
+       and not exists (select 1 from valida.avisos av
+                        where av.panelista_id = c.id and av.ronda = e.ronda_actual and av.tipo = c.tipo));
+end $$;
+
+-- Deja constancia de los avisos ya enviados para no repetirlos.
+create or replace function public.valida_dir_marcar_avisos(clave text, codigos text[], tipo text) returns jsonb
+language plpgsql security definer set search_path = valida, public, pg_temp as $$
+declare d valida.panelistas; e valida.estudios; n int;
+begin
+  d := valida.direccion(clave);
+  select * into e from valida.estudios where id = d.estudio_id;
+  insert into valida.avisos (panelista_id, ronda, tipo, pendientes)
+    select p.id, e.ronda_actual, valida_dir_marcar_avisos.tipo,
+           (select count(*) from valida.asignaciones a where a.panelista_id = p.id and a.ronda = e.ronda_actual and a.estado = 'pendiente')
+      from valida.panelistas p where p.codigo = any(codigos) and p.estudio_id = e.id
+  on conflict (panelista_id, ronda, tipo) do nothing;
+  get diagnostics n = row_count;
+  return jsonb_build_object('ok', true, 'marcados', n);
+end $$;
+
+-- Ampliar (o recortar) el plazo de un panelista en la ronda actual.
+create or replace function public.valida_dir_plazo(clave text, codigo text, dias int, motivo text default null) returns jsonb
+language plpgsql security definer set search_path = valida, public, pg_temp as $$
+declare d valida.panelistas; e valida.estudios; pid int;
+begin
+  d := valida.direccion(clave);
+  select * into e from valida.estudios where id = d.estudio_id;
+  select id into pid from valida.panelistas p where p.codigo = valida_dir_plazo.codigo and p.estudio_id = e.id;
+  if pid is null then raise exception 'no existe ese panelista' using errcode = '22023'; end if;
+  if dias < 1 or dias > 365 then raise exception 'el plazo va de 1 a 365 días' using errcode = '22023'; end if;
+  insert into valida.plazos (panelista_id, ronda, dias, motivo) values (pid, e.ronda_actual, dias, motivo)
+  on conflict (panelista_id, ronda) do update set dias = excluded.dias, motivo = excluded.motivo, actualizado_en = now();
+  -- Al ampliar, los avisos ya mandados dejan de valer: se vuelven a calcular con el plazo nuevo.
+  delete from valida.avisos where panelista_id = pid and ronda = e.ronda_actual;
+  insert into valida.eventos (panelista_id, tipo, detalle) values (d.id, 'plazo', jsonb_build_object('codigo', codigo, 'dias', dias, 'motivo', motivo));
+  return valida.plazo_de(pid, e.ronda_actual);
+end $$;
+
+-- Calendario: apertura y cierre de una ronda.
+create or replace function public.valida_dir_ronda_fechas(clave text, ronda int, abre_en text, cierra_en text, notas text default null) returns jsonb
+language plpgsql security definer set search_path = valida, public, pg_temp as $$
+declare d valida.panelistas;
+begin
+  d := valida.direccion(clave);
+  insert into valida.rondas (estudio_id, ronda, abre_en, cierra_en, notas)
+  values (d.estudio_id, ronda, coalesce(nullif(abre_en, '')::timestamptz, now()), nullif(cierra_en, '')::timestamptz, notas)
+  on conflict (estudio_id, ronda) do update set
+      abre_en = coalesce(nullif(valida_dir_ronda_fechas.abre_en, '')::timestamptz, valida.rondas.abre_en),
+      cierra_en = case when valida_dir_ronda_fechas.cierra_en is null then valida.rondas.cierra_en
+                       else nullif(valida_dir_ronda_fechas.cierra_en, '')::timestamptz end,
+      notas = coalesce(valida_dir_ronda_fechas.notas, valida.rondas.notas);
+  return jsonb_build_object('ok', true);
 end $$;
 
 create or replace function public.valida_dir_concepto(clave text, concepto_id text) returns jsonb

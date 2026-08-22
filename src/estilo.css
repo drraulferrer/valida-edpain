@@ -374,3 +374,23 @@ table.tabla tr.fila-detalle > td { background: var(--papel-2); padding: 0.9rem 1
 .hoja .dato b { min-width: 11rem; }
 .destacado-oro { border-radius: var(--radio-ui); background: var(--aviso-suave); padding: 0.85rem 1.1rem; margin: 0.9rem 0; font-size: 0.95rem; }
 .destacado-oro b { color: var(--tinta); }
+
+/* --- cuenta atrás del plazo --- */
+.cuenta-atras { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; font-weight: 600;
+  padding: 0.25em 0.7em; border-radius: var(--radio-ui); background: var(--acento-suave); color: var(--acento-2); white-space: nowrap; }
+.cuenta-atras .reloj { width: 0.55rem; height: 0.55rem; border-radius: 50%; border: 2px solid currentColor; display: inline-block; }
+.cuenta-atras.aviso { background: var(--aviso-suave); color: var(--aviso); }
+.cuenta-atras.peligro { background: var(--peligro-suave); color: var(--peligro); }
+.plazo-caja { border-radius: var(--radio); padding: 0.9rem 1.1rem; margin: 0 0 1.25rem; background: var(--acento-suave); }
+.plazo-caja.aviso { background: var(--aviso-suave); }
+.plazo-caja.peligro { background: var(--peligro-suave); }
+.plazo-caja .cabeza { display: flex; gap: 0.6rem; align-items: baseline; flex-wrap: wrap; margin-bottom: 0.5rem; }
+.plazo-caja .barra { background: color-mix(in srgb, var(--tinta) 12%, transparent); }
+.plazo-caja.aviso .barra > span { background: var(--aviso); }
+.plazo-caja.peligro .barra > span { background: var(--peligro); }
+.plazo-caja p { margin: 0; }
+.avisos-lista { list-style: none; margin: 0.75rem 0 0; padding: 0; }
+.avisos-lista li { display: flex; gap: 0.75rem; align-items: flex-start; padding: 0.6rem 0; border-top: 1px solid var(--linea); flex-wrap: wrap; }
+.avisos-lista li:first-child { border-top: 0; }
+.avisos-lista .quien { flex: 1; min-width: 12rem; }
+.avisos-lista .quien b { display: block; }

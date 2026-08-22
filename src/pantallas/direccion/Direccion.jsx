@@ -7,6 +7,7 @@ import Panelistas from './Panelistas.jsx'
 import Cobertura from './Cobertura.jsx'
 import Consenso from './Consenso.jsx'
 import Propuestas from './Propuestas.jsx'
+import Plazos from './Plazos.jsx'
 import Estudio from './Estudio.jsx'
 
 // Panel de dirección: #/direccion[/pestaña]. La clave vive en sessionStorage (se va al
@@ -16,6 +17,7 @@ import Estudio from './Estudio.jsx'
 const PESTANAS = [
   ['resumen', 'Resumen', Resumen],
   ['panelistas', 'Panelistas', Panelistas],
+  ['plazos', 'Plazos y avisos', Plazos],
   ['cobertura', 'Cobertura', Cobertura],
   ['consenso', 'Consenso', Consenso],
   ['propuestas', 'Propuestas', Propuestas],

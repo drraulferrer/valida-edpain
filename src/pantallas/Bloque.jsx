@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import * as api from '../lib/api.js'
 import Progreso from '../componentes/Progreso.jsx'
+import { AvisoPlazo } from '../componentes/CuentaAtras.jsx'
 
 // Agrupa el bloque por módulo respetando el orden asignado.
 export function agruparPorModulo(items) {
@@ -52,6 +53,7 @@ export default function Bloque({ sesion }) {
     <main className="pantalla">
       <p className="etiqueta acento">Ronda {bloque.ronda} · tu bloque</p>
       <h1>{items.length} conceptos en {modulos.length} {modulos.length === 1 ? 'módulo' : 'módulos'}</h1>
+      <AvisoPlazo plazo={bloque.plazo} pendientes={items.length - hechas} />
       <Progreso hechas={hechas} total={items.length} texto={todoHecho ? 'completado' : `${items.length - hechas} por hacer`} />
       <div className="acciones" style={{ marginTop: 0 }}>
         {siguiente && <a className="boton" href={`#/c/${encodeURIComponent(siguiente.id)}`}>{hechas ? 'Continuar' : 'Empezar'}</a>}

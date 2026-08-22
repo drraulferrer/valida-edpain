@@ -10,6 +10,7 @@ import FinModulo from './pantallas/FinModulo.jsx'
 import Cierre from './pantallas/Cierre.jsx'
 import Direccion from './pantallas/direccion/Direccion.jsx'
 import Participar from './pantallas/Participar.jsx'
+import CuentaAtras from './componentes/CuentaAtras.jsx'
 
 // Rutas por hash: #/ entrada · #/bloque · #/c/<id> · #/modulo/<id> · #/instrucciones ·
 // #/calibracion · #/fin · #/direccion[/pestaña]. Sin biblioteca de rutas a propósito.
@@ -104,6 +105,7 @@ export default function App() {
         <div className="cabecera-int">
           <a className="marca-app" href="#/bloque"><span className="punto" aria-hidden="true" />Valida</a>
           <span className="relleno" />
+          <CuentaAtras plazo={sesion.plazo} />
           <span className="codigo" title="Tu código en el panel">{sesion.codigo}</span>
           <a className="boton fantasma pequeno" href="#/instrucciones">Instrucciones</a>
           <button type="button" className="boton fantasma pequeno" onClick={salir}>Salir</button>

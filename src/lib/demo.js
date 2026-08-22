@@ -93,7 +93,7 @@ const CONCEPTOS = [
 const ESTUDIO = {
   id: 1, nombre: 'Validez de contenido · demo', corpus_commit: 'demo', semilla: 'valida-2026', fraccion: 0.1, suelo: 8,
   k_jueces: 7, k_paciente: 3, capacidad: 80, capacidad_paciente: 25, ronda_actual: 1, abierto_en: '2026-09-01T09:00:00Z', cerrado_en: null,
-  inscripcion_abierta: true, codigo_invitacion: 'DEMO', codigo_pruebas: 'PRUEBAS', tope_solicitudes_dia: 200, fehring_minimo: 5,
+  inscripcion_abierta: true, codigo_invitacion: 'DEMO', codigo_pruebas: 'PRUEBAS', tope_solicitudes_dia: 200, fehring_minimo: 5, plazo_dias: 10,
   investigador_principal: 'Dr. Raúl Ferrer-Peña', contacto_email: 'estudio@edpain.com', grupo_autoria: 'Grupo del Estudio EdPain', comite_etica: null,
   umbrales: { icvi_n_pequeno: 1.0, icvi_n_grande: 0.78, n_corte_icvi: 6, aiken: 0.70, exigir_ic: true, minimo_panel: 5, desacuerdo: 0.30,
               scvi_ave: 0.90, paciente_comprension: 0.75, minimo_paciente: 3, estable_v: 0.10, rondas_max: 3 },
@@ -120,10 +120,22 @@ export function crearDemo() {
   const propuestas_estado = []
   const solicitudes = []
   const identidades = []
+  const rondas = [{ ronda: 1, abre_en: '2026-09-01T09:00:00Z', cierra_en: null, notas: null }]
+  const plazos = []
+  const avisosEnviados = []
+  const abrirPlazo = (pid) => { if (!plazos.some((x) => x.panelista_id === pid && x.ronda === ronda_actual)) plazos.push({ panelista_id: pid, ronda: ronda_actual, inicio: new Date().toISOString(), dias: ESTUDIO.plazo_dias ?? 10, motivo: null }) }
+  const plazoDe = (pid) => {
+    const pl = plazos.find((x) => x.panelista_id === pid && x.ronda === ronda_actual)
+    if (!pl) return null
+    const fin = new Date(new Date(pl.inicio).getTime() + pl.dias * 86400000)
+    const restantes = Math.ceil((fin - Date.now()) / 86400000)
+    return { inicio: pl.inicio, dias: pl.dias, fin: fin.toISOString(), fin_efectivo: fin.toISOString(), dias_restantes: restantes, vencido: restantes <= 0, cierra_ronda: null }
+  }
   let ronda_actual = 1
   let cerrado_en = null
   let siguienteValoracion = 1
 
+  panelistas.filter((p) => p.perfil !== 'direccion').forEach((p) => abrirPlazo(p.id))
   // Bloque del experto demo: los seis conceptos. Paciente: los que tienen explicación.
   conceptos.forEach((c, i) => asignaciones.push({ panelista_id: 1, concepto_id: c.id, ronda: 1, orden: i + 1, estado: 'pendiente' }))
   conceptos.slice(0, 4).forEach((c, i) => asignaciones.push({ panelista_id: 2, concepto_id: c.id, ronda: 1, orden: i + 1, estado: 'pendiente' }))
@@ -183,6 +195,7 @@ export function crearDemo() {
       if (identidad?.email) identidades.push({ panelista_id: id, codigo, ...identidad })
       let asignados = 0
       conceptos.filter((c) => c.incluido && c.activo).forEach((c, i) => { asignaciones.push({ panelista_id: id, concepto_id: c.id, ronda: ronda_actual, orden: i + 1, estado: 'pendiente' }); asignados += 1 })
+      abrirPlazo(id)
       solicitudes.push({ creada_en: new Date().toISOString(), aceptada: true, puntuacion, disciplina, anios })
       return { aceptado: true, codigo, clave, puntuacion, asignados, prueba }
     },
@@ -190,7 +203,7 @@ export function crearDemo() {
       const p = quien(clave)
       eventos.push({ panelista_id: p.id, tipo: 'entrada', en: new Date().toISOString() })
       return clon({ codigo: p.codigo, perfil: p.perfil, disciplina: p.disciplina, anios: p.anios, dominios_competencia: p.dominios_competencia,
-        perfil_datos: p.perfil_datos || {}, perfil_completado: p.perfil_completado, calibracion_hecha: p.calibracion_hecha,
+        perfil_datos: p.perfil_datos || {}, perfil_completado: p.perfil_completado, calibracion_hecha: p.calibracion_hecha, plazo: plazoDe(p.id),
         estudio: { id: 1, nombre: ESTUDIO.nombre, ronda_actual, umbrales: ESTUDIO.umbrales, dimensiones: DIMENSIONES, cerrado: !!cerrado_en } })
     },
     valida_perfil({ clave, disciplina, anios, dominios, perfil }) {
@@ -222,7 +235,7 @@ export function crearDemo() {
         const v = valoraciones.find((x) => x.panelista_id === p.id && x.concepto_id === a.concepto_id && x.ronda === ronda_actual)
         return { id: c.id, dominio: c.dominio, modulo: c.modulo, titulo: c.titulo, orden: a.orden, estado: a.estado, completa: !!v?.completa, abstencion: !!v?.abstencion, cambiado: false }
       })
-      return clon({ ronda: ronda_actual, items, nombres, cobertura: cobertura.filter((x) => x.panelista_id === p.id && x.ronda === ronda_actual) })
+      return clon({ ronda: ronda_actual, items, nombres, cobertura: cobertura.filter((x) => x.panelista_id === p.id && x.ronda === ronda_actual), plazo: plazoDe(p.id) })
     },
     valida_concepto({ clave, concepto_id }) {
       const p = quien(clave)
@@ -244,6 +257,7 @@ export function crearDemo() {
     valida_guardar({ clave, concepto_id, datos }) {
       const p = quien(clave)
       if (cerrado_en) { const e = new Error('El estudio está cerrado.'); e.codigo = '42501'; throw e }
+      if (plazoDe(p.id)?.vencido) { const e = new Error('Tu plazo para esta ronda ha terminado; escribe a la dirección del estudio si necesitas una ampliación.'); e.codigo = '42501'; throw e }
       const a = asignaciones.find((x) => x.panelista_id === p.id && x.concepto_id === concepto_id && x.ronda === ronda_actual)
       if (!a) { const e = new Error('Concepto no asignado.'); e.codigo = '42501'; throw e }
       const c = conceptos.find((x) => x.id === concepto_id)
@@ -297,6 +311,8 @@ export function crearDemo() {
         valoraciones: valoraciones.map((v) => ({ ...v, panelista: codigoDe(v.panelista_id), perfil: panelistas.find((p) => p.id === v.panelista_id)?.perfil, panelista_id: undefined })),
         asignaciones: asignaciones.map((a) => ({ panelista: codigoDe(a.panelista_id), concepto_id: a.concepto_id, ronda: a.ronda, orden: a.orden, estado: a.estado })),
         cobertura: cobertura.map((x) => ({ ...x, panelista: codigoDe(x.panelista_id), panelista_id: undefined })),
+        rondas, avisos: avisosEnviados.map((a) => ({ ...a, panelista: codigoDe(a.panelista_id) })),
+        plazos: plazos.map((pl) => { const d = plazoDe(pl.panelista_id) || {}; return { panelista: codigoDe(pl.panelista_id), ronda: pl.ronda, inicio: pl.inicio, dias: pl.dias, motivo: pl.motivo, fin: d.fin, dias_restantes: d.dias_restantes } }),
         propuestas_estado,
         solicitudes: { total: solicitudes.length, aceptadas: solicitudes.filter((x) => x.aceptada).length, rechazadas: solicitudes.filter((x) => !x.aceptada).length, hoy: solicitudes.length, ultimas: [...solicitudes].reverse().slice(0, 30) },
         eventos_recientes: eventos.slice(-200).reverse(),
@@ -322,6 +338,55 @@ export function crearDemo() {
       panelistas.splice(i, 1)
       return { ok: true, codigo }
     },
+    valida_dir_avisos({ clave }) {
+      direccion(clave)
+      const salida = []
+      for (const p of panelistas.filter((x) => x.perfil !== 'direccion' && x.activo)) {
+        const d = plazoDe(p.id)
+        if (!d) continue
+        const mias = asignaciones.filter((a) => a.panelista_id === p.id && a.ronda === ronda_actual)
+        const pendientes = mias.filter((a) => a.estado === 'pendiente').length
+        if (!pendientes) continue
+        const r = d.dias_restantes
+        const tipo = r <= 0 ? 'vencido' : r <= 1 ? 'un_dia' : r <= 3 ? 'tres_dias' : r <= d.dias / 2 ? 'mitad' : null
+        if (!tipo) continue
+        if (avisosEnviados.some((a) => a.panelista_id === p.id && a.ronda === ronda_actual && a.tipo === tipo)) continue
+        const ide = identidades.find((i) => i.panelista_id === p.id) || {}
+        salida.push({ codigo: p.codigo, nombre: ide.nombre, apellidos: ide.apellidos, email: ide.email, perfil: p.perfil,
+          es_prueba: !!p.es_prueba, tipo, ronda: ronda_actual, pendientes, total: mias.length, hechas: mias.length - pendientes,
+          fin: d.fin, dias_restantes: r,
+          asunto: tipo === 'vencido' ? 'Tu plazo en el estudio EdPain ha terminado' : 'Aviso del estudio EdPain',
+          cuerpo: `Te faltan ${pendientes} conceptos de ${mias.length}.` })
+      }
+      return clon(salida)
+    },
+    valida_dir_marcar_avisos({ clave, codigos, tipo }) {
+      direccion(clave)
+      for (const c of codigos) {
+        const p = panelistas.find((x) => x.codigo === c)
+        if (p && !avisosEnviados.some((a) => a.panelista_id === p.id && a.ronda === ronda_actual && a.tipo === tipo)) {
+          avisosEnviados.push({ panelista_id: p.id, ronda: ronda_actual, tipo, enviado_en: new Date().toISOString(), pendientes: 0 })
+        }
+      }
+      return { ok: true, marcados: codigos.length }
+    },
+    valida_dir_plazo({ clave, codigo, dias, motivo }) {
+      direccion(clave)
+      const p = panelistas.find((x) => x.codigo === codigo)
+      if (!p) { const e = new Error('No existe ese panelista.'); e.codigo = '22023'; throw e }
+      const i = plazos.findIndex((x) => x.panelista_id === p.id && x.ronda === ronda_actual)
+      if (i >= 0) plazos[i] = { ...plazos[i], dias, motivo }
+      else plazos.push({ panelista_id: p.id, ronda: ronda_actual, inicio: new Date().toISOString(), dias, motivo })
+      for (let j = avisosEnviados.length - 1; j >= 0; j -= 1) if (avisosEnviados[j].panelista_id === p.id && avisosEnviados[j].ronda === ronda_actual) avisosEnviados.splice(j, 1)
+      return clon(plazoDe(p.id))
+    },
+    valida_dir_ronda_fechas({ clave, ronda, abre_en, cierra_en, notas }) {
+      direccion(clave)
+      const i = rondas.findIndex((r) => r.ronda === ronda)
+      const fila = { ronda, abre_en: abre_en || rondas[i]?.abre_en, cierra_en: cierra_en || null, notas: notas ?? rondas[i]?.notas ?? null }
+      if (i >= 0) rondas[i] = fila; else rondas.push(fila)
+      return { ok: true }
+    },
     valida_dir_concepto({ clave, concepto_id }) { direccion(clave); return clon(conceptos.find((c) => c.id === concepto_id)) },
     valida_dir_alta({ clave, codigo, perfil, disciplina, dominios, capacidad, notas }) {
       direccion(clave)
@@ -344,7 +409,7 @@ export function crearDemo() {
         const candidatos = panelistas.filter((p) => p.perfil === perfil_objetivo && p.activo && !ya.some((a) => a.panelista_id === p.id))
           .map((p) => ({ p, carga: asignaciones.filter((a) => a.panelista_id === p.id && a.ronda === ronda_actual).length, competente: p.dominios_competencia.includes(c.dominio) }))
           .filter((x) => x.carga < (x.p.capacidad || 80)).sort((a, b) => (b.competente - a.competente) || (a.carga - b.carga))
-        for (const cand of candidatos) { if (faltan <= 0) break; asignaciones.push({ panelista_id: cand.p.id, concepto_id: c.id, ronda: ronda_actual, orden: asignaciones.filter((a) => a.panelista_id === cand.p.id).length + 1, estado: 'pendiente' }); faltan -= 1; nuevas += 1 }
+        for (const cand of candidatos) { if (faltan <= 0) break; asignaciones.push({ panelista_id: cand.p.id, concepto_id: c.id, ronda: ronda_actual, orden: asignaciones.filter((a) => a.panelista_id === cand.p.id).length + 1, estado: 'pendiente' }); abrirPlazo(cand.p.id); faltan -= 1; nuevas += 1 }
       }
       return { asignadas: nuevas, ronda: ronda_actual, sin_jueces_suficientes: 0 }
     },
@@ -374,6 +439,6 @@ export function crearDemo() {
       if (!f) throw new Error(`RPC desconocida en la demo: ${nombre}`)
       return f(params || {})
     },
-    _estado: { panelistas, conceptos, asignaciones, valoraciones, cobertura, eventos, identidades, solicitudes },
+    _estado: { panelistas, conceptos, asignaciones, valoraciones, cobertura, eventos, identidades, solicitudes, plazos, avisosEnviados, rondas },
   }
 }

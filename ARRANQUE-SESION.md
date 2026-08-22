@@ -129,6 +129,28 @@ update valida.panelistas set activo = false where codigo = 'PRU-01';
 - **Código de pruebas** (`estudios.codigo_pruebas`): funciona aunque la inscripción esté cerrada, marca al
   panelista `es_prueba` y la dirección lo borra con todo su rastro (`valida_dir_borrar_prueba`).
 
+## 5d · Plazos, avisos y cuenta atrás (22-ago, noche)
+
+- **Calendario de rondas** (`valida.rondas`): cada ronda tiene apertura y cierre. El cierre es un **tope
+  duro**: pasado, `valida_guardar` rechaza cualquier valoración. Se edita en Dirección → «Plazos y avisos».
+- **Plazo personal** (`valida.plazos`, por panelista y ronda): arranca cuando se le asigna el bloque —o
+  cuando se registra— y dura `estudios.plazo_dias` (10 por defecto). Se amplía uno a uno desde el panel
+  (`valida_dir_plazo`, botón «+7 días» o número exacto) sin tocar a los demás. Vencido, tampoco deja guardar,
+  con un mensaje que remite a la dirección.
+- **Cuenta atrás visible arriba**: marcador en la cabecera («10 días» / «último día» / «plazo terminado», en
+  teal → oro → coral) y frase completa con barra de progreso en la pantalla del bloque
+  (`src/componentes/CuentaAtras.jsx`). Los días los calcula **el servidor** (`valida.plazo_de`), no el
+  navegador: el reloj del panelista no decide plazos.
+- **Avisos automáticos** a la mitad del plazo, a 3 días, el último día y al vencer, con cuántos conceptos le
+  faltan. Se calculan al vuelo (`valida_dir_avisos`) y **solo salen si quedan pendientes**: quien termina su
+  bloque deja de recibirlos sin que nadie los cancele. `valida_dir_marcar_avisos` evita repetirlos; ampliar
+  el plazo los reinicia.
+- **Envío**: `pipeline/avisos.py` (`--simular` para ver a quién y con qué texto). Con un SMTP en el Llavero
+  (`valida-edpain-smtp` = `servidor|puerto|usuario|clave|remitente`) los manda y los marca, y se puede poner
+  en cron. **Sin SMTP configurado no hay envío automático**: el panel los prepara uno a uno con «Preparar
+  correo». Para tenerlo del todo automático hace falta una cuenta en Resend (u otro proveedor), verificar
+  edpain.com y guardar la API key; Cloudflare Email Routing solo recibe.
+
 ## 6 · Gotchas encontrados construyéndolo (22-ago)
 
 - **`supabase db query --linked --project-ref …` falla a la primera** con «Failed to create login role:
