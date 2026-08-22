@@ -11,17 +11,17 @@ export const CLAVES_DEMO = { experto: 'demo-expe-rto1', paciente: 'demo-paci-ent
 
 const DIMENSIONES = [
   { clave: 'relevancia', orden: 1, nombre: 'Relevancia', quien: 'experto', sobre_texto: ['definicion'],
-    afirmacion: 'Este concepto merece estar en una base de conocimiento sobre educación en dolor, con este recorte y en este módulo.',
-    ayuda: 'Es la pregunta de un Delphi clásico: no si es verdad, sino si importa. Un concepto puede ser impecable y sobrar.' },
+    afirmacion: 'Este concepto merece formar parte de la base de conocimiento de educación en dolor, tal y como está planteado y ubicado en este módulo.',
+    ayuda: 'No se valora si el contenido es correcto, sino si merece estar aquí.' },
   { clave: 'claridad', orden: 2, nombre: 'Claridad', quien: 'experto', sobre_texto: ['definicion', 'explicacion_profesional', 'puntos_clave'],
-    afirmacion: 'El texto profesional está redactado de forma inequívoca: un lector formado entendería lo mismo que yo.',
-    ayuda: 'Valora cómo está dicho, no si es verdad. Si una frase admite dos lecturas, baja y di cuál.' },
+    afirmacion: 'El texto para profesionales está redactado de forma clara e inequívoca.',
+    ayuda: 'Valora la redacción, no el contenido. Si una frase admite más de una interpretación, indícalo.' },
   { clave: 'representatividad', orden: 3, nombre: 'Representatividad', quien: 'experto', sobre_texto: ['explicacion_profesional', 'referencias', 'certeza'],
-    afirmacion: 'Lo que afirma es correcto y representa fielmente lo que la evidencia citada y el conocimiento actual sostienen, con la certeza que declara.',
-    ayuda: 'La exigencia no es la misma para una definición que para una afirmación de eficacia: arriba se indica qué se le pide a esta.' },
+    afirmacion: 'El contenido refleja fielmente la evidencia disponible y el conocimiento actual, de acuerdo con el nivel de certeza indicado.',
+    ayuda: 'La exigencia dependerá del tipo de afirmación que se esté evaluando.' },
   { clave: 'comprensibilidad', orden: 4, nombre: 'Comprensibilidad', quien: 'paciente', sobre_texto: ['explicacion_paciente'],
-    afirmacion: 'La explicación para pacientes se entiende sin conocimientos previos y no dice nada distinto de lo que dice el texto profesional.',
-    ayuda: 'La juzga el panel de personas con dolor con su propio instrumento; el panel experto no la puntúa.' },
+    afirmacion: 'La explicación dirigida a pacientes se entiende sin conocimientos previos y mantiene el mismo significado que el texto profesional.',
+    ayuda: 'Esta dimensión solo la evaluará el panel de personas con dolor.' },
 ]
 
 const CATALOGO = {

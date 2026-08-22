@@ -4,11 +4,15 @@ import { BANDERAS } from '../componentes/Banderas.jsx'
 import { ir } from '../App.jsx'
 import * as api from '../lib/api.js'
 
+// Texto de la dirección editorial (22-ago-2026). Las afirmaciones y ayudas de cada
+// dimensión no están aquí: vienen de `valida.dimensiones`, para que esta pantalla y el
+// wizard digan exactamente lo mismo.
 export default function Instrucciones({ sesion, primeraVez, refrescar }) {
   const empezarPaciente = async () => { try { await api.calibracionHecha(sesion.clave); await refrescar() } catch { /* sin red: se reintenta al entrar */ } ir('/bloque') }
   const [pagina, setPagina] = useState(0)
   const dims = sesion.estudio?.dimensiones || []
   const paciente = sesion.perfil === 'paciente'
+  const arriba = () => window.scrollTo({ top: 0 })
 
   if (paciente) {
     return (
@@ -31,7 +35,7 @@ export default function Instrucciones({ sesion, primeraVez, refrescar }) {
       {pagina === 0 ? (
         <>
           <h1>Cuatro afirmaciones por concepto</h1>
-          <p className="silencio">Cada concepto se juzga con las mismas cuatro afirmaciones. Dirás cuánto estás de acuerdo con cada una, de 1 a 4. No hay punto medio a propósito: obliga a tomar partido.</p>
+          <p className="silencio">Cada concepto se valora con las mismas cuatro afirmaciones. Indica tu grado de acuerdo en una escala del 1 al 4. No existe un punto medio: la idea es obligar a posicionarse.</p>
           {dims.map((d) => (
             <div className="dimension" key={d.clave}>
               <div className="nombre">{d.nombre}</div>
@@ -40,38 +44,41 @@ export default function Instrucciones({ sesion, primeraVez, refrescar }) {
             </div>
           ))}
           <div className="tarjeta">
-            <h3>La escala</h3>
+            <h3>Escala</h3>
             <div className="likert" aria-hidden="true">
               {CATEGORIAS.map(([n, t]) => <button key={n} type="button" tabIndex={-1} className={n <= 2 ? 'bajo' : ''}><span className="num">{n}</span><span className="txt">{t}</span></button>)}
             </div>
-            <p style={{ marginTop: '0.8rem', marginBottom: 0 }}>Un <b>1</b> o un <b>2</b> piden que digas dónde está el problema y, si puedes, cómo lo redactarías tú. Con <b>3</b> o <b>4</b> el comentario es opcional.</p>
+            <p style={{ marginTop: '0.8rem', marginBottom: 0 }}>Si puntúas con <b>1</b> o <b>2</b>, explica qué cambiarías y, si puedes, propón una redacción alternativa. Con <b>3</b> o <b>4</b>, el comentario es opcional.</p>
           </div>
           <div className="tarjeta">
             <h3>«Fuera de mi ámbito»</h3>
-            <p style={{ marginBottom: 0 }}>Si un concepto no es de tu campo, abstente. Tu abstención sale del recuento: no es un punto medio ni cuenta en contra. Es mejor una abstención honesta que un 3 por compromiso.</p>
+            <p>Si el concepto queda fuera de tu área de conocimiento, abstente de valorarlo.</p>
+            <p style={{ marginBottom: 0 }}>Esta respuesta no cuenta como una puntuación y queda fuera del análisis. Es preferible abstenerse que emitir una valoración poco fundamentada.</p>
           </div>
-          <div className="acciones"><button className="boton" type="button" onClick={() => { setPagina(1); window.scrollTo({ top: 0 }) }}>Seguir</button></div>
+          <div className="acciones"><button className="boton" type="button" onClick={() => { setPagina(1); arriba() }}>Seguir</button></div>
         </>
       ) : (
         <>
-          <h1>Banderas, tiempo y cómo se guarda</h1>
+          <h1>Banderas de revisión</h1>
+          <p className="silencio">Además de puntuar, puedes marcar cualquiera de estas incidencias.</p>
           <div className="tarjeta">
-            <h3>Cuatro banderas que no puntúan: señalan</h3>
             {BANDERAS.map((b) => (
-              <p key={b.clave} style={{ marginBottom: '0.5rem' }}><b>{b.etiqueta}.</b> {b.ayuda || b.detalle}</p>
+              <p key={b.clave} style={{ marginBottom: '0.6rem' }}><b>{b.etiqueta}.</b> {[b.ayuda, b.detalle].filter(Boolean).join(' ')}</p>
             ))}
           </div>
           <div className="tarjeta">
-            <h3>Cuánto tiempo lleva</h3>
-            <p>Entre dos y cuatro minutos por concepto. Tu bloque está agrupado por módulos para que los conceptos vecinos vayan seguidos. Cada veinte conceptos te sugeriremos una pausa: la fatiga infla las puntuaciones, y eso se nota en los datos.</p>
-            <p style={{ marginBottom: 0 }}>Todo se guarda a cada paso. Puedes cerrar y volver; puedes cambiar cualquier respuesta hasta que cierre la ronda.</p>
+            <h3>Tiempo estimado</h3>
+            <p>Cada concepto suele llevar entre 2 y 4 minutos.</p>
+            <p style={{ marginBottom: 0 }}>Los conceptos están agrupados por módulos para facilitar la valoración. Cada veinte conceptos te sugeriremos hacer una pausa. Todas las respuestas se guardan automáticamente y podrás continuar más tarde o modificar cualquier respuesta mientras la ronda permanezca abierta.</p>
           </div>
           <div className="tarjeta">
-            <h3>Qué se hace con lo que digas</h3>
-            <p style={{ marginBottom: 0 }}>Las puntuaciones se agregan con reglas fijadas antes de empezar (I-CVI, V de Aiken con intervalo, mínimo cinco jueces). Tus redacciones alternativas van a la dirección editorial como propuestas: nada cambia en el corpus sin una persona que lo decida. Tu código es lo único que aparece en los informes.</p>
+            <h3>¿Qué haremos con tus respuestas?</h3>
+            <p>Las puntuaciones se analizarán mediante los criterios definidos para el estudio, incluyendo el I-CVI, la V de Aiken con intervalo de confianza y un mínimo de cinco evaluadores por concepto.</p>
+            <p>Las propuestas de redacción se revisarán de forma editorial. Ningún cambio se incorporará automáticamente.</p>
+            <p style={{ marginBottom: 0 }}>En los informes solo aparecerá tu código de participante.</p>
           </div>
           <div className="acciones">
-            <button className="boton secundario" type="button" onClick={() => { setPagina(0); window.scrollTo({ top: 0 }) }}>Atrás</button>
+            <button className="boton secundario" type="button" onClick={() => { setPagina(0); arriba() }}>Atrás</button>
             {primeraVez
               ? <button className="boton" type="button" onClick={() => ir('/calibracion')}>Practicar con dos conceptos</button>
               : <button className="boton" type="button" onClick={() => ir('/bloque')}>Volver a mi bloque</button>}

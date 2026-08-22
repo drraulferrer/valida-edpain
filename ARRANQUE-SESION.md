@@ -138,6 +138,9 @@ update valida.panelistas set activo = false where codigo = 'PRU-01';
   (monotonía PRN comprobada: 373 iguales, 0 cambiados).
 - `importar.py --extra` importa conceptos concretos fuera de los estratos (para calibración).
 - Clave de PRU-01 probada en la web real (ver al final de la sesión en el chat).
+- **Textos de la dirección editorial** para la pantalla de instrucciones, las afirmaciones/ayudas de las
+  cuatro dimensiones (en `valida.dimensiones` y en `demo.js`) y las cuatro banderas (`Banderas.jsx`).
+  La spec §2.5 conserva las definiciones operativas originales; la interfaz usa la redacción editorial.
 
 ### Sesión 1 (22-ago-2026) · construcción y despliegue
 

@@ -1,10 +1,14 @@
 // Banderas: no puntúan, señalan. La de seguridad tiene efecto de veto.
 export const BANDERAS = [
   { clave: 'seguridad', veto: true, etiqueta: 'Puede inducir una decisión clínica insegura',
-    ayuda: 'Una sola marca de un solo panelista bloquea la publicación, aunque el resto esté de acuerdo. No se resuelve por mayoría.' },
-  { clave: 'certeza', etiqueta: 'La certeza declarada no es la correcta', detalle: '¿Cuál debería ser? (consenso · alta · moderada · baja · muy baja)' },
-  { clave: 'fronteras', etiqueta: 'Problema de frontera: se solapa, sobra o son dos conceptos', detalle: '¿Con qué concepto se solapa, o por dónde lo partirías?' },
-  { clave: 'caduco', etiqueta: 'Hay literatura posterior que esto no recoge', detalle: 'Si puedes, la referencia: es la aportación más útil de todas.' },
+    ayuda: 'Una sola marca bloquea la publicación del concepto hasta que sea revisado.' },
+  { clave: 'certeza', etiqueta: 'El nivel de certeza no es el adecuado',
+    detalle: 'Indica cuál consideras correcto: consenso, alta, moderada, baja o muy baja.' },
+  { clave: 'fronteras', etiqueta: 'Problema de delimitación',
+    ayuda: 'El concepto se solapa con otro, incluye más de una idea o debería dividirse.',
+    detalle: 'Indica con cuál o cómo lo reorganizarías.' },
+  { clave: 'caduco', etiqueta: 'Existe evidencia más reciente',
+    detalle: 'Si conoces literatura que no se haya incorporado, añade la referencia.' },
 ]
 
 export default function Banderas({ valor, onCambio }) {
