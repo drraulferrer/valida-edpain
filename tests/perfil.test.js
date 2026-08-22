@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { puntuacionFehring, esExpertoFehring, validarPerfilExperto, validarPerfilPaciente, validarIdentidad, partirDois, prepararPerfil, resumenPerfil, elegibilidadPaciente, impactoPeg, alfabetizacionChew } from '../src/lib/perfil.js'
+import { puntuacionFehring, esExpertoFehring, validarPerfilExperto, validarPerfilPaciente, validarIdentidad, partirDois, prepararPerfil, resumenPerfil, elegibilidadPaciente, alfabetizacionChew, edadDe, validarNacimiento } from '../src/lib/perfil.js'
 
 // Un perfil de paciente que cumple todo lo obligatorio, para variarlo campo a campo.
 const PACIENTE_OK = {
-  edad: '45-59', duracion_dolor: '1_5a', frecuencia_dolor: 'casi_diario', zonas: ['lumbar'],
-  diagnosticos: ['inespecifico'], peg_intensidad: 6, peg_disfrute: 7, peg_actividad: 5,
+  nacimiento: '1980-05-12', sexo: 'mujer', duracion_dolor: '1_5a', frecuencia_dolor: 'casi_diario', zonas: ['lumbar'],
+  diagnosticos: ['inespecifico'],
+  egdc_ahora: 5, egdc_peor: 8, egdc_medio: 5, egdc_dias: 20, egdc_diaria: 5, egdc_social: 6, egdc_trabajo: 4,
+  phq4_nervioso: 2, phq4_preocupacion: 1, phq4_interes: 0, phq4_animo: 0,
   educacion_previa: 'nunca', ayuda_leer: 1, seguridad_formularios: 2, cuesta_entender: 2,
   consentimiento: true,
 }
@@ -34,18 +36,20 @@ describe('validación del perfil', () => {
     expect(validarPerfilExperto(base, 'fisioterapia', 5, [])).toMatch(/dominio/)
     expect(validarPerfilExperto({ ...base, reparto: { clinica: 80, docencia: 30 } }, 'fisioterapia', 5, ['D01'])).toMatch(/100/)
     expect(validarPerfilPaciente({ ...PACIENTE_OK, identidad })).toBe('')
-    expect(validarPerfilPaciente({ ...PACIENTE_OK, edad: '', identidad })).toMatch(/edad/)
+    expect(validarPerfilPaciente({ ...PACIENTE_OK, nacimiento: '', identidad })).toMatch(/fecha de nacimiento/)
   })
   it('resume el perfil en una línea', () => {
     expect(resumenPerfil({ titulacion: 'doctorado', pais: 'España', ambitos: ['docencia'], publicaciones_dolor: '5-9', autoexpertise: 'experto' })).toBe('Doctorado · España · docencia · 5-9 publicaciones en dolor · autoexpertise experto')
-    expect(resumenPerfil({ edad: '60-74', duracion_dolor: 'mas_10a', diagnosticos: ['fibromialgia'],
-      peg_intensidad: 8, peg_disfrute: 8, peg_actividad: 8, educacion_previa: 'nunca' }, 'paciente'))
-      .toBe('60-74 años · dolor más de 10 años · Fibromialgia · PEG 8.0/10 · educación en dolor: nunca me han explicado cómo funciona el dolor')
+    expect(resumenPerfil({ nacimiento: '1960-03-01', duracion_dolor: 'mas_10a', diagnosticos: ['fibromialgia'],
+      egdc_ahora: 8, egdc_peor: 8, egdc_medio: 8, egdc_dias: 40, egdc_diaria: 8, egdc_social: 8, egdc_trabajo: 8,
+      educacion_previa: 'nunca' }, 'paciente'))
+      .toBe(`${edadDe('1960-03-01')} años · dolor más de 10 años · Fibromialgia · EGDC Grado IV (intensidad 80/100, discapacidad 80/100) · educación en dolor: nunca me han explicado cómo funciona el dolor`)
   })
 })
 
 describe('panel de paciente', () => {
-  const identidad = { nombre: 'Ana', apellidos: 'Ruiz Gil', email: 'ana@ejemplo.org', dois: '' }
+  // Del paciente solo se guarda un correo: ni nombre ni apellidos.
+  const identidad = { nombre: '', apellidos: '', email: 'ana@ejemplo.org', dois: '' }
 
   it('elegibilidad: dolor de menos de 3 meses no es dolor crónico (CIE-11) y queda fuera', () => {
     expect(elegibilidadPaciente({ duracion_dolor: 'menos_3m' })).toMatch(/tres meses/)
@@ -64,8 +68,10 @@ describe('panel de paciente', () => {
     expect(validarPerfilPaciente({ ...PACIENTE_OK, frecuencia_dolor: '', identidad })).toMatch(/cada cuánto/)
     expect(validarPerfilPaciente({ ...PACIENTE_OK, zonas: [], identidad })).toMatch(/zona/)
     expect(validarPerfilPaciente({ ...PACIENTE_OK, diagnosticos: [], identidad })).toMatch(/diagnóstico/)
-    expect(validarPerfilPaciente({ ...PACIENTE_OK, peg_disfrute: '', identidad })).toMatch(/disfrute/)
-    expect(validarPerfilPaciente({ ...PACIENTE_OK, peg_intensidad: 11, identidad })).toMatch(/0 a 10/)
+    expect(validarPerfilPaciente({ ...PACIENTE_OK, egdc_social: '', identidad })).toMatch(/ocio, sociales y familiares/)
+    expect(validarPerfilPaciente({ ...PACIENTE_OK, egdc_ahora: 11, identidad })).toMatch(/0 a 10/)
+    expect(validarPerfilPaciente({ ...PACIENTE_OK, egdc_dias: 200, identidad })).toMatch(/0 a 180/)
+    expect(validarPerfilPaciente({ ...PACIENTE_OK, phq4_animo: '', identidad })).toMatch(/dos semanas/)
     expect(validarPerfilPaciente({ ...PACIENTE_OK, educacion_previa: '', identidad })).toMatch(/cómo funciona el dolor/)
     expect(validarPerfilPaciente({ ...PACIENTE_OK, cuesta_entender: '', identidad })).toMatch(/información escrita/)
   })
@@ -74,10 +80,25 @@ describe('panel de paciente', () => {
     expect(validarPerfilPaciente({ ...PACIENTE_OK, diagnosticos: ['sin_diagnostico'], identidad })).toBe('')
   })
 
-  it('PEG: media de los tres ítems, y null si falta alguno', () => {
-    expect(impactoPeg({ peg_intensidad: 6, peg_disfrute: 7, peg_actividad: 5 })).toBe(6)
-    expect(impactoPeg({ peg_intensidad: 0, peg_disfrute: 0, peg_actividad: 0 })).toBe(0)
-    expect(impactoPeg({ peg_intensidad: 6, peg_disfrute: 7 })).toBeNull()
+  it('la edad se calcula de la fecha, y la fecha tiene que ser de una persona adulta viva', () => {
+    expect(edadDe('1980-05-12', new Date('2026-05-11'))).toBe(45)
+    expect(edadDe('1980-05-12', new Date('2026-05-12'))).toBe(46)   // el mismo día del cumpleaños ya cuenta
+    expect(edadDe('')).toBeNull()
+    expect(validarNacimiento('1980-05-12')).toBe('')
+    expect(validarNacimiento('')).toMatch(/fecha de nacimiento/)
+    expect(validarNacimiento('2020-01-01')).toMatch(/18/)
+    expect(validarNacimiento('1850-01-01')).toMatch(/fecha de nacimiento/)
+  })
+
+  it('un cero es una respuesta válida en toda escala que empiece en cero', () => {
+    const cero = { ...PACIENTE_OK, identidad, egdc_ahora: 0, egdc_diaria: 0, egdc_dias: 0, phq4_nervioso: 0 }
+    expect(validarPerfilPaciente(cero)).toBe('')
+  })
+
+  it('sin correo no hay forma de mandarle la clave ni de detectar duplicados', () => {
+    expect(validarPerfilPaciente({ ...PACIENTE_OK, identidad: { ...identidad, email: '' } })).toMatch(/correo/i)
+    // Pero el nombre no se le pide: sin él, el perfil es válido igual.
+    expect(validarPerfilPaciente({ ...PACIENTE_OK, identidad: { email: 'ana@ejemplo.org' } })).toBe('')
   })
 
   it('Chew: la señal de alfabetización limitada es el ítem de rellenar impresos (≥ 3)', () => {

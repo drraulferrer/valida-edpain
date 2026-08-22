@@ -171,7 +171,8 @@ function Identidades({ lista }) {
           {lista.map((i) => (
             <tr key={i.codigo}>
               <td style={{ fontFamily: 'var(--mono)' }}>{i.codigo}</td>
-              <td>{i.nombre} {i.apellidos}</td>
+              {/* Al paciente no se le pide el nombre: su fila solo tiene correo, y eso está bien. */}
+              <td>{`${i.nombre || ''} ${i.apellidos || ''}`.trim() || <span className="silencio">—</span>}</td>
               <td><a href={`mailto:${i.email}`}>{i.email}</a></td>
               <td className="silencio">{i.filiacion || '—'}</td>
               <td>{i.orcid ? <a href={`https://orcid.org/${i.orcid}`} target="_blank" rel="noopener noreferrer">{i.orcid}</a> : <span className="silencio">—</span>}</td>

@@ -42,6 +42,11 @@ import * as api from '../src/lib/api.js'
 
 beforeEach(() => { cleanup(); demo = crearDemo(); api.guardarClave(''); window.location.hash = '#/'; window.scrollTo = () => {} })
 
+// Al paciente solo se le pide el correo: ni nombre ni apellidos.
+const rellenarCorreoPaciente = (email = 'dolor@ejemplo.org') => {
+  fireEvent.change(screen.getByLabelText('Correo de contacto'), { target: { value: email } })
+}
+
 const rellenarIdentidad = (email = 'ana@ejemplo.org') => {
   fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Ana' } })
   fireEvent.change(screen.getByLabelText('Apellidos'), { target: { value: 'Ruiz Gil' } })
@@ -173,15 +178,25 @@ describe('flujo del experto', () => {
 // El conjunto mínimo de datos del panel de paciente: temporalidad, localización, diagnóstico,
 // impacto (PEG), educación previa y alfabetización en salud (Chew).
 function rellenarPerfilPaciente({ duracion = '1_5a' } = {}) {
-  fireEvent.change(screen.getByLabelText('Edad'), { target: { value: '45-59' } })
+  fireEvent.change(screen.getByLabelText('Fecha de nacimiento'), { target: { value: '1980-05-12' } })
   fireEvent.change(screen.getByLabelText('¿Cuánto tiempo llevas con dolor?'), { target: { value: duracion } })
   fireEvent.change(screen.getByLabelText('¿Cada cuánto te duele?'), { target: { value: 'casi_diario' } })
   fireEvent.click(screen.getByLabelText('Espalda baja o lumbares'))
   fireEvent.click(screen.getByLabelText('Fibromialgia'))
-  for (const [rotulo, n] of [['Tu dolor, de media', 6],
-                             ['Cuánto te ha estorbado para disfrutar de la vida', 7],
-                             ['Cuánto te ha estorbado para tu actividad de cada día', 5]]) {
+  // EGDC: tres de intensidad, tres de discapacidad y los días de actividad perdidos.
+  for (const [rotulo, n] of [[/^Tu dolor ahora mismo$/, 5],
+                             [/tu peor dolor/, 8],
+                             [/tu dolor de media/, 5],
+                             [/actividades de cada día/, 5],
+                             [/actividades de ocio/, 6],
+                             [/capacidad de trabajar/, 4]]) {
     fireEvent.click(within(screen.getByRole('radiogroup', { name: rotulo })).getByRole('radio', { name: String(n) }))
+  }
+  fireEvent.change(screen.getByLabelText(/cuántos días te impidió el dolor/), { target: { value: '20' } })
+  // PHQ-4: las cuatro de ánimo y preocupación.
+  for (const [rotulo, v] of [[/nervios de punta/, '2'], [/parar de preocuparte/, '1'],
+                             [/Poco interés o alegría/, '0'], [/ánimo bajo/, '0']]) {
+    fireEvent.change(screen.getByLabelText(rotulo), { target: { value: v } })
   }
   fireEvent.change(screen.getByLabelText('¿Alguna vez un profesional te ha explicado cómo funciona el dolor?'), { target: { value: 'nunca' } })
   fireEvent.change(screen.getByLabelText(/te ayude a leer los papeles/), { target: { value: '1' } })
@@ -194,7 +209,7 @@ describe('flujo del paciente', () => {
   it('ve solo la explicación de paciente y su instrumento', async () => {
     await entrarComo(CLAVES_DEMO.paciente)
     expect(await screen.findByText('Unos datos sobre ti')).toBeTruthy()
-    rellenarIdentidad('paciente@ejemplo.org')
+    rellenarCorreoPaciente('paciente@ejemplo.org')
     rellenarPerfilPaciente()
     fireEvent.click(screen.getByRole('button', { name: 'Guardar y seguir' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Empezar' }))
@@ -223,7 +238,7 @@ describe('flujo del paciente', () => {
   it('no puede cerrar el texto sin puntuar las tres dimensiones', async () => {
     await entrarComo(CLAVES_DEMO.paciente)
     expect(await screen.findByText('Unos datos sobre ti')).toBeTruthy()
-    rellenarIdentidad('paciente2@ejemplo.org')
+    rellenarCorreoPaciente('paciente2@ejemplo.org')
     rellenarPerfilPaciente()
     fireEvent.click(screen.getByRole('button', { name: 'Guardar y seguir' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Empezar' }))
@@ -300,10 +315,10 @@ describe('convocatoria de pacientes (#/participar/paciente)', () => {
     window.location.hash = '#/participar/paciente'
     render(<App />)
     expect(await screen.findByText('Participar como persona con dolor')).toBeTruthy()
-    await screen.findByLabelText('Nombre')   // el formulario llega cuando responde valida_publico
+    await screen.findByLabelText('Correo de contacto')   // el formulario llega cuando responde valida_publico
     const campoCodigo = screen.queryByLabelText(/Código de/)
     if (campoCodigo) fireEvent.change(campoCodigo, { target: { value: ajustes.codigo ?? 'demo' } })
-    rellenarIdentidad(ajustes.email || 'dolor@ejemplo.org')
+    rellenarCorreoPaciente(ajustes.email || 'dolor@ejemplo.org')
     rellenarPerfilPaciente(ajustes)
     fireEvent.click(screen.getByRole('button', { name: 'Enviar solicitud' }))
   }
@@ -348,7 +363,10 @@ describe('convocatoria de pacientes (#/participar/paciente)', () => {
     expect(d.frecuencia_dolor).toBe('casi_diario')
     expect(d.zonas).toEqual(['lumbar'])
     expect(d.diagnosticos).toEqual(['fibromialgia'])
-    expect([d.peg_intensidad, d.peg_disfrute, d.peg_actividad]).toEqual([6, 7, 5])
+    expect([d.egdc_ahora, d.egdc_peor, d.egdc_medio]).toEqual([5, 8, 5])
+    expect([d.egdc_diaria, d.egdc_social, d.egdc_trabajo, Number(d.egdc_dias)]).toEqual([5, 6, 4, 20])
+    expect([d.phq4_nervioso, d.phq4_preocupacion, d.phq4_interes, d.phq4_animo]).toEqual([2, 1, 0, 0])
+    expect(d.nacimiento).toBe('1980-05-12')
     expect(d.educacion_previa).toBe('nunca')
     expect([d.ayuda_leer, d.seguridad_formularios, d.cuesta_entender]).toEqual([1, 2, 2])
     // La identidad va aparte: no viaja con el perfil.

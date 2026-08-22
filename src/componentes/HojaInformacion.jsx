@@ -79,15 +79,36 @@ export default function HojaInformacion({ estudio = {}, perfil = 'experto', valo
           </p>
 
           <h3>5 · Reconocimiento y autoría</h3>
-          <p>
-            Quienes <b>completen todas las rondas</b> del estudio serán reconocidos como miembros del <b>{grupo}</b> en las
-            publicaciones que se deriven, según los criterios de autoría de grupo del ICMJE (nombre y apellidos indexados como
-            colaboradores del grupo). Por eso pedimos nombre y apellidos{paciente ? '' : ' y filiación'}: sin ellos no es posible ese
-            reconocimiento. Quien no complete las rondas, o no desee figurar, no aparecerá.
-          </p>
-          <p>
-            Figurar es <b>opcional</b>: dilo en {contacto} y no aparecerás, sin que eso afecte a tu participación.
-          </p>
+          {paciente ? (
+            <>
+              <p>
+                Conviene decirlo claro: <b>tu participación no da autoría</b>. Los textos ya están escritos y quien los firma
+                responde de ellos; lo que tú haces es decir si se entienden, que es otra cosa y por eso no lleva firma. Tampoco
+                se te pide el nombre, precisamente para que tus respuestas no queden unidas a él.
+              </p>
+              <p>Lo que sí obtienes:</p>
+              <ul>
+                <li>Los textos que revises se corrigen con lo que digas, y los leerá mucha más gente que tú.</li>
+                <li>
+                  En la publicación se agradece la participación del <b>panel de personas con dolor</b>, como grupo y sin nombres,
+                  y se dice cuántas personas lo formaron.
+                </li>
+                <li>Si nos lo pides en {contacto}, te mandamos los textos ya corregidos cuando el estudio termine.</li>
+              </ul>
+            </>
+          ) : (
+            <>
+              <p>
+                Quienes <b>completen todas las rondas</b> del estudio serán reconocidos como miembros del <b>{grupo}</b> en las
+                publicaciones que se deriven, según los criterios de autoría de grupo del ICMJE (nombre y apellidos indexados como
+                colaboradores del grupo). Por eso pedimos nombre, apellidos y filiación: sin ellos no es posible ese
+                reconocimiento. Quien no complete las rondas, o no desee figurar, no aparecerá.
+              </p>
+              <p>
+                Figurar es <b>opcional</b>: dilo en {contacto} y no aparecerás, sin que eso afecte a tu participación.
+              </p>
+            </>
+          )}
 
           <h3>6 · Tratamiento de tus datos personales</h3>
 
@@ -102,16 +123,20 @@ export default function HojaInformacion({ estudio = {}, perfil = 'experto', valo
           <p>Se recogen tres bloques, y se guardan separados:</p>
           <ul>
             <li>
-              <b>Datos que te identifican:</b> nombre, apellidos y correo de contacto
-              {paciente ? '.' : ', y además filiación, ORCID y los DOI que declares.'}
+              <b>Datos que te identifican:</b>{' '}
+              {paciente
+                ? 'solo un correo de contacto. No se te pide el nombre.'
+                : 'nombre, apellidos, correo de contacto, filiación, ORCID y los DOI que declares.'}
             </li>
             {paciente ? (
               <li>
-                <b>Datos sobre tu salud:</b> edad, situación laboral, cuánto tiempo llevas con dolor y con qué frecuencia, en qué
-                zonas, qué diagnósticos te han dado, cuánto te duele y cuánto te limita (escalas de 0 a 10), qué tratamientos has
-                hecho, quién te lleva, si te habían explicado antes cómo funciona el dolor y tres preguntas sobre información
-                escrita de salud. Son <b>datos de categoría especial</b> (art. 9 RGPD) y por eso se te pide un consentimiento
-                expreso, no basta con el general.
+                <b>Datos sobre tu salud:</b> fecha de nacimiento, sexo, situación laboral, cuánto tiempo llevas con dolor y con
+                qué frecuencia, en qué zonas, qué diagnósticos te han dado, cuánto te duele y cuánto te limita (las siete
+                preguntas de la <b>Escala de Gradación del Dolor Crónico</b>), cómo te has sentido de ánimo y de preocupación
+                (cuatro preguntas del <b>PHQ-4</b>, que es un cribado y no un diagnóstico), qué tratamientos has hecho, quién te
+                lleva, si te habían explicado antes cómo funciona el dolor y tres preguntas sobre información escrita de salud.
+                Son <b>datos de categoría especial</b> (art. 9 RGPD) y por eso se te pide un consentimiento expreso, no basta con
+                el general.
               </li>
             ) : (
               <li>
@@ -143,7 +168,15 @@ export default function HojaInformacion({ estudio = {}, perfil = 'experto', valo
                 (art. 6.1.a RGPD), en el marco de la investigación científica.
               </li>
             )}
-            <li><b>Reconocer la autoría de grupo</b> si completas todas las rondas — base: tu consentimiento.</li>
+            <li>
+              <b>Comprobar que nadie responde dos veces.</b> Del correo se guarda además una <b>huella cifrada</b> —un código
+              del que no se puede volver al correo— y es lo que se compara al registrarse. Sin ello, una misma persona podría
+              contar como varias y las cuentas del estudio dejarían de ser ciertas — base: tu consentimiento, e interés en la
+              integridad de la investigación.
+            </li>
+            {!paciente && (
+              <li><b>Reconocer la autoría de grupo</b> si completas todas las rondas — base: tu consentimiento.</li>
+            )}
           </ul>
           <p>
             No se usan para ninguna otra cosa: ni publicidad, ni perfiles comerciales, ni se cruzan con historias clínicas.
@@ -205,8 +238,9 @@ export default function HojaInformacion({ estudio = {}, perfil = 'experto', valo
 
           <h4>6.9 · ¿Estás obligado a darlos?</h4>
           <p>
-            No. Darlos es voluntario, pero sin ellos no se puede participar: el correo hace falta para mandarte tu clave y los
-            avisos, el nombre para el reconocimiento de autoría, y{' '}
+            No. Darlos es voluntario, pero sin ellos no se puede participar: el correo hace falta para mandarte tu clave, para
+            los avisos y para comprobar que no hay respuestas duplicadas
+            {paciente ? '' : ', el nombre para el reconocimiento de autoría'}, y{' '}
             {paciente
               ? 'los datos sobre tu dolor para poder decir en la publicación a qué personas les resultaron claros estos textos —que es justamente lo que hace útil el estudio—.'
               : 'los datos profesionales para comprobar los criterios de inclusión del panel.'}{' '}
@@ -218,7 +252,7 @@ export default function HojaInformacion({ estudio = {}, perfil = 'experto', valo
             Los resultados se publicarán de forma agregada en revistas científicas y podrán presentarse en congresos. El panel se
             describirá <b>por sus características de conjunto</b>, nunca persona a persona:{' '}
             {paciente
-              ? 'cuántas personas participaron, sus edades, cuánto tiempo llevaban con dolor, qué diagnósticos tenían y cómo de bien se manejan con la información escrita de salud. Nunca se publicará nada que permita reconocerte, ni se citará tu texto libre si pudiera identificarte.'
+              ? 'cuántas personas participaron, sus edades, cuánto tiempo llevaban con dolor, en qué grado les afectaba, qué diagnósticos tenían y cómo de bien se manejan con la información escrita de salud. Nunca se publicará nada que permita reconocerte, ni se citará tu texto libre si pudiera identificarte.'
               : 'profesión, titulación, años de experiencia y ámbito de trabajo.'}
           </p>
 

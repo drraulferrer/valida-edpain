@@ -3,8 +3,9 @@ import * as api from '../lib/api.js'
 import { ir } from '../App.jsx'
 import HojaInformacion from '../componentes/HojaInformacion.jsx'
 import {
-  AMBITOS, AUTOEXPERTISE, CHEW, DIAGNOSTICOS, DISCIPLINAS, DOLOR_PROPIO, DURACION_DOLOR, EDAD, EDUCACION_DOLOR,
-  EDUCACION_PREVIA, ENTORNOS, ESTUDIOS, EXPLICACION_RECIBIDA, FRECUENCIA_DOLOR, GENERO, IDENTIDAD_VACIA,
+  AMBITOS, AUTOEXPERTISE, CHEW, DIAGNOSTICOS, DISCIPLINAS, DOLOR_PROPIO, DURACION_DOLOR, EDAD_MAXIMA, EDAD_MINIMA,
+  EDUCACION_DOLOR, EGDC_DISCAPACIDAD, EGDC_INTENSIDAD, PHQ4_ENUNCIADO, PHQ4_ITEMS, PHQ4_OPCIONES, SEXO, edadDe,
+  EDUCACION_PREVIA, ENTORNOS, ESTUDIOS, EXPLICACION_RECIBIDA, FRECUENCIA_DOLOR, IDENTIDAD_VACIA,
   LECTURA_PROPIA, PERFIL_EXPERTO_VACIO, PERFIL_PACIENTE_VACIO, PUBLICACIONES, PUBLICACIONES_EDU, SEGUIMIENTO,
   SITUACION, TITULACIONES, TRATAMIENTOS, ZONAS_DOLOR,
   elegibilidadPaciente, prepararPerfil, validarPerfilExperto, validarPerfilPaciente,
@@ -146,6 +147,16 @@ export function FormularioExperto({ inicial, disciplinaInicial, aniosInicial, do
             <span>Tengo formación específica acreditada en dolor (máster, experto, certificación)</span>
           </label>
           {f.formacion_dolor && <input type="text" placeholder="¿Cuál? (p. ej. Máster en Fisioterapia del Dolor)" value={f.formacion_dolor_cual} onChange={(e) => cambiar('formacion_dolor_cual', e.target.value)} />}
+        </div>
+        <div className="panel-dos">
+          <div className="campo">
+            <label htmlFor="exp-sexo">Sexo <span className="silencio">(opcional)</span></label>
+            <select id="exp-sexo" value={f.sexo || ''} onChange={(e) => cambiar('sexo', e.target.value)}>
+              <option value="">— elige —</option>
+              {SEXO.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+            <p className="ayuda">Para describir la composición del panel en el informe.</p>
+          </div>
         </div>
         <div className="campo">
           <label htmlFor="pais">País donde ejerces</label>
@@ -323,7 +334,6 @@ export function FormularioPaciente({ inicial = {}, estudio, onEnviar, enviando, 
     const ya = prev[k] || []
     return { ...prev, [k]: ya.includes(id) ? ya.filter((x) => x !== id) : [...ya, id] }
   })
-  const grupo = estudio?.grupo_autoria || 'Grupo del Estudio EdPain'
   const noElegible = elegibilidadPaciente(f)
 
   const enviar = (e) => {
@@ -339,31 +349,29 @@ export function FormularioPaciente({ inicial = {}, estudio, onEnviar, enviando, 
       {error && <p className="error" role="alert">{error}</p>}
 
       <div className="tarjeta">
-        <h3>Cómo te llamamos</h3>
-        <p className="destacado-oro">Si completas <b>todas las rondas</b>, se te reconocerá como miembro del <b>{grupo}</b> en las publicaciones, con tu nombre y apellidos. Si prefieres no figurar, dínoslo y no aparecerás.</p>
-        <div className="panel-dos">
-          <div className="campo">
-            <label htmlFor="pac-nombre">Nombre</label>
-            <input id="pac-nombre" type="text" autoComplete="given-name" value={f.identidad.nombre} onChange={(e) => ident('nombre', e.target.value)} required />
-          </div>
-          <div className="campo">
-            <label htmlFor="pac-apellidos">Apellidos</label>
-            <input id="pac-apellidos" type="text" autoComplete="family-name" value={f.identidad.apellidos} onChange={(e) => ident('apellidos', e.target.value)} required />
-          </div>
-        </div>
+        <h3>Cómo te avisamos</h3>
+        <p className="silencio">
+          No te pedimos el nombre: en este panel no hace falta y así tus respuestas no van unidas a él. Solo un correo,
+          que <b>se guarda aparte de lo que contestes</b> y sirve para tres cosas: mandarte tu clave, avisarte cuando haya
+          textos nuevos y comprobar que nadie responde dos veces.
+        </p>
         <div className="campo">
           <label htmlFor="pac-email">Correo de contacto</label>
           <input id="pac-email" type="email" autoComplete="email" value={f.identidad.email} onChange={(e) => ident('email', e.target.value)} required />
-          <p className="ayuda">Solo para mandarte tu clave y avisarte cuando haya textos nuevos. No se publica ni se cede a nadie.</p>
+          <p className="ayuda">No se publica, no se cede y no aparece en ningún resultado del estudio.</p>
         </div>
       </div>
 
       <div className="tarjeta">
         <h3>Quién eres</h3>
         <div className="panel-dos">
-          <Elegir id="edad" etiqueta="Edad" valor={f.edad} onCambio={(v) => cambiar('edad', v)}
-            opciones={EDAD.map((k) => [k, `${k} años`])} />
-          <Elegir id="genero" etiqueta="Género" opcional valor={f.genero} onCambio={(v) => cambiar('genero', v)} opciones={GENERO} />
+          <div className="campo">
+            <label htmlFor="pac-nacimiento">Fecha de nacimiento</label>
+            <input id="pac-nacimiento" type="date" value={f.nacimiento} onChange={(e) => cambiar('nacimiento', e.target.value)}
+              min={limiteFecha(EDAD_MAXIMA)} max={limiteFecha(EDAD_MINIMA)} required />
+            {edadDe(f.nacimiento) != null && <p className="ayuda">{edadDe(f.nacimiento)} años</p>}
+          </div>
+          <Elegir id="sexo" etiqueta="Sexo" opcional valor={f.sexo} onCambio={(v) => cambiar('sexo', v)} opciones={SEXO} />
           <Elegir id="estudios" etiqueta="Estudios" opcional valor={f.estudios} onCambio={(v) => cambiar('estudios', v)} opciones={ESTUDIOS} />
           <Elegir id="situacion" etiqueta="Situación laboral" opcional valor={f.situacion} onCambio={(v) => cambiar('situacion', v)} opciones={SITUACION} />
         </div>
@@ -403,13 +411,36 @@ export function FormularioPaciente({ inicial = {}, estudio, onEnviar, enviando, 
 
       <div className="tarjeta">
         <h3>Cómo te afecta</h3>
-        <p className="silencio">Piensa en la <b>última semana</b>. Es una escala de 0 a 10 que se usa mucho en las consultas del dolor.</p>
-        <Escala0a10 id="peg-intensidad" etiqueta="Tu dolor, de media" izquierda="Ningún dolor" derecha="El peor que puedas imaginar"
-          valor={f.peg_intensidad} onCambio={(v) => cambiar('peg_intensidad', v)} />
-        <Escala0a10 id="peg-disfrute" etiqueta="Cuánto te ha estorbado para disfrutar de la vida" izquierda="Nada" derecha="Del todo"
-          valor={f.peg_disfrute} onCambio={(v) => cambiar('peg_disfrute', v)} />
-        <Escala0a10 id="peg-actividad" etiqueta="Cuánto te ha estorbado para tu actividad de cada día" izquierda="Nada" derecha="Del todo"
-          valor={f.peg_actividad} onCambio={(v) => cambiar('peg_actividad', v)} />
+        <p className="silencio">
+          Son las preguntas de la <b>Escala de Gradación del Dolor Crónico</b>, la que se usa en los estudios de dolor para
+          poder comparar grupos. Seis van de 0 a 10 y una es un número de días. Piensa en los <b>últimos seis meses</b>.
+        </p>
+        {EGDC_INTENSIDAD.map(([clave, etiqueta, izq, der]) => (
+          <Escala0a10 key={clave} id={clave.replace('_', '-')} etiqueta={<Marcado texto={etiqueta} />} izquierda={izq} derecha={der}
+            valor={f[clave]} onCambio={(v) => cambiar(clave, v)} />
+        ))}
+        <div className="campo">
+          <label htmlFor="egdc-dias">De los últimos seis meses, ¿cuántos <b>días</b> te impidió el dolor hacer tus actividades habituales?</label>
+          <input id="egdc-dias" type="number" min="0" max="180" value={f.egdc_dias}
+            onChange={(e) => cambiar('egdc_dias', e.target.value)} style={{ maxWidth: '9rem' }} required />
+          <p className="ayuda">Trabajo, casa, estudios. De 0 a 180 días; si no sabes el número exacto, pon el que más se acerque.</p>
+        </div>
+        {EGDC_DISCAPACIDAD.map(([clave, etiqueta, izq, der]) => (
+          <Escala0a10 key={clave} id={clave.replace('_', '-')} etiqueta={<Marcado texto={etiqueta} />} izquierda={izq} derecha={der}
+            valor={f[clave]} onCambio={(v) => cambiar(clave, v)} />
+        ))}
+      </div>
+
+      <div className="tarjeta">
+        <h3>Cómo te has sentido</h3>
+        <p className="silencio">
+          <Marcado texto={PHQ4_ENUNCIADO} /> Son cuatro preguntas de cribado: <b>no son un diagnóstico</b> y nadie te va a
+          llamar por ellas. Sirven para describir al grupo, porque el ánimo y la preocupación cambian cómo se lee un texto.
+        </p>
+        {PHQ4_ITEMS.map(([clave, pregunta]) => (
+          <Elegir key={clave} id={`phq4-${clave}`} etiqueta={pregunta} valor={f[clave]}
+            onCambio={(v) => cambiar(clave, v === '' ? '' : Number(v))} opciones={PHQ4_OPCIONES} />
+        ))}
       </div>
 
       <div className="tarjeta">
@@ -451,6 +482,19 @@ export function FormularioPaciente({ inicial = {}, estudio, onEnviar, enviando, 
       </div>
     </form>
   )
+}
+
+// Fecha máxima/mínima admitida en el campo de nacimiento, a partir de la edad.
+function limiteFecha(anios) {
+  const d = new Date()
+  d.setFullYear(d.getFullYear() - anios)
+  return d.toISOString().slice(0, 10)
+}
+
+// Los enunciados de los instrumentos llevan **negrita** para lo que hay que leer sin falta.
+function Marcado({ texto }) {
+  const trozos = String(texto).split(/\*\*(.+?)\*\*/g)
+  return <>{trozos.map((t, i) => (i % 2 ? <b key={i}>{t}</b> : t))}</>
 }
 
 // --- piezas del formulario de paciente ---------------------------------------

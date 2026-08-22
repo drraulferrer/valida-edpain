@@ -73,6 +73,28 @@ describe('hoja de información · lo que cambia entre paciente y experto', () =>
     expect(t).toMatch(/varias solicitudes con el mismo correo/)
   })
 
+  it('al paciente le dice que NO hay autoría y qué obtiene en su lugar', () => {
+    const t = abrir({ perfil: 'paciente' })
+    expect(t).toMatch(/tu participación no da autoría/i)
+    expect(t).not.toMatch(/Grupo del Estudio EdPain/)
+    expect(t).toMatch(/se agradece la participación del/)
+  })
+
+  it('al experto sí le promete la autoría de grupo del ICMJE', () => {
+    const t = abrir({ perfil: 'experto' })
+    expect(t).toMatch(/Grupo del Estudio EdPain/)
+    expect(t).toMatch(/ICMJE/)
+  })
+
+  it('explica que el contacto se archiva aparte y para qué sirve la huella', () => {
+    const t = abrir({ perfil: 'paciente' })
+    expect(t).toMatch(/nadie responde dos veces/)
+    expect(t).toMatch(/huella cifrada/)
+    expect(t).toMatch(/no se puede volver al correo/)
+    // Y al paciente no se le pide el nombre.
+    expect(t).toMatch(/No se te pide el nombre/)
+  })
+
   it('el consentimiento del experto no arrastra la mención a datos de salud', () => {
     expect(abrir({ perfil: 'experto' })).not.toMatch(/expresamente, el tratamiento de los datos sobre mi salud/)
   })

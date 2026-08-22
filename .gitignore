@@ -6,3 +6,4 @@ dist
 panel/
 *.log
 .DS_Store
+supabase/.temp/

@@ -81,8 +81,31 @@ export const DOLOR_PROPIO = [['si', 'Sí'], ['no', 'No'], ['no_digo', 'Prefiero 
 //
 // Ninguno de estos datos identifica: el nombre y el correo van aparte, en `valida.identidades`.
 // ---------------------------------------------------------------------------
-export const EDAD = ['18-29', '30-44', '45-59', '60-74', '75+']
-export const GENERO = [['mujer', 'Mujer'], ['hombre', 'Hombre'], ['otro', 'Otro'], ['no_digo', 'Prefiero no decirlo']]
+// Sexo, no género: es lo que se informa en la descripción de una muestra clínica y lo que
+// permite comparar con la literatura del campo.
+export const SEXO = [['mujer', 'Mujer'], ['hombre', 'Hombre'], ['intersexual', 'Intersexual'], ['no_digo', 'Prefiero no decirlo']]
+
+export const EDAD_MINIMA = 18
+export const EDAD_MAXIMA = 110
+
+// La edad se calcula de la fecha de nacimiento; no se pregunta por separado.
+export function edadDe(nacimiento, hoy = new Date()) {
+  if (!nacimiento) return null
+  const d = new Date(nacimiento)
+  if (Number.isNaN(d.getTime())) return null
+  let a = hoy.getFullYear() - d.getFullYear()
+  const m = hoy.getMonth() - d.getMonth()
+  if (m < 0 || (m === 0 && hoy.getDate() < d.getDate())) a -= 1
+  return a
+}
+
+export function validarNacimiento(nacimiento) {
+  const a = edadDe(nacimiento)
+  if (a == null) return 'Indica tu fecha de nacimiento.'
+  if (a < EDAD_MINIMA) return `Para participar hay que tener ${EDAD_MINIMA} años o más.`
+  if (a > EDAD_MAXIMA) return 'Revisa la fecha de nacimiento: no parece correcta.'
+  return ''
+}
 export const ESTUDIOS = [['sin_estudios', 'Sin estudios terminados'], ['primarios', 'Primarios'], ['secundarios', 'Secundarios o bachillerato'], ['fp', 'Formación profesional'], ['universitarios', 'Universitarios']]
 export const SITUACION = [
   ['trabajando', 'Trabajando'],
@@ -202,11 +225,10 @@ export const CHEW = [
   ['cuesta_entender', '¿Con qué frecuencia te cuesta entender tu problema de salud por cómo está escrita la información?', CHEW_FRECUENCIA],
 ]
 
-// Impacto del dolor (PEG, Krebs 2009): media de los tres ítems 0-10.
-export function impactoPeg(p = {}) {
-  const v = [p.peg_intensidad, p.peg_disfrute, p.peg_actividad].map(Number).filter((x) => Number.isFinite(x))
-  return v.length === 3 ? v.reduce((s, x) => s + x, 0) / 3 : null
-}
+// El impacto del dolor y el cribado de ansiedad y depresión viven en `cuestionarios.js`,
+// con sus ítems, su puntuación y sus puntos de corte publicados.
+export { egdc, phq4, hads, resumenInstrumentos, EGDC_ITEMS, EGDC_INTENSIDAD, EGDC_DISCAPACIDAD,
+  EGDC_DIAS, EGDC_GRADOS, PHQ4_ITEMS, PHQ4_OPCIONES, PHQ4_ENUNCIADO, HADS_ITEMS, HADS_DISPONIBLE } from './cuestionarios.js'
 
 // Alfabetización en salud (Chew 2004). Suma 3-15, y el aviso de «limitada» se apoya en el ítem
 // de seguridad rellenando impresos, que es el que mejor discrimina en el original (AUC 0,80):
@@ -232,6 +254,8 @@ export function elegibilidadPaciente(p = {}) {
   return ''
 }
 
+import { EGDC_ITEMS as EGDC_ITEMS_VALIDAR, PHQ4_ITEMS as PHQ4_ITEMS_VALIDAR, resumenInstrumentos as resumenInstrumentosPaciente } from './cuestionarios.js'
+
 // Identidad: va en su propia tabla (`valida.identidades`), no viaja con las valoraciones.
 export const IDENTIDAD_VACIA = Object.freeze({ nombre: '', apellidos: '', email: '', filiacion: '', orcid: '', dois: '' })
 
@@ -249,17 +273,20 @@ export const PERFIL_EXPERTO_VACIO = Object.freeze({
   titulacion: '', formacion_dolor: false, formacion_dolor_cual: '', pais: 'España', ambitos: [], entorno: '',
   anios_profesion: '', reparto: { clinica: '', docencia: '', investigacion: '' }, educacion_dolor: [],
   publicaciones_dolor: '', publicaciones_educacion: '', investigacion_dolor: false, delphi_previo: false,
-  sociedades: '', autoexpertise: '', dolor_propio: '', consentimiento: false, identidad: { ...IDENTIDAD_VACIA },
+  sociedades: '', autoexpertise: '', dolor_propio: '', sexo: '', consentimiento: false, identidad: { ...IDENTIDAD_VACIA },
 })
 
 export const PERFIL_PACIENTE_VACIO = Object.freeze({
   // Quién es
-  edad: '', genero: '', estudios: '', situacion: '',
+  nacimiento: '', sexo: '', estudios: '', situacion: '',
   // El dolor: temporalidad, dónde, qué le han dicho
   duracion_dolor: '', frecuencia_dolor: '', zonas: [], diagnosticos: [], diagnostico_otro: '',
   explicacion_recibida: '', diagnostico: '',
-  // Impacto (PEG, 0-10)
-  peg_intensidad: '', peg_disfrute: '', peg_actividad: '',
+  // Impacto del dolor: EGDC (Graded Chronic Pain Scale) — 6 ítems 0-10 + días perdidos
+  egdc_ahora: '', egdc_peor: '', egdc_medio: '', egdc_dias: '',
+  egdc_diaria: '', egdc_social: '', egdc_trabajo: '',
+  // Cribado de ansiedad y depresión (PHQ-4; HADS cuando haya licencia)
+  phq4_nervioso: '', phq4_preocupacion: '', phq4_interes: '', phq4_animo: '',
   // Tratamientos
   tratamientos: [], seguimiento: '',
   // Educación en dolor previa
@@ -326,25 +353,31 @@ export function validarPerfilExperto(f, disciplina, anios, dominios) {
 // panel de pacientes, no un cuestionario clínico, y cada campo obligatorio de más es alguien
 // que abandona el formulario.
 export function validarPerfilPaciente(f) {
-  if (!f.edad) return 'Indica tu franja de edad.'
+  const nac = validarNacimiento(f.nacimiento)
+  if (nac) return nac
   const elegible = elegibilidadPaciente(f)
   if (elegible) return elegible
   if (!f.frecuencia_dolor) return 'Indica cada cuánto te duele.'
   if (!f.zonas?.length) return 'Marca al menos una zona donde te duela.'
   if (!f.diagnosticos?.length) return 'Marca qué te han dicho que tienes; si no te han dado ningún diagnóstico, hay una opción para eso.'
-  for (const [clave, etiqueta] of [['peg_intensidad', 'la intensidad de tu dolor'],
-                                   ['peg_disfrute', 'cuánto te ha afectado al disfrute de la vida'],
-                                   ['peg_actividad', 'cuánto te ha afectado a tu actividad']]) {
+  for (const [clave, etiqueta] of EGDC_ITEMS_VALIDAR) {
     const v = Number(f[clave])
     if (f[clave] === '' || f[clave] == null || !Number.isFinite(v) || v < 0 || v > 10) {
-      return `Indica ${etiqueta} en la escala de 0 a 10.`
+      return `Contesta «${etiqueta}» en la escala de 0 a 10.`
     }
+  }
+  const dias = Number(f.egdc_dias)
+  if (f.egdc_dias === '' || f.egdc_dias == null || !Number.isFinite(dias) || dias < 0 || dias > 180) {
+    return 'Indica cuántos días, de los últimos seis meses, el dolor te impidió hacer tus actividades (de 0 a 180).'
+  }
+  for (const [clave] of PHQ4_ITEMS_VALIDAR) {
+    if (f[clave] === '' || f[clave] == null) return 'Contesta las cuatro preguntas sobre cómo te has sentido estas dos semanas.'
   }
   if (!f.educacion_previa) return 'Indica si alguna vez te han explicado cómo funciona el dolor: es importante para interpretar tus respuestas.'
   for (const [clave] of CHEW) {
     if (!f[clave]) return 'Contesta las tres últimas preguntas sobre la información escrita de salud: sirven para saber a quién le resultan claros estos textos.'
   }
-  const identidad = validarIdentidad(f.identidad, { exigirNombre: true })
+  const identidad = validarIdentidad(f.identidad, { exigirNombre: false })
   if (identidad) return identidad
   if (!f.consentimiento) return 'Para participar hace falta aceptar la información del estudio.'
   return ''
@@ -368,17 +401,17 @@ export function prepararPerfil(f, previo = {}) {
 export function resumenPerfil(p = {}, perfilPanelista = 'experto') {
   if (perfilPanelista === 'paciente') {
     const et = (lista, v) => lista.find(([k]) => k === v)?.[1]
-    const peg = impactoPeg(p)
+    const instrumentos = resumenInstrumentosPaciente(p)
     const chew = alfabetizacionChew(p)
     const dx = (p.diagnosticos || []).map((d) => et(DIAGNOSTICOS, d)).filter(Boolean)
     return [
-      p.edad && `${p.edad} años`,
-      p.genero && p.genero !== 'no_digo' && et(GENERO, p.genero),
+      edadDe(p.nacimiento) != null && `${edadDe(p.nacimiento)} años`,
+      p.sexo && p.sexo !== 'no_digo' && et(SEXO, p.sexo),
       p.estudios && `estudios ${et(ESTUDIOS, p.estudios)?.toLowerCase()}`,
       p.duracion_dolor && `dolor ${et(DURACION_DOLOR, p.duracion_dolor)?.toLowerCase()}`,
       p.frecuencia_dolor && et(FRECUENCIA_DOLOR, p.frecuencia_dolor)?.toLowerCase(),
       dx.length && dx.join(', '),
-      peg != null && `PEG ${peg.toFixed(1)}/10`,
+      instrumentos || null,
       (p.tratamientos || []).length && `${p.tratamientos.length} tratamientos`,
       p.educacion_previa && `educación en dolor: ${et(EDUCACION_PREVIA, p.educacion_previa)?.toLowerCase()}`,
       chew.completo && (chew.limitada ? 'alfabetización en salud limitada' : `alfabetización en salud ${chew.total}/15`),
