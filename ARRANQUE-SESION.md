@@ -437,10 +437,9 @@ python3 pipeline/avisos.py                                # envía de verdad y m
   y la lista de TÍTULOS de todos sus conceptos del corpus, marcando los valorados— antes de la
   pregunta. Datos: `valida.catalogo.foco` y `valida.catalogo.conceptos` (solo títulos, sin texto),
   RPC `valida_modulo`. La decisión de la dirección fue «o se ven todos los títulos o se elimina».
-- **HTTPS**: GitHub no había emitido el certificado a las 17:30 (`https_certificate: null`) pese a que el
-  CNAME lleva horas resolviendo; se re-fijó el dominio por la API y queda un vigilante en la sesión que
-  activa `https_enforced` en cuanto el certificado aparezca. Si al retomar sigue sin HTTPS: en GitHub →
-  Settings → Pages, quitar y volver a poner `valida.edpain.com` fuerza la emisión.
+- **HTTPS**: resuelto el 22-ago. GitHub tardó unas horas en emitir el certificado después de re-fijar el
+  dominio por la API; en cuanto apareció se activó `https_enforced`. Si algún día vuelve a fallar, el
+  remedio conocido es quitar y volver a poner `valida.edpain.com` en GitHub → Settings → Pages.
 - **Panel de dirección → Panelistas**: botón «Conceptos» por evaluador que despliega su bloque (por
   módulo, en su orden, con estado y puntuaciones). `valida_dir_datos` devuelve ahora también
   `asignaciones`. Acceso: `http://valida.edpain.com/#/direccion` con la clave del Llavero
