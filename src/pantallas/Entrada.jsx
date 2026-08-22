@@ -30,9 +30,10 @@ export default function Entrada({ onEntrar, errorInicial }) {
                 onChange={(e) => setClave(e.target.value)} onBlur={() => setClave(normalizarClave(clave))} autoFocus />
             </div>
             {error && <p className="error" role="alert">{error}</p>}
+            {/* Sin enlace al panel de dirección: sigue en #/direccion, pero esa dirección se
+                reparte a mano al equipo. Aquí solo confundía a los panelistas. */}
             <div className="acciones">
               <button className="boton" type="submit" disabled={cargando || !clave.trim()}>{cargando ? 'Entrando…' : 'Entrar'}</button>
-              <a className="boton fantasma" href="#/direccion">Dirección editorial</a>
             </div>
           </form>
           {abierta && (
