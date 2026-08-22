@@ -353,6 +353,11 @@ EEE evitable. Se migró a `eu-west-3` (París): estado miembro y el más cercano
   destino antes.
 - **`valida.avisos` no tiene `id`** (su clave es compuesta), así que una lista de secuencias escrita
   a mano falla. `restaurar.py` las saca del catálogo (`pg_depend`).
+- **El volcado es una foto: lo que se toque después de volcar, se pierde.** Le pasó a
+  `estudios.codigo_pruebas`, que llegó a la base nueva en `null` y dejó sin efecto el alta de
+  panelistas de prueba. Restaurado el 23-ago a su valor de siempre, `PRUEBA-EDPAIN-26`. Al migrar,
+  repasar la fila de `valida.estudios` entera contra lo que dice este documento; el resto de la
+  configuración (fracción 12 %, suelo 8, k 5/3, plazo 10 días, Fehring ≥ 8, semilla) sí llegó bien.
 - **El proyecto viejo se queda pausado**, no borrado. Es la marcha atrás. Borrarlo es una decisión
   aparte, y hay que acordarse de `public.respuestas_consenso`.
 
