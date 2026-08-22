@@ -5,8 +5,10 @@
 ## 1 · Qué es
 
 Plataforma del **estudio de validez de contenido** del corpus Educación en Dolor. La evaluación
-metodológica y la spec completa están en `~/specs/valida-edpain.md` (§0 tiene el veredicto en una
-página y §3.8 las decisiones que siguen abiertas). El corpus vive en `~/educacion-en-dolor/`; esta
+metodológica y el protocolo completo están en `~/specs/valida-edpain.md` (**v0.3**: §0 el veredicto en una
+página, §3.8 las decisiones tomadas y §4 reclutamiento, consentimiento y plazos). Publicado también como
+artefacto: https://claude.ai/code/artifact/48d28491-3ca2-4d43-a155-6bedb7e1d422 — **al cambiar una decisión
+metodológica hay que actualizar los dos**, con `python3 spec_a_html.py` en el scratchpad de la sesión. El corpus vive en `~/educacion-en-dolor/`; esta
 plataforma es una **proyección** suya más un almacén de respuestas del panel.
 
 Tres estratos, analizados por separado: `aleatorio` (**12 %** por dominio con suelo 8, por números
