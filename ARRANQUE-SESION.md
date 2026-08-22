@@ -160,7 +160,11 @@ intentos anteriores y, si ya hubo un rechazo, registra el reenvío como `bloquea
 remite al correo del estudio; **no se explica en ningún sitio que exista este control**, ni antes ni
 después. Por eso la pantalla de rechazo ya no ofrece «Corregir mis datos»: invitaba justo a eso.
 El mismo mecanismo evita duplicados: si el correo ya está dado de alta, responde `ya_registrado`.
-La dirección lo ve en Estudio → «reenvíos no tramitados», con nombre y correo para poder responder.
+La dirección lo ve **destacado en el Resumen**: contador en oro y una tarjeta con cada caso —fecha, nombre,
+correo, disciplina y el salto de puntuación entre los dos envíos («pasó de 0 a 14 puntos»)— y un botón
+«Escribirle» con el mensaje ya redactado para pedirle que confirme sus datos. Está pensado justo para el
+caso honrado: quien se equivocó al marcar una casilla aparece ahí y se le puede dar de alta a mano desde
+Panelistas. También queda el recuento en Estudio.
 El código de pruebas queda exento (si no, no se podría ensayar el circuito).
 
 ## 6 · Gotchas encontrados construyéndolo (22-ago)
