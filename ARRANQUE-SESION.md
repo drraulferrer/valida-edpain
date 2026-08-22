@@ -64,8 +64,10 @@ npm run deploy                           # publica en GitHub Pages (exige árbol
 
 ## 5 · Flujo del estudio (lo que decides tú, y en qué orden)
 
-1. **Calibración**: elegir 2 conceptos de práctica y su «modelo» → `valida_dir_calibracion` (todavía
-   sin pantalla; se hace con un RPC o SQL). Sin ellos, el wizard salta la práctica.
+1. **Calibración** (hecha el 22-ago): `CPT-00116` (definicional, referencia 4·4·4) y `CPT-00739`
+   (eficacia, referencia 4·4·3 por el título sin acotar). Están importados con `incluido = false` y
+   estrato `calibracion` (`importar.py --extra`), así que **no cuentan en ningún estrato ni se asignan**.
+   Para cambiarlos: `valida_dir_calibracion` por RPC (sin pantalla aún).
 2. **Alta del panel**: Dirección → Panelistas → Alta (código, perfil, disciplina, dominios,
    capacidad). Guarda la clave que devuelve: no se vuelve a ver.
 3. **Asignar**: Dirección → Cobertura → «Asignar expertos» (k = 7, máx. 3 generalistas por concepto) y
@@ -112,9 +114,9 @@ update valida.panelistas set activo = false where codigo = 'PRU-01';
    se creó el 22-ago a las ~15:15. Cuando `gh api repos/drraulferrer/valida-edpain/pages` devuelva
    `https_enforced` posible, activar con `gh api -X PUT repos/drraulferrer/valida-edpain/pages -F https_enforced=true`.
    Mientras tanto la web se sirve por http (y por https con el certificado de github.io).
-2. **Decisiones de la spec §3.8** (4 vs 5 dimensiones, fracción 10 vs 12 %, suelo 8, nivel de calidad
-   aceptable 0,85/IC 0,75, cribado ≥ 2 señales). Todo son datos en `valida.estudios` / `valida.dimensiones`.
-3. **Calibración**: elegir 2 conceptos de práctica y su modelo → `valida_dir_calibracion` (aún sin pantalla).
+2. **Decisiones tomadas el 22-ago** (spec §3.8): 3 dimensiones expertas + comprensibilidad solo paciente;
+   fracción 12 %; suelo 8; nivel de calidad 0,85/IC 0,75; cribado ≥ 2 señales. Pendiente solo confirmar
+   el nivel de calidad al cerrar la ronda 1.
 4. **Panelista de prueba PRU-01**: retirarlo con el SQL de §5 antes de abrir el panel real.
 5. **Piloto**: entra tú con la clave de PRU-01 (Llavero `valida-edpain-prueba`; tiene 40 conceptos
    asignados, 1 ya valorado de prueba) y con la de dirección (`valida-edpain-direccion`).
@@ -126,6 +128,16 @@ update valida.panelistas set activo = false where codigo = 'PRU-01';
    sola; ejecutar después `Asignar expertos` en Cobertura para rellenar jueces de los conceptos nuevos.
 
 ## 8 · Dónde lo dejamos
+
+### Sesión 2 (22-ago-2026, tarde) · decisiones y calibración
+
+- Dirección editorial decide: **3 dimensiones** para el experto (comprensibilidad → solo panel de
+  paciente), **fracción 12 %** (justificación por margen de error tras pérdidas, spec §3.8) y
+  **calibración** con `CPT-00116` y `CPT-00739`. Todo aplicado en la base y desplegado.
+- Reimportación con 0,12: **+41 aleatorios** (316 + 70 + 40 = **414**), sin mover nada de lo anterior
+  (monotonía PRN comprobada: 373 iguales, 0 cambiados).
+- `importar.py --extra` importa conceptos concretos fuera de los estratos (para calibración).
+- Clave de PRU-01 probada en la web real (ver al final de la sesión en el chat).
 
 ### Sesión 1 (22-ago-2026) · construcción y despliegue
 
