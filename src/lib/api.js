@@ -75,6 +75,7 @@ export const guardarPerfil = (clave, disciplina, anios, dominios) =>
 export const calibracion = (clave) => rpc('valida_calibracion', { clave })
 export const calibracionHecha = (clave) => rpc('valida_calibracion_hecha', { clave })
 export const bloque = (clave) => rpc('valida_bloque', { clave })
+export const modulo = (clave, modulo) => rpc('valida_modulo', { clave, modulo })
 export const concepto = (clave, concepto_id) => rpc('valida_concepto', { clave, concepto_id })
 export const guardar = (clave, concepto_id, datos) => rpc('valida_guardar', { clave, concepto_id, datos })
 export const cobertura = (clave, modulo, exhaustividad, falta, sobra) =>

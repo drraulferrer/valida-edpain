@@ -116,6 +116,8 @@ create table if not exists valida.catalogo (
   tipo    text not null check (tipo in ('dominio','modulo')),
   orden   integer
 );
+alter table valida.catalogo add column if not exists foco text;
+alter table valida.catalogo add column if not exists conceptos jsonb not null default '[]';  -- módulos: [{id, titulo}] de TODO el corpus, para juzgar la exhaustividad
 
 -- ---------------------------------------------------------------------------
 -- El panel. Códigos, no nombres (PMD cap. 15). La correspondencia código↔persona
@@ -528,6 +530,30 @@ begin
   return jsonb_build_object('ok', true);
 end $$;
 
+-- El módulo entero —nombre, foco y TODOS sus títulos— para la pregunta de exhaustividad: con
+-- uno o dos conceptos muestreados no se puede juzgar si falta algo. Solo títulos, no texto.
+create or replace function public.valida_modulo(clave text, modulo text) returns jsonb
+language plpgsql security definer set search_path = valida, public, pg_temp as $$
+declare p valida.panelistas; e valida.estudios; k valida.catalogo; asignados text[];
+begin
+  p := valida.quien(clave);
+  select * into e from valida.estudios where id = p.estudio_id;
+  if not exists (select 1 from valida.asignaciones a join valida.conceptos c on c.id = a.concepto_id
+                  where a.panelista_id = p.id and a.ronda = e.ronda_actual and c.modulo = valida_modulo.modulo) then
+    raise exception 'módulo no asignado' using errcode = '42501';
+  end if;
+  select * into k from valida.catalogo where id = valida_modulo.modulo;
+  select coalesce(array_agg(a.concepto_id), '{}') into asignados
+    from valida.asignaciones a where a.panelista_id = p.id and a.ronda = e.ronda_actual;
+  return jsonb_build_object(
+    'id', valida_modulo.modulo, 'nombre', coalesce(k.nombre, valida_modulo.modulo), 'foco', k.foco,
+    'dominio', split_part(valida_modulo.modulo, '.', 1),
+    'dominio_nombre', (select nombre from valida.catalogo where id = split_part(valida_modulo.modulo, '.', 1)),
+    'conceptos', (select coalesce(jsonb_agg(jsonb_build_object('id', x->>'id', 'titulo', x->>'titulo',
+                                  'en_tu_bloque', (x->>'id') = any(asignados))), '[]')
+                  from jsonb_array_elements(coalesce(k.conceptos, '[]'::jsonb)) x));
+end $$;
+
 create or replace function public.valida_evento(clave text, tipo text, detalle jsonb) returns void
 language plpgsql security definer set search_path = valida, public, pg_temp as $$
 declare p valida.panelistas;
@@ -553,9 +579,9 @@ declare
 begin
   d := valida.direccion(clave);
   for fila in select * from jsonb_array_elements(coalesce(catalogo, '[]'::jsonb)) loop
-    insert into valida.catalogo (id, nombre, tipo, orden)
-    values (fila->>'id', fila->>'nombre', fila->>'tipo', (fila->>'orden')::int)
-    on conflict (id) do update set nombre = excluded.nombre, orden = excluded.orden;
+    insert into valida.catalogo (id, nombre, tipo, orden, foco, conceptos)
+    values (fila->>'id', fila->>'nombre', fila->>'tipo', (fila->>'orden')::int, fila->>'foco', coalesce(fila->'conceptos', '[]'::jsonb))
+    on conflict (id) do update set nombre = excluded.nombre, orden = excluded.orden, foco = excluded.foco, conceptos = excluded.conceptos;
   end loop;
 
   for fila in select * from jsonb_array_elements(conceptos) loop

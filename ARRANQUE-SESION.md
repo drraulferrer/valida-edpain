@@ -154,6 +154,14 @@ update valida.panelistas set activo = false where codigo = 'PRU-01';
   nombre cubre **todas** las entidades citadas por código (conceptos, errores frecuentes,
   metáforas, objetivos, competencias, instrumentos, módulos y dominios) — columna
   `entidades_citadas` y `RE_ENTIDAD` en `pipeline/importar.py` y `src/lib/texto.js`.
+- **Exhaustividad juzgable**: la pantalla de fin de módulo enseña ahora el módulo entero —nombre, foco
+  y la lista de TÍTULOS de todos sus conceptos del corpus, marcando los valorados— antes de la
+  pregunta. Datos: `valida.catalogo.foco` y `valida.catalogo.conceptos` (solo títulos, sin texto),
+  RPC `valida_modulo`. La decisión de la dirección fue «o se ven todos los títulos o se elimina».
+- **HTTPS**: GitHub no había emitido el certificado a las 17:30 (`https_certificate: null`) pese a que el
+  CNAME lleva horas resolviendo; se re-fijó el dominio por la API y queda un vigilante en la sesión que
+  activa `https_enforced` en cuanto el certificado aparezca. Si al retomar sigue sin HTTPS: en GitHub →
+  Settings → Pages, quitar y volver a poner `valida.edpain.com` fuerza la emisión.
 
 ### Sesión 1 (22-ago-2026) · construcción y despliegue
 

@@ -238,9 +238,16 @@ def entidades_citadas(c, corpus) -> list[dict]:
     return [{"id": cid, "nombre": nombres[cid][0], "tipo": nombres[cid][1]} for cid in vistos]
 
 
-def catalogo(corpus) -> list[dict]:
-    filas = [{"id": k, "nombre": v.get("nombre", k), "tipo": "dominio", "orden": v.get("orden")} for k, v in corpus.dominios.items()]
-    filas += [{"id": k, "nombre": v.get("nombre", k), "tipo": "modulo", "orden": v.get("orden")} for k, v in corpus.modulos.items()]
+def catalogo(corpus, marco) -> list[dict]:
+    """Dominios y módulos con su nombre; cada módulo lleva además su foco y la lista de TÍTULOS
+    de todos sus conceptos del marco (solo títulos: es lo que hace juzgable la exhaustividad)."""
+    por_modulo: dict[str, list[dict]] = defaultdict(list)
+    for c in sorted(marco, key=lambda c: c.id):
+        por_modulo[c.meta["modulo"]].append({"id": c.id, "titulo": c.meta.get("titulo", c.id)})
+    filas = [{"id": k, "nombre": v.get("nombre", k), "tipo": "dominio", "orden": v.get("orden"), "foco": v.get("objetivo")}
+             for k, v in corpus.dominios.items()]
+    filas += [{"id": k, "nombre": v.get("nombre", k), "tipo": "modulo", "orden": v.get("orden"), "foco": v.get("foco"),
+               "conceptos": por_modulo.get(k, [])} for k, v in corpus.modulos.items()]
     return filas
 
 
@@ -366,7 +373,7 @@ def main() -> int:
         return 0
 
     lotes = filas_incluidas + (filas_todas if args.todos else [])
-    cat = catalogo(corpus)
+    cat = catalogo(corpus, marco)
     resumen = Counter()
     for i in range(0, len(lotes), LOTE):
         lote = lotes[i:i + LOTE]

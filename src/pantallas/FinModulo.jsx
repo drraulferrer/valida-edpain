@@ -4,9 +4,12 @@ import Likert from '../componentes/Likert.jsx'
 import { ir } from '../App.jsx'
 import { siguientePendiente } from './Bloque.jsx'
 
-// Exhaustividad: la pregunta que no se puede hacer por concepto.
+// Exhaustividad: la pregunta que no se puede hacer por concepto. Con uno o dos conceptos
+// muestreados no se puede juzgar un módulo, así que aquí se enseña el módulo ENTERO —su
+// nombre, su foco y todos sus títulos—, marcando los que el panelista ha valorado.
 export default function FinModulo({ sesion, modulo }) {
   const [bloque, setBloque] = useState(null)
+  const [mod, setMod] = useState(null)
   const [exh, setExh] = useState(null)
   const [falta, setFalta] = useState('')
   const [sobra, setSobra] = useState('')
@@ -14,8 +17,8 @@ export default function FinModulo({ sesion, modulo }) {
   const [guardando, setGuardando] = useState(false)
 
   useEffect(() => {
-    api.bloque(sesion.clave).then((b) => {
-      setBloque(b)
+    Promise.all([api.bloque(sesion.clave), api.modulo(sesion.clave, modulo)]).then(([b, m]) => {
+      setBloque(b); setMod(m)
       const previa = (b.cobertura || []).find((c) => c.modulo === modulo)
       if (previa) { setExh(previa.exhaustividad); setFalta(previa.falta || ''); setSobra(previa.sobra || '') }
     }).catch((e) => setError(e.message))
@@ -33,21 +36,37 @@ export default function FinModulo({ sesion, modulo }) {
     } catch (err) { setError(err.message) } finally { setGuardando(false) }
   }
 
-  if (!bloque) return <main className="pantalla"><p className="silencio">Cargando…</p></main>
-  const nombre = bloque.nombres[modulo] || modulo
-  const titulos = bloque.items.filter((x) => x.modulo === modulo).map((x) => x.titulo)
+  if (error && !mod) return <main className="pantalla"><p className="error">{error}</p><a className="boton secundario" href="#/bloque">Volver al bloque</a></main>
+  if (!bloque || !mod) return <main className="pantalla"><p className="silencio">Cargando el módulo…</p></main>
+
+  const todos = mod.conceptos || []
+  const valorados = todos.filter((c) => c.en_tu_bloque).length
 
   return (
     <main className="pantalla">
-      <p className="etiqueta acento">Fin del módulo</p>
-      <h1>{nombre}</h1>
-      <p className="silencio">Has visto {titulos.length} {titulos.length === 1 ? 'concepto' : 'conceptos'} de este módulo (son los que te tocaron del sorteo, no todos los del módulo). Ahora una pregunta sobre el conjunto.</p>
-      <details className="plegable"><summary>Los que has visto</summary><div className="cuerpo"><ul className="lectura" style={{ fontSize: '1rem' }}>{titulos.map((t) => <li key={t}>{t}</li>)}</ul></div></details>
+      <p className="etiqueta acento">Fin del módulo · {mod.dominio_nombre || mod.dominio}</p>
+      <h1>{mod.nombre}</h1>
+      {mod.foco && <p className="lectura" style={{ fontSize: '1.05rem' }}>{mod.foco}</p>}
+      <p className="silencio">Este módulo tiene {todos.length} {todos.length === 1 ? 'concepto' : 'conceptos'}; has valorado {valorados} (marcados). Lee la lista entera de títulos y contesta sobre el conjunto, no solo sobre los que te han tocado.</p>
+
+      <section className="modulo-bloque">
+        <ol className="lista-titulos">
+          {todos.map((c) => (
+            <li key={c.id} className={c.en_tu_bloque ? 'valorado' : ''}>
+              <span className="est" aria-hidden="true">{c.en_tu_bloque ? '✓' : ''}</span>
+              <span className="t">{c.titulo}</span>
+              {c.en_tu_bloque && <span className="oculto-visual"> (valorado por ti)</span>}
+            </li>
+          ))}
+          {!todos.length && <li className="silencio">No hay lista de títulos para este módulo.</li>}
+        </ol>
+      </section>
+
       <form onSubmit={enviar}>
         <div className="dimension">
           <div className="nombre">Exhaustividad</div>
           <p className="afirmacion">En este módulo no falta ningún concepto que una persona formada en dolor esperaría encontrar.</p>
-          <p className="ayuda">Piensa en lo que NO has leído. Es la única pregunta que puede detectar lo que no está escrito.</p>
+          <p className="ayuda">Piensa en lo que NO está en la lista. Es la única pregunta que puede detectar lo que no está escrito.</p>
           <Likert nombre="Exhaustividad" valor={exh} onCambio={setExh} />
         </div>
         <div className="campo">

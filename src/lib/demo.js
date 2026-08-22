@@ -40,8 +40,10 @@ const CATALOGO = {
   D13: { nombre: 'Evidencia científica y método', tipo: 'dominio', orden: 13 },
   D14: { nombre: 'Recursos educativos y producción', tipo: 'dominio', orden: 14 },
   D15: { nombre: 'Salud digital e inteligencia artificial', tipo: 'dominio', orden: 15 },
-  'D01.M01': { nombre: 'Qué es el dolor', tipo: 'modulo', orden: 101 },
-  'D02.M09': { nombre: 'Sensibilización central', tipo: 'modulo', orden: 209 },
+  'D01.M01': { nombre: 'Qué es el dolor', tipo: 'modulo', orden: 101, foco: 'Definición del dolor, su distinción de la nocicepción y lo que implica para la consulta.',
+    conceptos: [{ id: 'DEMO-00001', titulo: 'El dolor es una experiencia, no una medida del daño en los tejidos' }, { id: 'DEMO-00002', titulo: 'Nocicepción y dolor no son lo mismo, y pueden darse por separado' }, { id: 'DEMO-00007', titulo: 'El dolor es siempre real, tenga o no lesión visible' }, { id: 'DEMO-00008', titulo: 'Dolor y sufrimiento no son sinónimos' }] },
+  'D02.M09': { nombre: 'Sensibilización central', tipo: 'modulo', orden: 209, foco: 'Qué es y qué no es la sensibilización central, y sus signos clínicos.',
+    conceptos: [{ id: 'DEMO-00003', titulo: 'La sensibilización central amplifica la respuesta a estímulos normales' }, { id: 'DEMO-00004', titulo: 'Alodinia e hiperalgesia son signos clínicos, no diagnósticos' }, { id: 'DEMO-00009', titulo: 'Wind-up: la respuesta crece aunque el estímulo no cambie' }] },
   'D04.M05': { nombre: 'Educación en neurociencia del dolor', tipo: 'modulo', orden: 405 },
   'D09.M03': { nombre: 'Exposición gradual al movimiento', tipo: 'modulo', orden: 903 },
 }
@@ -222,6 +224,14 @@ export function crearDemo() {
       const fila = { panelista_id: p.id, modulo, ronda: ronda_actual, exhaustividad, falta, sobra }
       if (i >= 0) cobertura[i] = fila; else cobertura.push(fila)
       return { ok: true }
+    },
+    valida_modulo({ clave, modulo }) {
+      const p = quien(clave)
+      if (!asignaciones.some((a) => a.panelista_id === p.id && a.ronda === ronda_actual && conceptos.find((c) => c.id === a.concepto_id)?.modulo === modulo)) { const e = new Error('Módulo no asignado.'); e.codigo = '42501'; throw e }
+      const k = CATALOGO[modulo] || {}
+      const mios = new Set(asignaciones.filter((a) => a.panelista_id === p.id && a.ronda === ronda_actual).map((a) => a.concepto_id))
+      return clon({ id: modulo, nombre: k.nombre || modulo, foco: k.foco || null, dominio: modulo.split('.')[0], dominio_nombre: CATALOGO[modulo.split('.')[0]]?.nombre,
+        conceptos: (k.conceptos || []).map((c) => ({ ...c, en_tu_bloque: mios.has(c.id) })) })
     },
     valida_evento({ clave, tipo, detalle }) { const p = quien(clave); eventos.push({ panelista_id: p.id, tipo, detalle, en: new Date().toISOString() }); return null },
 

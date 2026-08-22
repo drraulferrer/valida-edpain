@@ -14,6 +14,7 @@ vi.mock('../src/lib/api.js', async () => {
     valida_calibracion: { clave: a[0] },
     valida_calibracion_hecha: { clave: a[0] },
     valida_bloque: { clave: a[0] },
+    valida_modulo: { clave: a[0], modulo: a[1] },
     valida_concepto: { clave: a[0], concepto_id: a[1] },
     valida_guardar: { clave: a[0], concepto_id: a[1], datos: a[2] },
     valida_cobertura: { clave: a[0], modulo: a[1], exhaustividad: a[2], falta: a[3], sobra: a[4] },
@@ -24,7 +25,7 @@ vi.mock('../src/lib/api.js', async () => {
     ...real,
     DEMO: true,
     entrar: via('valida_entrar'), guardarPerfil: via('valida_perfil'), calibracion: via('valida_calibracion'),
-    calibracionHecha: via('valida_calibracion_hecha'), bloque: via('valida_bloque'), concepto: via('valida_concepto'),
+    calibracionHecha: via('valida_calibracion_hecha'), bloque: via('valida_bloque'), modulo: via('valida_modulo'), concepto: via('valida_concepto'),
     guardar: via('valida_guardar'), cobertura: via('valida_cobertura'), evento: via('valida_evento'),
     claveGuardada: () => guardada, guardarClave: (c) => { guardada = c || '' },
   }
@@ -129,7 +130,10 @@ describe('flujo del experto', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Seguir' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Guardar y siguiente' }))
     await waitFor(() => expect(window.location.hash).toBe('#/modulo/D01.M01'))
-    expect(await screen.findByText('Fin del módulo')).toBeTruthy()
+    expect(await screen.findByText(/Fin del módulo/)).toBeTruthy()
+    // la lista trae TODOS los títulos del módulo, no solo los muestreados
+    expect(await screen.findByText('El dolor es siempre real, tenga o no lesión visible')).toBeTruthy()
+    expect(screen.getByText(/tiene 4 conceptos; has valorado 2/)).toBeTruthy()
     const grupo = await screen.findByRole('radiogroup', { name: 'Exhaustividad' })
     fireEvent.click(grupo.querySelectorAll('button')[3])
     fireEvent.click(screen.getByRole('button', { name: 'Guardar y seguir' }))

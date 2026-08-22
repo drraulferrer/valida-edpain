@@ -247,6 +247,13 @@ input.clave { font-family: var(--mono); font-size: 1.4rem; letter-spacing: 0.08e
 .lista-conceptos .id { font-family: var(--mono); font-size: 0.7rem; color: var(--tinta-3); }
 .cobertura-hecha { font-size: 0.85rem; color: var(--ok); }
 
+.lista-titulos { list-style: none; padding: 0; margin: 0.5rem 0 1.25rem; border: 1px solid var(--linea); border-radius: var(--radio); background: var(--papel-2); }
+.lista-titulos li { display: flex; align-items: flex-start; gap: 0.6rem; padding: 0.45rem 0.8rem; border-top: 1px solid var(--linea); font-family: var(--serif); font-size: 1rem; line-height: 1.35; }
+.lista-titulos li:first-child { border-top: 0; }
+.lista-titulos li .est { width: 1.2rem; height: 1.2rem; border-radius: 50%; border: 1.5px solid var(--linea); flex: none; display: grid; place-items: center; font-size: 0.7rem; margin-top: 0.1rem; }
+.lista-titulos li.valorado .est { background: var(--ok); border-color: var(--ok); color: #fff; }
+.lista-titulos li.valorado .t { font-weight: 600; }
+
 /* --- paso a paso ------------------------------------------------------------- */
 .pasos { display: flex; gap: 0.4rem; font-size: 0.78rem; color: var(--tinta-3); margin-bottom: 1rem; flex-wrap: wrap; }
 .pasos span { padding: 0.2rem 0.6rem; border-radius: 999px; border: 1px solid var(--linea); }
