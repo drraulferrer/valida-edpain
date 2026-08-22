@@ -39,6 +39,12 @@ import * as api from '../src/lib/api.js'
 
 beforeEach(() => { cleanup(); demo = crearDemo(); api.guardarClave(''); window.location.hash = '#/'; window.scrollTo = () => {} })
 
+const rellenarIdentidad = (email = 'ana@ejemplo.org') => {
+  fireEvent.change(screen.getByLabelText('Nombre'), { target: { value: 'Ana' } })
+  fireEvent.change(screen.getByLabelText('Apellidos'), { target: { value: 'Ruiz Gil' } })
+  fireEvent.change(screen.getByLabelText('Correo de contacto'), { target: { value: email } })
+}
+
 const entrarComo = async (clave) => {
   render(<App />)
   const input = await screen.findByPlaceholderText('xxxx-xxxx-xxxx')
@@ -54,13 +60,14 @@ describe('entrada', () => {
   it('un experto nuevo pasa por el perfil, y sin consentimiento no sigue', async () => {
     await entrarComo(CLAVES_DEMO.experto)
     expect(await screen.findByText('Tu perfil como panelista')).toBeTruthy()
+    rellenarIdentidad()
     fireEvent.change(screen.getByLabelText('Disciplina principal'), { target: { value: 'fisioterapia' } })
     fireEvent.change(screen.getByLabelText('Titulación académica máxima'), { target: { value: 'master' } })
     fireEvent.click(screen.getByLabelText('Docencia', { selector: 'input[type="checkbox"]' }))
     fireEvent.change(screen.getByLabelText(/Años de experiencia en dolor/), { target: { value: '3' } })
     fireEvent.click(screen.getByLabelText(/Intermedio: lo aplico/))
     fireEvent.click(await screen.findByLabelText(/Neurobiología y mecanismos/))
-    fireEvent.click(screen.getByRole('button', { name: 'Seguir' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar y seguir' }))
     expect((await screen.findAllByRole('alert'))[0].textContent).toMatch(/consentimiento|aceptar/)
     expect(demo._estado.panelistas[0].perfil_completado).toBe(false)
   })
@@ -70,6 +77,7 @@ describe('flujo del experto', () => {
   it('perfil → instrucciones → calibración → bloque', async () => {
     await entrarComo(CLAVES_DEMO.experto)
     await screen.findByText('Tu perfil como panelista')
+    rellenarIdentidad()
     fireEvent.change(screen.getByLabelText('Disciplina principal'), { target: { value: 'fisioterapia' } })
     fireEvent.change(screen.getByLabelText('Titulación académica máxima'), { target: { value: 'doctorado' } })
     fireEvent.click(screen.getByLabelText('Asistencial', { selector: 'input[type="checkbox"]' }))
@@ -77,8 +85,8 @@ describe('flujo del experto', () => {
     fireEvent.click(screen.getByLabelText(/Avanzado: lo enseño/))
     const casilla = await screen.findByLabelText(/Fundamentos del dolor/)
     fireEvent.click(casilla)
-    fireEvent.click(screen.getByLabelText(/He leído la información y acepto/))
-    fireEvent.click(screen.getByRole('button', { name: 'Seguir' }))
+    fireEvent.click(screen.getByLabelText(/He leído la información, he podido preguntar/))
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar y seguir' }))
     expect(await screen.findByText('Cuatro afirmaciones por concepto')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Seguir' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Practicar con dos conceptos' }))
@@ -163,10 +171,11 @@ describe('flujo del paciente', () => {
   it('ve solo la explicación de paciente y su instrumento', async () => {
     await entrarComo(CLAVES_DEMO.paciente)
     expect(await screen.findByText('Unos datos sobre ti')).toBeTruthy()
+    rellenarIdentidad('paciente@ejemplo.org')
     fireEvent.change(screen.getByLabelText('Edad'), { target: { value: '45-59' } })
     fireEvent.change(screen.getByLabelText('Años que llevas con dolor'), { target: { value: '7' } })
-    fireEvent.click(screen.getByLabelText(/He leído la información y acepto/))
-    fireEvent.click(screen.getByRole('button', { name: 'Seguir' }))
+    fireEvent.click(screen.getByLabelText(/He leído la información, he podido preguntar/))
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar y seguir' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Empezar' }))
     fireEvent.click(await screen.findByRole('link', { name: 'Empezar' }))
     expect(await screen.findByRole('radiogroup', { name: '¿Se entiende?' })).toBeTruthy()
@@ -184,10 +193,11 @@ describe('flujo del paciente', () => {
 })
 
 describe('convocatoria pública (#/participar)', () => {
-  const rellenar = async ({ titulacion, anios, formacion = false }) => {
+  const rellenar = async ({ titulacion, anios, formacion = false, codigo = 'demo' }) => {
     window.location.hash = '#/participar'
     render(<App />)
-    fireEvent.change(await screen.findByLabelText(/Código de invitación/), { target: { value: 'demo' } })
+    fireEvent.change(await screen.findByLabelText(/Código de/), { target: { value: codigo } })
+    rellenarIdentidad()
     fireEvent.change(screen.getByLabelText('Disciplina principal'), { target: { value: 'fisioterapia' } })
     fireEvent.change(screen.getByLabelText('Titulación académica máxima'), { target: { value: titulacion } })
     if (formacion) fireEvent.click(screen.getByLabelText(/formación específica acreditada/))
@@ -195,13 +205,16 @@ describe('convocatoria pública (#/participar)', () => {
     fireEvent.change(screen.getByLabelText(/Años de experiencia en dolor/), { target: { value: String(anios) } })
     fireEvent.click(screen.getByLabelText(/Avanzado: lo enseño/))
     fireEvent.click(await screen.findByLabelText(/Fundamentos del dolor/))
-    fireEvent.click(screen.getByLabelText(/He leído la información y acepto/))
+    fireEvent.click(screen.getByLabelText(/He leído la información, he podido preguntar/))
     fireEvent.click(screen.getByRole('button', { name: 'Enviar solicitud' }))
   }
   it('acepta a quien alcanza la puntuación de Fehring, le da clave y bloque', async () => {
     await rellenar({ titulacion: 'doctorado', anios: 10, formacion: true })
     expect(await screen.findByText(/Solicitud aceptada/)).toBeTruthy()
     expect(screen.getByText(/Eres PAN-08/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Entrar en el estudio' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Preparar el correo' }).getAttribute('href')).toMatch(/^mailto:ana%40ejemplo.org\?subject=/)
+    expect(demo._estado.identidades?.length ?? 1).toBeGreaterThan(0)
     const nuevo = demo._estado.panelistas.find((p) => p.codigo === 'PAN-08')
     expect(nuevo.perfil_completado).toBe(true)
     expect(demo._estado.asignaciones.filter((a) => a.panelista_id === nuevo.id).length).toBe(6)
@@ -211,5 +224,30 @@ describe('convocatoria pública (#/participar)', () => {
     await rellenar({ titulacion: 'grado', anios: 0 })
     expect(await screen.findByText(/no alcanza el mínimo \(0 de 5 puntos\)/)).toBeTruthy()
     expect(demo._estado.panelistas.length).toBe(antes)
+  })
+})
+
+describe('código de pruebas con la inscripción cerrada', () => {
+  it('crea un panelista marcado como prueba y la dirección puede borrarlo', async () => {
+    demo.rpc('valida_dir_estudio', { clave: CLAVES_DEMO.direccion, datos: { inscripcion_abierta: false } })
+    window.location.hash = '#/participar'
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Tengo un código de acceso' }))
+    fireEvent.change(await screen.findByLabelText(/Código de acceso/), { target: { value: 'PRUEBAS' } })
+    rellenarIdentidad('prueba@ejemplo.org')
+    fireEvent.change(screen.getByLabelText('Disciplina principal'), { target: { value: 'fisioterapia' } })
+    fireEvent.change(screen.getByLabelText('Titulación académica máxima'), { target: { value: 'doctorado' } })
+    fireEvent.click(screen.getByLabelText('Asistencial', { selector: 'input[type="checkbox"]' }))
+    fireEvent.change(screen.getByLabelText(/Años de experiencia en dolor/), { target: { value: '8' } })
+    fireEvent.click(screen.getByLabelText(/Avanzado: lo enseño/))
+    fireEvent.click(await screen.findByLabelText(/Fundamentos del dolor/))
+    fireEvent.click(screen.getByLabelText(/He leído la información, he podido preguntar/))
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar solicitud' }))
+    expect(await screen.findByText(/Solicitud aceptada/)).toBeTruthy()
+    expect(screen.getByText(/Alta de/)).toBeTruthy()
+    const nuevo = demo._estado.panelistas.find((p) => p.es_prueba)
+    expect(nuevo).toBeTruthy()
+    await demo.rpc('valida_dir_borrar_prueba', { clave: CLAVES_DEMO.direccion, codigo: nuevo.codigo })
+    expect(demo._estado.panelistas.find((p) => p.codigo === nuevo.codigo)).toBeUndefined()
   })
 })

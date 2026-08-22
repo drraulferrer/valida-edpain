@@ -105,3 +105,5 @@ export const dirEstudio = (clave, datos) => rpc('valida_dir_estudio', { clave, d
 export const dirPropuesta = (clave, valoracion_id, indice, estado, nota) =>
   rpc('valida_dir_propuesta', { clave, valoracion_id, indice, estado, nota })
 export const dirCalibracion = (clave, items) => rpc('valida_dir_calibracion', { clave, items })
+export const dirIdentidades = (clave) => rpc('valida_dir_identidades', { clave })
+export const dirBorrarPrueba = (clave, codigo) => rpc('valida_dir_borrar_prueba', { clave, codigo })

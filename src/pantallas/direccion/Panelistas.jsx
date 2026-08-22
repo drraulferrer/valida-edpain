@@ -16,6 +16,7 @@ export default function Panelistas({ datos, clave, nombres, recargar }) {
   const [claveNueva, setClaveNueva] = useState(null)   // { codigo, clave } — se enseña una sola vez
   const [ocupado, setOcupado] = useState('')
   const [abierto, setAbierto] = useState('')           // código del panelista cuyo bloque se ve
+  const [identidades, setIdentidades] = useState(null) // se piden aparte: no viajan con los datos del estudio
   const lista = ordenar(datos.panelistas)
 
   const ejecutar = async (id, fn) => {
@@ -37,6 +38,13 @@ export default function Panelistas({ datos, clave, nombres, recargar }) {
       const r = await api.dirReclave(clave, p.codigo)
       setClaveNueva({ codigo: r.codigo || p.codigo, clave: r.clave })
     })
+  }
+
+  const verIdentidades = () => ejecutar('identidades', async () => { setIdentidades(await api.dirIdentidades(clave)) })
+
+  const borrarPrueba = (p) => {
+    if (!window.confirm(`¿Borrar al panelista de prueba ${p.codigo} con TODAS sus valoraciones y su identidad? No se puede deshacer.`)) return
+    ejecutar(`borrar-${p.codigo}`, () => api.dirBorrarPrueba(clave, p.codigo))
   }
 
   const cambiarActivo = (p) => {
@@ -66,12 +74,31 @@ export default function Panelistas({ datos, clave, nombres, recargar }) {
               {lista.map((p) => (
                 <FilaConDetalle key={p.codigo} p={p} datos={datos} nombres={nombres} ocupado={ocupado}
                   abierto={abierto === p.codigo} onAbrir={() => setAbierto(abierto === p.codigo ? '' : p.codigo)}
-                  onReclave={reclave} onActivo={cambiarActivo} />
+                  onReclave={reclave} onActivo={cambiarActivo} onBorrarPrueba={borrarPrueba} />
               ))}
             </tbody>
           </table>
         </div>
       )}
+
+      <div className="tarjeta">
+        <h3>Identidades y contacto</h3>
+        <p className="silencio">
+          Nombre, apellidos, correo, filiación y DOI declarados viven en una tabla aparte y <b>no</b> viajan con los datos del
+          estudio ni con las exportaciones: el conjunto de análisis solo lleva códigos. Se consultan aquí, bajo petición, para
+          la autoría del grupo, para avisar de cada ronda y para verificar los perfiles.
+        </p>
+        <div className="acciones" style={{ marginTop: 0 }}>
+          <button type="button" className="boton secundario pequeno" disabled={!!ocupado} onClick={verIdentidades}>
+            {identidades ? 'Actualizar' : 'Ver identidades'}
+          </button>
+          {identidades && <button type="button" className="boton fantasma pequeno" onClick={() => setIdentidades(null)}>Ocultar</button>}
+          {identidades?.length > 0 && (
+            <a className="boton fantasma pequeno" href={`mailto:?bcc=${identidades.map((i) => i.email).join(',')}`}>Escribir a todo el panel</a>
+          )}
+        </div>
+        {identidades && <Identidades lista={identidades} />}
+      </div>
 
       <Alta datos={datos} clave={clave} onAlta={async (r) => { setClaveNueva({ codigo: r.codigo, clave: r.clave }); await recargar() }} />
     </section>
@@ -92,7 +119,7 @@ function FilaConDetalle(props) {
   )
 }
 
-function Fila({ p, nombres, ocupado, abierto, onAbrir, onReclave, onActivo }) {
+function Fila({ p, nombres, ocupado, abierto, onAbrir, onReclave, onActivo, onBorrarPrueba }) {
   const muyRapido = p.tiempo_medio_ms > 0 && p.tiempo_medio_ms < MS_MUY_RAPIDO
   const dominios = p.dominios_competencia || []
   return (
@@ -116,6 +143,7 @@ function Fila({ p, nombres, ocupado, abierto, onAbrir, onReclave, onActivo }) {
         <span className={`etiqueta ${p.activo ? 'ok' : ''}`}>{p.activo ? 'activo' : 'inactivo'}</span>
         {muyRapido && <span className="etiqueta aviso" style={{ marginLeft: '0.3rem' }} title="Menos de 45 s por concepto de media">muy rápido</span>}
         {p.perfil === 'experto' && p.perfil_completado === false && <span className="etiqueta" style={{ marginLeft: '0.3rem' }}>sin perfil</span>}
+        {p.es_prueba && <span className="etiqueta aviso" style={{ marginLeft: '0.3rem' }}>prueba</span>}
       </td>
       <td>
         <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
@@ -126,9 +154,38 @@ function Fila({ p, nombres, ocupado, abierto, onAbrir, onReclave, onActivo }) {
           )}
           <button type="button" className="boton secundario pequeno" disabled={!!ocupado} onClick={() => onReclave(p)}>Nueva clave</button>
           <button type="button" className="boton fantasma pequeno" disabled={!!ocupado} onClick={() => onActivo(p)}>{p.activo ? 'Desactivar' : 'Activar'}</button>
+          {p.es_prueba && <button type="button" className="boton fantasma pequeno" style={{ color: 'var(--peligro)' }} disabled={!!ocupado} onClick={() => onBorrarPrueba(p)}>Borrar prueba</button>}
         </div>
       </td>
     </tr>
+  )
+}
+
+function Identidades({ lista }) {
+  if (!lista.length) return <p className="silencio">Todavía no hay identidades registradas: se guardan cuando alguien rellena su perfil.</p>
+  return (
+    <div className="tabla-env" style={{ marginTop: '0.75rem' }}>
+      <table className="tabla">
+        <thead><tr><th>Código</th><th>Nombre y apellidos</th><th>Correo</th><th>Filiación</th><th>ORCID</th><th>DOI declarados</th><th className="num">Hechas</th></tr></thead>
+        <tbody>
+          {lista.map((i) => (
+            <tr key={i.codigo}>
+              <td style={{ fontFamily: 'var(--mono)' }}>{i.codigo}</td>
+              <td>{i.nombre} {i.apellidos}</td>
+              <td><a href={`mailto:${i.email}`}>{i.email}</a></td>
+              <td className="silencio">{i.filiacion || '—'}</td>
+              <td>{i.orcid ? <a href={`https://orcid.org/${i.orcid}`} target="_blank" rel="noopener noreferrer">{i.orcid}</a> : <span className="silencio">—</span>}</td>
+              <td>
+                {(i.dois || []).length === 0 ? <span className="silencio">—</span> : (i.dois || []).map((d) => (
+                  <div key={d}><a href={`https://doi.org/${d}`} target="_blank" rel="noopener noreferrer" style={{ fontFamily: 'var(--mono)', fontSize: '0.8em' }}>{d}</a></div>
+                ))}
+              </td>
+              <td className="num">{i.hechas}/{i.asignadas}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
 

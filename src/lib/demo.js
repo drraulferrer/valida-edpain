@@ -93,7 +93,8 @@ const CONCEPTOS = [
 const ESTUDIO = {
   id: 1, nombre: 'Validez de contenido · demo', corpus_commit: 'demo', semilla: 'valida-2026', fraccion: 0.1, suelo: 8,
   k_jueces: 7, k_paciente: 3, capacidad: 80, capacidad_paciente: 25, ronda_actual: 1, abierto_en: '2026-09-01T09:00:00Z', cerrado_en: null,
-  inscripcion_abierta: true, codigo_invitacion: 'DEMO', tope_solicitudes_dia: 200, fehring_minimo: 5,
+  inscripcion_abierta: true, codigo_invitacion: 'DEMO', codigo_pruebas: 'PRUEBAS', tope_solicitudes_dia: 200, fehring_minimo: 5,
+  investigador_principal: 'Dr. Raúl Ferrer-Peña', contacto_email: 'estudio@edpain.com', grupo_autoria: 'Grupo del Estudio EdPain', comite_etica: null,
   umbrales: { icvi_n_pequeno: 1.0, icvi_n_grande: 0.78, n_corte_icvi: 6, aiken: 0.70, exigir_ic: true, minimo_panel: 5, desacuerdo: 0.30,
               scvi_ave: 0.90, paciente_comprension: 0.75, minimo_paciente: 3, estable_v: 0.10, rondas_max: 3 },
   dimensiones: DIMENSIONES,
@@ -118,6 +119,7 @@ export function crearDemo() {
   const eventos = []
   const propuestas_estado = []
   const solicitudes = []
+  const identidades = []
   let ronda_actual = 1
   let cerrado_en = null
   let siguienteValoracion = 1
@@ -158,11 +160,17 @@ export function crearDemo() {
   const fns = {
     valida_publico() {
       return clon({ nombre: ESTUDIO.nombre, inscripcion_abierta: ESTUDIO.inscripcion_abierta && !cerrado_en, requiere_codigo: !!ESTUDIO.codigo_invitacion,
+        pruebas: !!ESTUDIO.codigo_pruebas && !cerrado_en, investigador_principal: ESTUDIO.investigador_principal,
+        contacto_email: ESTUDIO.contacto_email, grupo_autoria: ESTUDIO.grupo_autoria, comite_etica: ESTUDIO.comite_etica,
         fehring_minimo: ESTUDIO.fehring_minimo, dominios: Object.entries(CATALOGO).filter(([, v]) => v.tipo === 'dominio').map(([id, v]) => ({ id, nombre: v.nombre })) })
     },
     valida_solicitar({ codigo_invitacion, disciplina, anios, dominios, perfil }) {
-      if (!ESTUDIO.inscripcion_abierta || cerrado_en) { const e = new Error('La inscripción no está abierta.'); e.codigo = '42501'; throw e }
-      if (ESTUDIO.codigo_invitacion && (codigo_invitacion || '').trim().toLowerCase() !== ESTUDIO.codigo_invitacion.toLowerCase()) { const e = new Error('El código de invitación no es válido.'); e.codigo = '28000'; throw e }
+      const dado = (codigo_invitacion || '').trim().toLowerCase()
+      let prueba = false
+      if (cerrado_en) { const e = new Error('La inscripción no está abierta.'); e.codigo = '42501'; throw e }
+      if (ESTUDIO.codigo_pruebas && dado === ESTUDIO.codigo_pruebas.toLowerCase()) prueba = true
+      else if (!ESTUDIO.inscripcion_abierta) { const e = new Error('La inscripción no está abierta.'); e.codigo = '42501'; throw e }
+      else if (ESTUDIO.codigo_invitacion && dado !== ESTUDIO.codigo_invitacion.toLowerCase()) { const e = new Error('El código de invitación no es válido.'); e.codigo = '28000'; throw e }
       if (!perfil?.consentimiento) { const e = new Error('Falta el consentimiento.'); e.codigo = '22023'; throw e }
       const puntuacion = puntuacionFehring(perfil, anios)
       if (puntuacion < ESTUDIO.fehring_minimo) { solicitudes.push({ creada_en: new Date().toISOString(), aceptada: false, puntuacion, disciplina, anios }); return { aceptado: false, puntuacion, minimo: ESTUDIO.fehring_minimo } }
@@ -170,11 +178,13 @@ export function crearDemo() {
       const codigo = `PAN-${String(n).padStart(2, '0')}`
       const clave = `nuev-${Math.random().toString(36).slice(2, 6)}-${Math.random().toString(36).slice(2, 6)}`
       const id = Math.max(...panelistas.map((p) => p.id)) + 1
-      panelistas.push({ id, codigo, clave, perfil: 'experto', disciplina, anios, dominios_competencia: dominios, capacidad: 80, activo: true, perfil_completado: true, calibracion_hecha: false, alta_en: new Date().toISOString(), ultimo_acceso: null, notas: `inscripción abierta · Fehring ${puntuacion}`, perfil_datos: perfil })
+      const { identidad, ...sinIdentidad } = perfil || {}
+      panelistas.push({ id, codigo, clave, perfil: 'experto', disciplina, anios, dominios_competencia: dominios, capacidad: 80, activo: true, perfil_completado: true, calibracion_hecha: false, alta_en: new Date().toISOString(), ultimo_acceso: null, notas: `${prueba ? 'PRUEBA' : 'inscripción abierta'} · Fehring ${puntuacion}`, perfil_datos: sinIdentidad, es_prueba: prueba })
+      if (identidad?.email) identidades.push({ panelista_id: id, codigo, ...identidad })
       let asignados = 0
       conceptos.filter((c) => c.incluido && c.activo).forEach((c, i) => { asignaciones.push({ panelista_id: id, concepto_id: c.id, ronda: ronda_actual, orden: i + 1, estado: 'pendiente' }); asignados += 1 })
       solicitudes.push({ creada_en: new Date().toISOString(), aceptada: true, puntuacion, disciplina, anios })
-      return { aceptado: true, codigo, clave, puntuacion, asignados }
+      return { aceptado: true, codigo, clave, puntuacion, asignados, prueba }
     },
     valida_entrar({ clave }) {
       const p = quien(clave)
@@ -186,7 +196,14 @@ export function crearDemo() {
     valida_perfil({ clave, disciplina, anios, dominios, perfil }) {
       const p = quien(clave)
       if (!perfil?.consentimiento) { const e = new Error('Falta el consentimiento.'); e.codigo = '22023'; throw e }
-      Object.assign(p, { disciplina, anios, dominios_competencia: dominios || [], perfil_completado: true, perfil_datos: perfil || {} }); return { ok: true }
+      const { identidad, ...sinIdentidad } = perfil || {}
+      Object.assign(p, { disciplina, anios, dominios_competencia: dominios || [], perfil_completado: true, perfil_datos: sinIdentidad })
+      if (identidad?.email) {
+        const i = identidades.findIndex((x) => x.panelista_id === p.id)
+        const fila = { panelista_id: p.id, codigo: p.codigo, ...identidad }
+        if (i >= 0) identidades[i] = fila; else identidades.push(fila)
+      }
+      return { ok: true }
     },
     valida_calibracion({ clave }) {
       const p = quien(clave)
@@ -285,6 +302,26 @@ export function crearDemo() {
         eventos_recientes: eventos.slice(-200).reverse(),
       })
     },
+    valida_dir_identidades({ clave }) {
+      direccion(clave)
+      return clon(identidades.map((i) => ({ ...i, perfil: panelistas.find((p) => p.id === i.panelista_id)?.perfil || 'experto',
+        disciplina: panelistas.find((p) => p.id === i.panelista_id)?.disciplina, activo: true, rondas: [1],
+        asignadas: asignaciones.filter((a) => a.panelista_id === i.panelista_id).length,
+        hechas: asignaciones.filter((a) => a.panelista_id === i.panelista_id && a.estado === 'hecha').length })))
+    },
+    valida_dir_borrar_prueba({ clave, codigo }) {
+      direccion(clave)
+      const i = panelistas.findIndex((p) => p.codigo === codigo && p.es_prueba)
+      if (i < 0) { const e = new Error('No hay ningún panelista de prueba con ese código.'); e.codigo = '22023'; throw e }
+      const id = panelistas[i].id
+      for (const lista of [asignaciones, valoraciones, cobertura]) {
+        for (let j = lista.length - 1; j >= 0; j -= 1) if (lista[j].panelista_id === id) lista.splice(j, 1)
+      }
+      const k = identidades.findIndex((x) => x.panelista_id === id)
+      if (k >= 0) identidades.splice(k, 1)
+      panelistas.splice(i, 1)
+      return { ok: true, codigo }
+    },
     valida_dir_concepto({ clave, concepto_id }) { direccion(clave); return clon(conceptos.find((c) => c.id === concepto_id)) },
     valida_dir_alta({ clave, codigo, perfil, disciplina, dominios, capacidad, notas }) {
       direccion(clave)
@@ -337,6 +374,6 @@ export function crearDemo() {
       if (!f) throw new Error(`RPC desconocida en la demo: ${nombre}`)
       return f(params || {})
     },
-    _estado: { panelistas, conceptos, asignaciones, valoraciones, cobertura, eventos },
+    _estado: { panelistas, conceptos, asignaciones, valoraciones, cobertura, eventos, identidades, solicitudes },
   }
 }

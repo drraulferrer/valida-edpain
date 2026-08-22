@@ -3,7 +3,7 @@ import * as api from '../../lib/api.js'
 import { aikenMinimaParaIc } from '../../lib/metricas.js'
 import { fecha, n2 } from './comun.jsx'
 
-const CAMPOS_EDITABLES = ['nombre', 'corpus_commit', 'fraccion', 'suelo', 'k_jueces', 'k_paciente', 'capacidad', 'capacidad_paciente', 'notas', 'codigo_invitacion', 'tope_solicitudes_dia', 'fehring_minimo']
+const CAMPOS_EDITABLES = ['nombre', 'corpus_commit', 'fraccion', 'suelo', 'k_jueces', 'k_paciente', 'capacidad', 'capacidad_paciente', 'notas', 'codigo_invitacion', 'codigo_pruebas', 'tope_solicitudes_dia', 'fehring_minimo', 'investigador_principal', 'contacto_email', 'comite_etica', 'grupo_autoria']
 const NUMERICOS = ['fraccion', 'suelo', 'k_jueces', 'k_paciente', 'capacidad', 'capacidad_paciente', 'tope_solicitudes_dia', 'fehring_minimo']
 const N_AIKEN = [5, 6, 7, 8, 9, 10, 11, 12]
 const CATEGORIAS = 4
@@ -30,7 +30,7 @@ function formularioDe(estudio) {
 function aDatos(f) {
   const d = Object.fromEntries(CAMPOS_EDITABLES.map((k) => {
     if (NUMERICOS.includes(k)) return [k, f[k] === '' ? null : Number(f[k])]
-    if (k === 'codigo_invitacion') return [k, f[k].trim()]   // vacío = sin código (el servidor lo pone a null)
+    if (k === 'codigo_invitacion' || k === 'codigo_pruebas' || k === 'comite_etica') return [k, f[k].trim()]   // vacío = sin código (el servidor lo pone a null)
     return [k, f[k].trim() === '' ? null : f[k].trim()]
   }))
   return { ...d, inscripcion_abierta: !!f.inscripcion_abierta }
@@ -116,6 +116,16 @@ export default function Estudio({ datos, clave, recargar }) {
           <Campo id="codigo_invitacion" etiqueta="Código de invitación" f={f} cambiar={cambiar} ayuda="Vacío = sin código. No es secreto: va en el mensaje de la convocatoria." />
           <Campo id="fehring_minimo" etiqueta="Puntuación de Fehring mínima (0–14)" f={f} cambiar={cambiar} tipo="number" ayuda="Fehring (1987) fija el experto en 5. Máster 4 · doctorado +2 · formación en dolor +2 · ≥ 1 año en dolor +1 · publicaciones +2 · investigación +2 · máster/tesis en dolor +1." />
           <Campo id="tope_solicitudes_dia" etiqueta="Tope de solicitudes por día" f={f} cambiar={cambiar} tipo="number" />
+          <Campo id="codigo_pruebas" etiqueta="Código de pruebas" f={f} cambiar={cambiar} ayuda="Funciona AUNQUE la inscripción esté cerrada y crea panelistas marcados como prueba, borrables de un clic desde Panelistas. Vacío = desactivado." />
+        </div>
+
+        <h3 style={{ marginTop: '1rem' }}>Ficha del estudio</h3>
+        <p className="silencio">Lo que se muestra en la hoja de información al participante y en la convocatoria.</p>
+        <div className="panel-dos">
+          <Campo id="investigador_principal" etiqueta="Investigador principal" f={f} cambiar={cambiar} />
+          <Campo id="contacto_email" etiqueta="Correo de contacto del estudio" f={f} cambiar={cambiar} ayuda="Público: es el que ve el panel. Redirígelo donde quieras (Cloudflare Email Routing)." />
+          <Campo id="grupo_autoria" etiqueta="Nombre del grupo de autoría" f={f} cambiar={cambiar} />
+          <Campo id="comite_etica" etiqueta="Comité de ética / dictamen" f={f} cambiar={cambiar} ayuda="Cuando lo haya. Vacío = no se muestra." />
         </div>
         {datos.solicitudes && (
           <p className="silencio">Solicitudes recibidas: <b>{datos.solicitudes.total}</b> · aceptadas {datos.solicitudes.aceptadas} · rechazadas {datos.solicitudes.rechazadas} · en las últimas 24 h: {datos.solicitudes.hoy}.</p>

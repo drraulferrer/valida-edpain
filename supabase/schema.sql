@@ -58,6 +58,13 @@ alter table valida.estudios add column if not exists inscripcion_abierta boolean
 alter table valida.estudios add column if not exists codigo_invitacion text;
 alter table valida.estudios add column if not exists tope_solicitudes_dia smallint not null default 200;
 alter table valida.estudios add column if not exists fehring_minimo smallint not null default 5;
+alter table valida.estudios add column if not exists investigador_principal text default 'Dr. Raúl Ferrer-Peña';
+alter table valida.estudios add column if not exists contacto_email text default 'estudio@edpain.com';
+alter table valida.estudios add column if not exists comite_etica text;   -- dictamen, cuando lo haya
+alter table valida.estudios add column if not exists grupo_autoria text default 'Grupo del Estudio EdPain';
+-- Código de PRUEBAS: funciona con la inscripción CERRADA y crea panelistas marcados como prueba,
+-- para ensayar el circuito completo antes de lanzar la convocatoria. Se borran de un clic.
+alter table valida.estudios add column if not exists codigo_pruebas text;
 
 -- Las dimensiones del instrumento son datos, no código: cuatro hoy, cinco si se decide
 -- separar corrección de representatividad. El wizard las lee de aquí.
@@ -149,7 +156,25 @@ create table if not exists valida.panelistas (
   notas                text
 );
 
+alter table valida.panelistas add column if not exists es_prueba boolean not null default false;
 alter table valida.panelistas add column if not exists perfil_datos jsonb not null default '{}';  -- expertise (Fehring/CREDES) y consentimiento; sin datos identificativos. (`perfil` es el rol)
+
+-- IDENTIDAD, APARTE. Nombre, filiación y correo viven en su propia tabla y NO salen en el
+-- paquete de datos del estudio (`valida_dir_datos`) ni en las exportaciones: el conjunto de
+-- análisis queda seudonimizado —solo códigos— y la identidad se consulta con una función
+-- específica de la dirección, para la autoría del «Grupo del Estudio EdPain», la trazabilidad
+-- y la verificación a posteriori (DOI de sus publicaciones).
+create table if not exists valida.identidades (
+  panelista_id  integer primary key references valida.panelistas(id) on delete cascade,
+  nombre        text not null,
+  apellidos     text not null,
+  email         text not null,
+  filiacion     text,
+  orcid         text,
+  dois          text[] not null default '{}',
+  creada_en     timestamptz not null default now(),
+  actualizada_en timestamptz not null default now()
+);
 
 create table if not exists valida.asignaciones (
   panelista_id  integer not null references valida.panelistas(id) on delete cascade,
@@ -301,6 +326,26 @@ begin
   return substr(s, 1, 4) || '-' || substr(s, 5, 4) || '-' || substr(s, 9, 4);
 end $$;
 
+-- Guarda (o actualiza) la identidad del panelista. Se llama desde `valida_perfil` y
+-- `valida_solicitar` con el bloque `identidad` del perfil; si viene vacío, no hace nada.
+create or replace function valida.guardar_identidad(pid int, ident jsonb) returns void
+language plpgsql as $$
+begin
+  if ident is null or coalesce(ident->>'email', '') = '' then return; end if;
+  if ident->>'email' !~ '^[^@[:space:]]+@[^@[:space:]]+\.[A-Za-z]{2,}$' then
+    raise exception 'el correo no tiene un formato válido' using errcode = '22023';
+  end if;
+  insert into valida.identidades (panelista_id, nombre, apellidos, email, filiacion, orcid, dois)
+  values (pid, trim(coalesce(ident->>'nombre', '')), trim(coalesce(ident->>'apellidos', '')),
+          lower(trim(ident->>'email')), nullif(trim(coalesce(ident->>'filiacion', '')), ''),
+          nullif(trim(coalesce(ident->>'orcid', '')), ''),
+          coalesce((select array_agg(trim(x)) from jsonb_array_elements_text(coalesce(ident->'dois', '[]'::jsonb)) x where trim(x) <> ''), '{}'))
+  on conflict (panelista_id) do update set
+    nombre = excluded.nombre, apellidos = excluded.apellidos, email = excluded.email,
+    filiacion = excluded.filiacion, orcid = excluded.orcid, dois = excluded.dois,
+    actualizada_en = now();
+end $$;
+
 -- Puntuación de Fehring (1987) adaptada; la misma regla que src/lib/perfil.js (tests allí).
 create or replace function valida.fehring(perfil jsonb, anios int) returns int
 language sql immutable as $$
@@ -368,7 +413,9 @@ begin
   return jsonb_build_object(
     'nombre', e.nombre, 'inscripcion_abierta', e.inscripcion_abierta and e.cerrado_en is null,
     'requiere_codigo', e.codigo_invitacion is not null and e.codigo_invitacion <> '',
-    'fehring_minimo', e.fehring_minimo,
+    'pruebas', e.codigo_pruebas is not null and e.codigo_pruebas <> '' and e.cerrado_en is null,
+    'fehring_minimo', e.fehring_minimo, 'investigador_principal', e.investigador_principal,
+    'contacto_email', e.contacto_email, 'comite_etica', e.comite_etica, 'grupo_autoria', e.grupo_autoria,
     'dominios', (select coalesce(jsonb_agg(jsonb_build_object('id', id, 'nombre', nombre) order by orden), '[]')
                  from valida.catalogo where tipo = 'dominio'));
 end $$;
@@ -378,13 +425,20 @@ create or replace function public.valida_solicitar(estudio int, codigo_invitacio
 language plpgsql security definer set search_path = valida, public, pg_temp as $$
 declare
   e valida.estudios; puntos int; hoy int; nuevo_id int; nuevo_codigo text; nueva text; siguiente int; asignados int;
+  dado text := lower(trim(coalesce(codigo_invitacion, '')));
+  prueba boolean := false;
 begin
   select * into e from valida.estudios where id = estudio;
-  if not found or not e.inscripcion_abierta or e.cerrado_en is not null then
+  if not found or e.cerrado_en is not null then
     raise exception 'la inscripción no está abierta' using errcode = '42501';
   end if;
-  if e.codigo_invitacion is not null and e.codigo_invitacion <> ''
-     and lower(trim(coalesce(codigo_invitacion, ''))) <> lower(trim(e.codigo_invitacion)) then
+  -- Con la inscripción cerrada solo entra quien traiga el código de pruebas.
+  if e.codigo_pruebas is not null and e.codigo_pruebas <> '' and dado = lower(trim(e.codigo_pruebas)) then
+    prueba := true;
+  elsif not e.inscripcion_abierta then
+    raise exception 'la inscripción no está abierta' using errcode = '42501';
+  elsif e.codigo_invitacion is not null and e.codigo_invitacion <> ''
+     and dado <> lower(trim(e.codigo_invitacion)) then
     raise exception 'el código de invitación no es válido' using errcode = '28000';
   end if;
   select count(*) into hoy from valida.solicitudes s where s.estudio_id = e.id and s.creada_en > now() - interval '1 day';
@@ -401,7 +455,7 @@ begin
 
   if puntos < e.fehring_minimo then
     insert into valida.solicitudes (estudio_id, aceptada, puntuacion, disciplina, anios, perfil)
-    values (e.id, false, puntos, disciplina, anios, perfil - 'consentimiento_en');
+    values (e.id, false, puntos, disciplina, anios, perfil - 'consentimiento_en' - 'identidad');
     return jsonb_build_object('aceptado', false, 'puntuacion', puntos, 'minimo', e.fehring_minimo);
   end if;
 
@@ -413,14 +467,15 @@ begin
   insert into valida.panelistas (estudio_id, codigo, clave_hash, perfil, disciplina, anios, dominios_competencia,
                                  perfil_completado, notas)
   values (e.id, nuevo_codigo, valida.hash_clave(nueva), 'experto', disciplina, anios, dominios, true,
-          'inscripción abierta · Fehring ' || puntos)
+          case when prueba then 'PRUEBA · ' else 'inscripción abierta · ' end || 'Fehring ' || puntos)
   returning id into nuevo_id;
-  update valida.panelistas set perfil_datos = valida_solicitar.perfil where id = nuevo_id;
+  update valida.panelistas set perfil_datos = valida_solicitar.perfil - 'identidad', es_prueba = prueba where id = nuevo_id;
+  perform valida.guardar_identidad(nuevo_id, valida_solicitar.perfil->'identidad');
   insert into valida.solicitudes (estudio_id, aceptada, puntuacion, disciplina, anios, perfil, panelista_id)
-  values (e.id, true, puntos, disciplina, anios, perfil - 'consentimiento_en', nuevo_id);
+  values (e.id, true, puntos, disciplina, anios, perfil - 'consentimiento_en' - 'identidad', nuevo_id);
   asignados := valida.asignar_a(nuevo_id);
   insert into valida.eventos (panelista_id, tipo, detalle) values (nuevo_id, 'inscripcion', jsonb_build_object('puntuacion', puntos, 'asignados', asignados));
-  return jsonb_build_object('aceptado', true, 'codigo', nuevo_codigo, 'clave', nueva, 'puntuacion', puntos, 'asignados', asignados);
+  return jsonb_build_object('aceptado', true, 'codigo', nuevo_codigo, 'clave', nueva, 'puntuacion', puntos, 'asignados', asignados, 'prueba', prueba);
 end $$;
 
 -- ============================================================================
@@ -448,6 +503,8 @@ begin
     'perfil_completado', p.perfil_completado, 'calibracion_hecha', p.calibracion_hecha,
     'estudio', jsonb_build_object('id', e.id, 'nombre', e.nombre, 'ronda_actual', e.ronda_actual,
                                   'umbrales', e.umbrales, 'dimensiones', dims,
+                                  'investigador_principal', e.investigador_principal, 'contacto_email', e.contacto_email,
+                                  'comite_etica', e.comite_etica, 'grupo_autoria', e.grupo_autoria,
                                   'cerrado', e.cerrado_en is not null));
 end $$;
 
@@ -463,8 +520,9 @@ begin
   update valida.panelistas
      set disciplina = valida_perfil.disciplina, anios = valida_perfil.anios,
          dominios_competencia = coalesce(dominios, '{}'), perfil_completado = true,
-         perfil_datos = coalesce(valida_perfil.perfil, '{}'::jsonb)
+         perfil_datos = coalesce(valida_perfil.perfil, '{}'::jsonb) - 'identidad'
    where id = p.id;
+  perform valida.guardar_identidad(p.id, valida_perfil.perfil->'identidad');
   insert into valida.eventos (panelista_id, tipo) values (p.id, 'perfil');
   return jsonb_build_object('ok', true);
 end $$;
@@ -802,7 +860,11 @@ begin
       inscripcion_abierta = coalesce((datos->>'inscripcion_abierta')::boolean, inscripcion_abierta),
       codigo_invitacion = case when datos ? 'codigo_invitacion' then nullif(trim(datos->>'codigo_invitacion'), '') else codigo_invitacion end,
       tope_solicitudes_dia = coalesce((datos->>'tope_solicitudes_dia')::int, tope_solicitudes_dia),
-      fehring_minimo = coalesce((datos->>'fehring_minimo')::int, fehring_minimo)
+      fehring_minimo = coalesce((datos->>'fehring_minimo')::int, fehring_minimo),
+      investigador_principal = coalesce(datos->>'investigador_principal', investigador_principal),
+      contacto_email = coalesce(datos->>'contacto_email', contacto_email),
+      comite_etica = case when datos ? 'comite_etica' then nullif(trim(datos->>'comite_etica'), '') else comite_etica end,
+      grupo_autoria = coalesce(datos->>'grupo_autoria', grupo_autoria)
    where id = eid;
   if datos ? 'dimensiones' then
     delete from valida.dimensiones where estudio_id = eid;
@@ -875,6 +937,28 @@ end $$;
 -- de módulos, determinista por semilla) y aleatoriza dentro del módulo: el panelista
 -- lee conceptos vecinos seguidos, pero el cansancio no cae siempre en el mismo sitio.
 -- ---------------------------------------------------------------------------
+-- Borra un panelista DE PRUEBA con todo su rastro. Solo funciona con `es_prueba`: los datos
+-- del panel real no se borran nunca desde la plataforma.
+create or replace function public.valida_dir_borrar_prueba(clave text, codigo text) returns jsonb
+language plpgsql security definer set search_path = valida, public, pg_temp as $$
+declare d valida.panelistas; pid int;
+begin
+  d := valida.direccion(clave);
+  select id into pid from valida.panelistas p where p.codigo = valida_dir_borrar_prueba.codigo and p.estudio_id = d.estudio_id and p.es_prueba;
+  if pid is null then
+    raise exception 'no hay ningún panelista de prueba con ese código' using errcode = '22023';
+  end if;
+  delete from valida.cobertura where panelista_id = pid;
+  delete from valida.valoraciones where panelista_id = pid;
+  delete from valida.asignaciones where panelista_id = pid;
+  delete from valida.identidades where panelista_id = pid;
+  delete from valida.solicitudes where panelista_id = pid;
+  delete from valida.eventos where panelista_id = pid;
+  delete from valida.panelistas where id = pid;
+  insert into valida.eventos (panelista_id, tipo, detalle) values (d.id, 'borrado_prueba', jsonb_build_object('codigo', codigo));
+  return jsonb_build_object('ok', true, 'codigo', codigo);
+end $$;
+
 create or replace function public.valida_dir_asignar(clave text, perfil_objetivo text, max_generalistas int default 3) returns jsonb
 language plpgsql security definer set search_path = valida, public, pg_temp as $$
 declare
@@ -1015,7 +1099,7 @@ begin
     'panelistas', (select coalesce(jsonb_agg(jsonb_build_object(
         'id', p.id, 'codigo', p.codigo, 'perfil', p.perfil, 'disciplina', p.disciplina, 'anios', p.anios,
         'dominios_competencia', p.dominios_competencia, 'capacidad', p.capacidad, 'activo', p.activo,
-        'perfil_datos', p.perfil_datos, 'perfil_completado', p.perfil_completado, 'calibracion_hecha', p.calibracion_hecha,
+        'perfil_datos', p.perfil_datos, 'es_prueba', p.es_prueba, 'perfil_completado', p.perfil_completado, 'calibracion_hecha', p.calibracion_hecha,
         'alta_en', p.alta_en, 'ultimo_acceso', p.ultimo_acceso, 'notas', p.notas,
         'asignadas', (select count(*) from valida.asignaciones a where a.panelista_id = p.id and a.ronda = e.ronda_actual),
         'hechas', (select count(*) from valida.asignaciones a where a.panelista_id = p.id and a.ronda = e.ronda_actual and a.estado = 'hecha'),
@@ -1060,6 +1144,26 @@ begin
 end $$;
 
 -- El texto completo de un concepto, para leerlo desde el panel de dirección.
+-- Las identidades, solo bajo petición explícita de la dirección: para la autoría del grupo,
+-- la trazabilidad y la verificación de los DOI declarados. Nunca viaja con los datos del estudio.
+create or replace function public.valida_dir_identidades(clave text) returns jsonb
+language plpgsql security definer set search_path = valida, public, pg_temp as $$
+declare d valida.panelistas;
+begin
+  d := valida.direccion(clave);
+  insert into valida.eventos (panelista_id, tipo) values (d.id, 'consulta_identidades');
+  return (select coalesce(jsonb_agg(jsonb_build_object(
+      'codigo', p.codigo, 'perfil', p.perfil, 'nombre', i.nombre, 'apellidos', i.apellidos,
+      'email', i.email, 'filiacion', i.filiacion, 'orcid', i.orcid, 'dois', i.dois,
+      'disciplina', p.disciplina, 'activo', p.activo, 'creada_en', i.creada_en,
+      'asignadas', (select count(*) from valida.asignaciones a where a.panelista_id = p.id),
+      'hechas', (select count(*) from valida.asignaciones a where a.panelista_id = p.id and a.estado = 'hecha'),
+      'rondas', (select coalesce(array_agg(distinct v.ronda order by v.ronda), '{}') from valida.valoraciones v where v.panelista_id = p.id and v.completa)
+    ) order by p.codigo), '[]')
+    from valida.identidades i join valida.panelistas p on p.id = i.panelista_id
+   where p.estudio_id = d.estudio_id);
+end $$;
+
 create or replace function public.valida_dir_concepto(clave text, concepto_id text) returns jsonb
 language plpgsql security definer set search_path = valida, public, pg_temp as $$
 declare d valida.panelistas; c valida.conceptos;

@@ -1,29 +1,20 @@
 import { useEffect, useState } from 'react'
 import * as api from '../lib/api.js'
 import { ir } from '../App.jsx'
+import HojaInformacion from '../componentes/HojaInformacion.jsx'
 import {
   AMBITOS, AUTOEXPERTISE, DISCIPLINAS, DOLOR_PROPIO, EDAD, EDUCACION_DOLOR, ENTORNOS, ESTUDIOS, GENERO,
-  PERFIL_EXPERTO_VACIO, PERFIL_PACIENTE_VACIO, PUBLICACIONES, PUBLICACIONES_EDU, TITULACIONES,
-  validarPerfilExperto, validarPerfilPaciente,
+  IDENTIDAD_VACIA, PERFIL_EXPERTO_VACIO, PERFIL_PACIENTE_VACIO, PUBLICACIONES, PUBLICACIONES_EDU, TITULACIONES,
+  prepararPerfil, validarPerfilExperto, validarPerfilPaciente,
 } from '../lib/perfil.js'
 
-// Se rellena una vez, antes de las instrucciones. Caracteriza el panel (CREDES) y permite
-// calcular la puntuación de Fehring en la dirección; no identifica a la persona.
+// Se rellena una vez, antes de las instrucciones. Caracteriza el panel (CREDES), permite calcular
+// la puntuación de Fehring y recoge la identidad para la autoría del grupo y la trazabilidad. La
+// identidad se guarda en su propia tabla: no viaja con las valoraciones.
 export default function Perfil({ sesion, refrescar }) {
-  return sesion.perfil === 'paciente' ? <PerfilPaciente sesion={sesion} refrescar={refrescar} /> : <PerfilExperto sesion={sesion} refrescar={refrescar} />
-}
-
-function Consentimiento({ valor, onCambio }) {
-  return (
-    <div className="tarjeta">
-      <h3>Información del estudio y consentimiento</h3>
-      <p>Participas como panelista en un estudio de validez de contenido de una base de conocimiento sobre educación en dolor. Tus respuestas se guardan asociadas a tu código, no a tu nombre; en los informes y publicaciones el panel se describe de forma agregada (profesión, años de experiencia, titulación…), nunca persona a persona. Puedes dejarlo cuando quieras: lo ya enviado se conserva de forma anónima. Los datos se guardan en servidores de la Unión Europea y se usan solo para este estudio.</p>
-      <label className="casilla">
-        <input type="checkbox" checked={!!valor} onChange={(e) => onCambio(e.target.checked)} />
-        <span><b>He leído la información y acepto participar en estas condiciones.</b></span>
-      </label>
-    </div>
-  )
+  return sesion.perfil === 'paciente'
+    ? <PerfilPaciente sesion={sesion} refrescar={refrescar} />
+    : <PerfilExperto sesion={sesion} refrescar={refrescar} />
 }
 
 function PerfilExperto({ sesion, refrescar }) {
@@ -45,30 +36,41 @@ function PerfilExperto({ sesion, refrescar }) {
     <main className="pantalla">
       <p className="etiqueta acento">Antes de empezar · 1 de 3</p>
       <h1>Tu perfil como panelista</h1>
-      <p className="silencio">No pedimos nombre ni correo. Estos datos describen el panel en el informe (siempre de forma agregada) y sirven para asignarte conceptos de tu campo. Son cinco minutos y se rellena una sola vez.</p>
+      <p className="silencio">
+        Se rellena una sola vez, en cinco minutos. Los datos de formación y experiencia describen al panel en el informe
+        (siempre en conjunto) y deciden qué conceptos te tocan; los de contacto sirven para avisarte de cada ronda y para
+        el reconocimiento de autoría.
+      </p>
       {error && <p className="error" role="alert">{error}</p>}
       <FormularioExperto inicial={sesion.perfil_datos} disciplinaInicial={sesion.disciplina} aniosInicial={sesion.anios}
-        dominiosInicial={sesion.dominios_competencia} nombresDominios={nombres} onEnviar={enviar} enviando={guardando} etiquetaBoton="Seguir" />
+        dominiosInicial={sesion.dominios_competencia} nombresDominios={nombres} estudio={sesion.estudio}
+        onEnviar={enviar} enviando={guardando} etiquetaBoton="Guardar y seguir" />
     </main>
   )
 }
 
-// El formulario del experto, reutilizable: en el perfil (con sesión) y en la convocatoria
-// pública (sin sesión). `onEnviar(disciplina, anios, dominios, perfil)` recibe datos ya validados.
-export function FormularioExperto({ inicial, disciplinaInicial, aniosInicial, dominiosInicial, nombresDominios = {}, onEnviar, enviando, etiquetaBoton = 'Seguir' }) {
+// El formulario del experto, reutilizable: en el perfil (con sesión) y en la convocatoria pública
+// (sin sesión). `onEnviar(disciplina, anios, dominios, perfil)` recibe datos ya validados.
+export function FormularioExperto({ inicial, disciplinaInicial, aniosInicial, dominiosInicial, nombresDominios = {}, estudio, onEnviar, enviando, etiquetaBoton = 'Seguir' }) {
   const previo = inicial || {}
   const [disciplina, setDisciplina] = useState(disciplinaInicial || '')
   const [otra, setOtra] = useState('')
   const [anios, setAnios] = useState(aniosInicial ?? '')
   const [dominios, setDominios] = useState(dominiosInicial || [])
-  const [f, setF] = useState({ ...PERFIL_EXPERTO_VACIO, ...previo, reparto: { ...PERFIL_EXPERTO_VACIO.reparto, ...(previo.reparto || {}) } })
+  const [f, setF] = useState({
+    ...PERFIL_EXPERTO_VACIO, ...previo,
+    reparto: { ...PERFIL_EXPERTO_VACIO.reparto, ...(previo.reparto || {}) },
+    identidad: { ...IDENTIDAD_VACIA, ...(previo.identidad || {}) },
+  })
   const [error, setError] = useState('')
 
   const listaDominios = Object.keys(nombresDominios).filter((k) => /^D\d\d$/.test(k)).sort()
   const cambiar = (k, v) => setF((prev) => ({ ...prev, [k]: v }))
+  const ident = (k, v) => setF((prev) => ({ ...prev, identidad: { ...prev.identidad, [k]: v } }))
   const alternar = (k, v) => setF((prev) => ({ ...prev, [k]: prev[k].includes(v) ? prev[k].filter((x) => x !== v) : [...prev[k], v] }))
   const alternarDominio = (d) => setDominios((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]))
   const reparto = (k, v) => setF((prev) => ({ ...prev, reparto: { ...prev.reparto, [k]: v } }))
+  const grupo = estudio?.grupo_autoria || 'Grupo del Estudio EdPain'
 
   const enviar = (e) => {
     e.preventDefault()
@@ -76,17 +78,51 @@ export function FormularioExperto({ inicial, disciplinaInicial, aniosInicial, do
     const problema = validarPerfilExperto(f, disc, anios, dominios)
     if (problema) { setError(problema); window.scrollTo({ top: 0 }); return }
     setError('')
-    const perfil = { ...f, anios_profesion: f.anios_profesion === '' ? null : Number(f.anios_profesion),
+    const perfil = prepararPerfil({
+      ...f,
+      anios_profesion: f.anios_profesion === '' ? null : Number(f.anios_profesion),
       reparto: Object.fromEntries(Object.entries(f.reparto).map(([k, v]) => [k, v === '' ? null : Number(v)])),
-      consentimiento_en: previo.consentimiento_en || new Date().toISOString() }
+    }, previo)
     onEnviar(disc, Number(anios), dominios, perfil)
   }
 
   return (
     <form onSubmit={enviar}>
       {error && <p className="error" role="alert">{error}</p>}
+
       <div className="tarjeta">
-        <h3>1 · Formación y profesión</h3>
+        <h3>1 · Quién eres</h3>
+        <p className="destacado-oro">
+          <b>Autoría de grupo.</b> Quien complete <b>todas las rondas</b> del estudio será reconocido como miembro del <b>{grupo}</b> en
+          las publicaciones que se deriven, con nombre, apellidos y filiación. Por eso se piden aquí: son los que se indexarán.
+        </p>
+        <div className="panel-dos">
+          <div className="campo">
+            <label htmlFor="id-nombre">Nombre</label>
+            <input id="id-nombre" type="text" autoComplete="given-name" value={f.identidad.nombre} onChange={(e) => ident('nombre', e.target.value)} required />
+          </div>
+          <div className="campo">
+            <label htmlFor="id-apellidos">Apellidos</label>
+            <input id="id-apellidos" type="text" autoComplete="family-name" value={f.identidad.apellidos} onChange={(e) => ident('apellidos', e.target.value)} required />
+          </div>
+          <div className="campo">
+            <label htmlFor="id-email">Correo de contacto</label>
+            <input id="id-email" type="email" autoComplete="email" value={f.identidad.email} onChange={(e) => ident('email', e.target.value)} required />
+            <p className="ayuda">Para avisarte de cada ronda y para la trazabilidad del panel. No se publica ni se cede.</p>
+          </div>
+          <div className="campo">
+            <label htmlFor="id-orcid">ORCID <span className="silencio">(opcional)</span></label>
+            <input id="id-orcid" type="text" value={f.identidad.orcid} onChange={(e) => ident('orcid', e.target.value)} placeholder="0000-0002-1825-0097" />
+          </div>
+        </div>
+        <div className="campo">
+          <label htmlFor="id-filiacion">Filiación <span className="silencio">(centro o universidad, como debe aparecer en la publicación)</span></label>
+          <input id="id-filiacion" type="text" value={f.identidad.filiacion} onChange={(e) => ident('filiacion', e.target.value)} />
+        </div>
+      </div>
+
+      <div className="tarjeta">
+        <h3>2 · Formación y profesión</h3>
         <div className="campo">
           <label htmlFor="disciplina">Disciplina principal</label>
           <select id="disciplina" value={disciplina} onChange={(e) => setDisciplina(e.target.value)}>
@@ -116,7 +152,7 @@ export function FormularioExperto({ inicial, disciplinaInicial, aniosInicial, do
       </div>
 
       <div className="tarjeta">
-        <h3>2 · Actividad y experiencia</h3>
+        <h3>3 · Actividad y experiencia</h3>
         <div className="campo">
           <span className="rotulo">Ámbitos de trabajo <span className="silencio">(los que apliquen)</span></span>
           <div className="casillas">
@@ -164,7 +200,7 @@ export function FormularioExperto({ inicial, disciplinaInicial, aniosInicial, do
       </div>
 
       <div className="tarjeta">
-        <h3>3 · Investigación y producción</h3>
+        <h3>4 · Investigación y producción</h3>
         <div className="panel-dos">
           <div className="campo">
             <label htmlFor="pub-dolor">Publicaciones revisadas por pares sobre dolor</label>
@@ -181,6 +217,14 @@ export function FormularioExperto({ inicial, disciplinaInicial, aniosInicial, do
             </select>
           </div>
         </div>
+        {f.publicaciones_educacion && f.publicaciones_educacion !== '0' && (
+          <div className="campo">
+            <label htmlFor="id-dois">DOI de tus publicaciones sobre educación en dolor</label>
+            <textarea id="id-dois" value={f.identidad.dois} onChange={(e) => ident('dois', e.target.value)}
+              placeholder="10.1097/j.pain.0000000000001939&#10;10.1093/ptj/pzab001" style={{ minHeight: '5rem', fontFamily: 'var(--mono)', fontSize: '0.9rem' }} />
+            <p className="ayuda">Uno por línea (o separados por comas). Sirven para verificar el perfil del panel a posteriori, que es lo que hace defendible el criterio de expertise. Vale el DOI solo o la URL completa.</p>
+          </div>
+        )}
         <div className="casillas" style={{ gridTemplateColumns: '1fr' }}>
           <label className="casilla"><input type="checkbox" checked={!!f.investigacion_dolor} onChange={(e) => cambiar('investigacion_dolor', e.target.checked)} /><span>Participo o he participado en proyectos de investigación sobre dolor</span></label>
           <label className="casilla"><input type="checkbox" checked={!!f.delphi_previo} onChange={(e) => cambiar('delphi_previo', e.target.checked)} /><span>He participado antes en un Delphi, un consenso de expertos o la elaboración de una guía</span></label>
@@ -192,7 +236,7 @@ export function FormularioExperto({ inicial, disciplinaInicial, aniosInicial, do
       </div>
 
       <div className="tarjeta">
-        <h3>4 · Cómo te ves tú</h3>
+        <h3>5 · Cómo te ves tú</h3>
         <div className="campo">
           <span className="rotulo">Tu nivel en educación en dolor</span>
           <div className="casillas" style={{ gridTemplateColumns: '1fr' }}>
@@ -224,7 +268,8 @@ export function FormularioExperto({ inicial, disciplinaInicial, aniosInicial, do
         </div>
       </div>
 
-      <Consentimiento valor={f.consentimiento} onCambio={(v) => cambiar('consentimiento', v)} />
+      <HojaInformacion estudio={estudio} perfil="experto" valor={f.consentimiento} onCambio={(v) => cambiar('consentimiento', v)} />
+      {error && <p className="error" role="alert">{error}</p>}
       <div className="acciones">
         <button className="boton" type="submit" disabled={enviando}>{enviando ? 'Guardando…' : etiquetaBoton}</button>
       </div>
@@ -234,10 +279,12 @@ export function FormularioExperto({ inicial, disciplinaInicial, aniosInicial, do
 
 function PerfilPaciente({ sesion, refrescar }) {
   const previo = sesion.perfil_datos || {}
-  const [f, setF] = useState({ ...PERFIL_PACIENTE_VACIO, ...previo })
+  const [f, setF] = useState({ ...PERFIL_PACIENTE_VACIO, ...previo, identidad: { ...IDENTIDAD_VACIA, ...(previo.identidad || {}) } })
   const [error, setError] = useState('')
   const [guardando, setGuardando] = useState(false)
   const cambiar = (k, v) => setF((prev) => ({ ...prev, [k]: v }))
+  const ident = (k, v) => setF((prev) => ({ ...prev, identidad: { ...prev.identidad, [k]: v } }))
+  const grupo = sesion.estudio?.grupo_autoria || 'Grupo del Estudio EdPain'
 
   const enviar = async (e) => {
     e.preventDefault()
@@ -245,8 +292,8 @@ function PerfilPaciente({ sesion, refrescar }) {
     if (problema) { setError(problema); window.scrollTo({ top: 0 }); return }
     setGuardando(true); setError('')
     try {
-      const perfil = { ...f, anios_dolor: Number(f.anios_dolor), consentimiento_en: previo.consentimiento_en || new Date().toISOString() }
-      await api.guardarPerfil(sesion.clave, 'persona con dolor', Number(f.anios_dolor), [], perfil)
+      await api.guardarPerfil(sesion.clave, 'persona con dolor', Number(f.anios_dolor),
+        [], prepararPerfil({ ...f, anios_dolor: Number(f.anios_dolor) }, previo))
       await refrescar()
       ir('/instrucciones')
     } catch (err) { setError(err.message) } finally { setGuardando(false) }
@@ -256,10 +303,30 @@ function PerfilPaciente({ sesion, refrescar }) {
     <main className="pantalla">
       <p className="etiqueta acento">Antes de empezar</p>
       <h1>Unos datos sobre ti</h1>
-      <p className="silencio">No pedimos nombre ni correo. Sirven para describir al grupo de personas con dolor que ha participado, siempre en conjunto.</p>
+      <p className="silencio">Sirven para describir al grupo de personas con dolor que ha participado, siempre en conjunto, y para avisarte de cada ronda.</p>
       {error && <p className="error" role="alert">{error}</p>}
       <form onSubmit={enviar}>
         <div className="tarjeta">
+          <h3>Cómo te llamamos</h3>
+          <p className="destacado-oro">Si completas <b>todas las rondas</b>, se te reconocerá como miembro del <b>{grupo}</b> en las publicaciones, con tu nombre y apellidos. Si prefieres no figurar, dínoslo y no aparecerás.</p>
+          <div className="panel-dos">
+            <div className="campo">
+              <label htmlFor="pac-nombre">Nombre</label>
+              <input id="pac-nombre" type="text" autoComplete="given-name" value={f.identidad.nombre} onChange={(e) => ident('nombre', e.target.value)} required />
+            </div>
+            <div className="campo">
+              <label htmlFor="pac-apellidos">Apellidos</label>
+              <input id="pac-apellidos" type="text" autoComplete="family-name" value={f.identidad.apellidos} onChange={(e) => ident('apellidos', e.target.value)} required />
+            </div>
+          </div>
+          <div className="campo">
+            <label htmlFor="pac-email">Correo de contacto</label>
+            <input id="pac-email" type="email" autoComplete="email" value={f.identidad.email} onChange={(e) => ident('email', e.target.value)} required />
+            <p className="ayuda">Solo para avisarte cuando haya textos nuevos que leer. No se publica ni se cede a nadie.</p>
+          </div>
+        </div>
+        <div className="tarjeta">
+          <h3>Sobre tu dolor</h3>
           <div className="panel-dos">
             <div className="campo">
               <label htmlFor="edad">Edad</label>
@@ -296,10 +363,10 @@ function PerfilPaciente({ sesion, refrescar }) {
             <span>Alguna vez un profesional me ha explicado cómo funciona el dolor (educación en dolor)</span>
           </label>
         </div>
-        <Consentimiento valor={f.consentimiento} onCambio={(v) => cambiar('consentimiento', v)} />
+        <HojaInformacion estudio={sesion.estudio} perfil="paciente" valor={f.consentimiento} onCambio={(v) => cambiar('consentimiento', v)} />
         {error && <p className="error" role="alert">{error}</p>}
         <div className="acciones">
-          <button className="boton" type="submit" disabled={guardando}>{guardando ? 'Guardando…' : 'Seguir'}</button>
+          <button className="boton" type="submit" disabled={guardando}>{guardando ? 'Guardando…' : 'Guardar y seguir'}</button>
         </div>
       </form>
     </main>

@@ -62,15 +62,29 @@ export const EDAD = ['18-29', '30-44', '45-59', '60-74', '75+']
 export const GENERO = [['mujer', 'Mujer'], ['hombre', 'Hombre'], ['otro', 'Otro'], ['no_digo', 'Prefiero no decirlo']]
 export const ESTUDIOS = [['primarios', 'Primarios'], ['secundarios', 'Secundarios o bachillerato'], ['fp', 'Formación profesional'], ['universitarios', 'Universitarios']]
 
+// Identidad: va en su propia tabla (`valida.identidades`), no viaja con las valoraciones.
+export const IDENTIDAD_VACIA = Object.freeze({ nombre: '', apellidos: '', email: '', filiacion: '', orcid: '', dois: '' })
+
+export const RE_EMAIL = /^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$/
+export const RE_DOI = /^10\.\d{4,9}\/\S+$/
+
+export function partirDois(texto) {
+  return String(texto || '')
+    .split(/[\s,;]+/)
+    .map((x) => x.trim().replace(/^https?:\/\/(dx\.)?doi\.org\//i, '').replace(/^doi:/i, ''))
+    .filter(Boolean)
+}
+
 export const PERFIL_EXPERTO_VACIO = Object.freeze({
   titulacion: '', formacion_dolor: false, formacion_dolor_cual: '', pais: 'España', ambitos: [], entorno: '',
   anios_profesion: '', reparto: { clinica: '', docencia: '', investigacion: '' }, educacion_dolor: [],
   publicaciones_dolor: '', publicaciones_educacion: '', investigacion_dolor: false, delphi_previo: false,
-  sociedades: '', autoexpertise: '', dolor_propio: '', consentimiento: false,
+  sociedades: '', autoexpertise: '', dolor_propio: '', consentimiento: false, identidad: { ...IDENTIDAD_VACIA },
 })
 
 export const PERFIL_PACIENTE_VACIO = Object.freeze({
   edad: '', genero: '', anios_dolor: '', diagnostico: '', estudios: '', educacion_previa: false, consentimiento: false,
+  identidad: { ...IDENTIDAD_VACIA },
 })
 
 // Puntuación de Fehring (1987), adaptada a un panel multidisciplinar sobre dolor. Máximo 14:
@@ -95,6 +109,16 @@ export function esExpertoFehring(puntos) {
   return puntos >= 5
 }
 
+export function validarIdentidad(i = {}, { exigirNombre = true } = {}) {
+  if (exigirNombre && !String(i.nombre || '').trim()) return 'Indica tu nombre: es el que figurará en la autoría del grupo del estudio.'
+  if (exigirNombre && !String(i.apellidos || '').trim()) return 'Indica tus apellidos.'
+  if (!RE_EMAIL.test(String(i.email || '').trim())) return 'Indica un correo de contacto válido: es por donde te avisaremos de cada ronda.'
+  if (i.orcid && !/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/.test(String(i.orcid).trim())) return 'El ORCID tiene la forma 0000-0002-1825-0097 (o déjalo vacío).'
+  const malos = partirDois(i.dois).filter((d) => !RE_DOI.test(d))
+  if (malos.length) return `Este DOI no tiene el formato correcto: ${malos[0]}. Debe empezar por «10.» (por ejemplo 10.1097/j.pain.0000000000001939).`
+  return ''
+}
+
 export function validarPerfilExperto(f, disciplina, anios, dominios) {
   if (!disciplina) return 'Indica tu disciplina.'
   if (!f.titulacion) return 'Indica tu titulación máxima.'
@@ -105,6 +129,11 @@ export function validarPerfilExperto(f, disciplina, anios, dominios) {
   const r = f.reparto || {}
   const suma = ['clinica', 'docencia', 'investigacion'].reduce((s, k) => s + (Number(r[k]) || 0), 0)
   if (suma > 100) return 'El reparto de tu tiempo no puede sumar más de 100 %.'
+  const identidad = validarIdentidad(f.identidad)
+  if (identidad) return identidad
+  if (f.publicaciones_educacion && f.publicaciones_educacion !== '0' && !partirDois(f.identidad?.dois).length) {
+    return 'Has declarado publicaciones sobre educación en dolor: indica al menos un DOI para poder verificarlas.'
+  }
   if (!f.consentimiento) return 'Para participar hace falta aceptar la información del estudio.'
   return ''
 }
@@ -112,8 +141,24 @@ export function validarPerfilExperto(f, disciplina, anios, dominios) {
 export function validarPerfilPaciente(f) {
   if (!f.edad) return 'Indica tu franja de edad.'
   if (f.anios_dolor === '' || f.anios_dolor == null) return 'Indica cuántos años llevas con dolor (puede ser 0).'
+  const identidad = validarIdentidad(f.identidad, { exigirNombre: true })
+  if (identidad) return identidad
   if (!f.consentimiento) return 'Para participar hace falta aceptar la información del estudio.'
   return ''
+}
+
+// Lo que se manda al servidor: el perfil con la identidad ya normalizada (DOI como lista).
+export function prepararPerfil(f, previo = {}) {
+  const i = f.identidad || {}
+  return {
+    ...f,
+    identidad: {
+      nombre: String(i.nombre || '').trim(), apellidos: String(i.apellidos || '').trim(),
+      email: String(i.email || '').trim().toLowerCase(), filiacion: String(i.filiacion || '').trim(),
+      orcid: String(i.orcid || '').trim(), dois: partirDois(i.dois),
+    },
+    consentimiento_en: previo.consentimiento_en || new Date().toISOString(),
+  }
 }
 
 // Resumen de una línea para el panel de dirección.
