@@ -3,6 +3,7 @@ import { CATEGORIAS } from '../componentes/Likert.jsx'
 import { BANDERAS } from '../componentes/Banderas.jsx'
 import { ir } from '../App.jsx'
 import * as api from '../lib/api.js'
+import { CERTEZA, CERTEZA_INTRO, MADUREZ, MADUREZ_INTRO } from '../lib/escalas.js'
 
 // Texto de la dirección editorial (22-ago-2026). Las afirmaciones y ayudas de cada
 // dimensión no están aquí: vienen de `valida.dimensiones`, para que esta pantalla y el
@@ -49,6 +50,17 @@ export default function Instrucciones({ sesion, primeraVez, refrescar }) {
               {CATEGORIAS.map(([n, t]) => <button key={n} type="button" tabIndex={-1} className={n <= 2 ? 'bajo' : ''}><span className="num">{n}</span><span className="txt">{t}</span></button>)}
             </div>
             <p style={{ marginTop: '0.8rem', marginBottom: 0 }}>Si puntúas con <b>1</b> o <b>2</b>, explica qué cambiarías y, si puedes, propón una redacción alternativa. Con <b>3</b> o <b>4</b>, el comentario es opcional.</p>
+          </div>
+          <div className="tarjeta">
+            <h3>Certeza y madurez: qué significan</h3>
+            <p>Cada concepto declara un <b>grado de certeza</b>. {CERTEZA_INTRO}</p>
+            <ul style={{ paddingLeft: '1.2em', marginBottom: '0.9rem' }}>
+              {Object.entries(CERTEZA).map(([k, v]) => <li key={k} style={{ marginBottom: '0.25rem' }}><b>{v.nombre}</b> ({v.familia}): {v.descripcion}</li>)}
+            </ul>
+            <p>Y un <b>nivel de madurez</b>. {MADUREZ_INTRO}</p>
+            <ul style={{ paddingLeft: '1.2em', marginBottom: 0 }}>
+              {Object.entries(MADUREZ).map(([k, v]) => <li key={k} style={{ marginBottom: '0.25rem' }}><b>{k} · {v.nombre}</b>: {v.descripcion}</li>)}
+            </ul>
           </div>
           <div className="tarjeta">
             <h3>«Fuera de mi ámbito»</h3>

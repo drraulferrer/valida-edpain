@@ -145,9 +145,11 @@ def en_marco(c) -> str | None:
     return None
 
 
-def fila(c, prn_valor: float, estratos: list[str], senales: list[dict], incluido: bool, refs: dict, exigencias: dict) -> dict:
+def fila(c, prn_valor: float, estratos: list[str], senales: list[dict], incluido: bool, refs: dict, exigencias: dict, corpus=None) -> dict:
     m, b = c.meta, c.cuerpo
     return {
+        "madurez": c.madurez(),
+        "conceptos_citados": conceptos_citados(c, corpus) if corpus is not None else [],
         "id": c.id, "dominio": m["dominio"], "modulo": m["modulo"], "titulo": m.get("titulo", c.id),
         "definicion": b.get("definicion"), "resumen": b.get("resumen"),
         "explicacion_profesional": b.get("explicacion_profesional"),
@@ -162,15 +164,46 @@ def fila(c, prn_valor: float, estratos: list[str], senales: list[dict], incluido
     }
 
 
+RE_CPT = re.compile(r"\bCPT-\d{5}\b")
+
+
 def referencias(corpus, ids: set[str]) -> dict[str, dict]:
-    import consenso  # noqa: E402  (del corpus; formatea APA 7.ª y trae la nota de uso)
+    """Cada referencia en sus tres formas APA 7.ª (apa.py del corpus) más DOI/PMID/URL.
+
+    `parentetica` («Raja et al., 2020») y `narrativa` («Raja et al. (2020)») son lo que la
+    interfaz pone en el texto en lugar de REF-0001; `apa` es la entrada de la lista de
+    referencias, y `doi` va como hipervínculo para que el panel pueda verificar la cita.
+    """
+    import apa  # noqa: E402
+    import consenso  # noqa: E402
+    citas = apa.cargar_citas()
     fichas = consenso._fichas_entidad(corpus)
     salida = {}
     for rid in sorted(ids):
         f = consenso._ficha_ref(rid, fichas)
-        salida[rid] = {"id": rid, "apa": f.get("cita", ""), "nota_uso": f.get("nota", ""),
-                       "doi": f.get("doi", ""), "pmid": f.get("pmid", ""), "verificada": f.get("verificada")}
+        c = citas.get(rid)
+        salida[rid] = {
+            "id": rid,
+            "apa": c.completa if c else f.get("cita", ""),
+            "parentetica": c.parentetica if c else rid,
+            "narrativa": c.narrativa if c else rid,
+            "exacta": c.exacta if c else False,
+            "nota_uso": f.get("nota", ""), "doi": f.get("doi", "") or "",
+            "pmid": f.get("pmid", "") or "", "url": f.get("url", "") or "",
+            "verificada": f.get("verificada"),
+        }
     return salida
+
+
+def conceptos_citados(c, corpus) -> list[dict]:
+    """Los CPT-xxxxx que nombra el texto, con su título: la interfaz los muestra entre comillas."""
+    textos = " ".join(str(v or "") for v in c.cuerpo.values()) + " " + str(c.meta.get("nota_controversia") or "")
+    vistos = []
+    for cid in RE_CPT.findall(textos):
+        if cid == c.id or cid in vistos:
+            continue
+        vistos.append(cid)
+    return [{"id": cid, "titulo": corpus.conceptos[cid].meta.get("titulo", cid)} for cid in vistos if cid in corpus.conceptos]
 
 
 def catalogo(corpus) -> list[dict]:
@@ -266,7 +299,7 @@ def main() -> int:
     refs = referencias(corpus, ids_refs)
     for c in marco:
         p, estratos, senales, incluido = decisiones[c.id]
-        f = fila(c, p, estratos, senales, incluido, refs, exigencias)
+        f = fila(c, p, estratos, senales, incluido, refs, exigencias, corpus)
         if incluido or c.id in extra:
             filas_incluidas.append(f)
         else:

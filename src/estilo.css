@@ -138,6 +138,11 @@ details.plegable > .cuerpo { padding: 0 1rem 1rem; }
 .exigencia { font-size: 0.9rem; padding: 0.6rem 0.9rem; background: var(--acento-suave); border-radius: 10px; color: var(--tinta); }
 .exigencia b { color: var(--acento-2); }
 .nota-controversia { font-size: 0.95rem; padding: 0.75rem 1rem; background: var(--aviso-suave); border-radius: 10px; }
+.nota-controversia .lectura { font-size: 1rem; }
+.nota-controversia .lectura p:last-child { margin-bottom: 0; }
+.escalas { font-size: 0.88rem; color: var(--tinta-2); margin: 0 0 1rem; line-height: 1.45; }
+.escalas b { color: var(--tinta); }
+.referencias .doi { font-family: var(--mono); font-size: 0.82em; word-break: break-all; }
 
 /* --- tarjetas y botones --------------------------------------------------- */
 .tarjeta { background: var(--papel-2); border: 1px solid var(--linea); border-radius: var(--radio); padding: 1.1rem 1.2rem; margin: 0.9rem 0; }

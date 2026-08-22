@@ -141,6 +141,12 @@ update valida.panelistas set activo = false where codigo = 'PRU-01';
 - **Textos de la dirección editorial** para la pantalla de instrucciones, las afirmaciones/ayudas de las
   cuatro dimensiones (en `valida.dimensiones` y en `demo.js`) y las cuatro banderas (`Banderas.jsx`).
   La spec §2.5 conserva las definiciones operativas originales; la interfaz usa la redacción editorial.
+- **Presentación del concepto** (petición de la dirección): citas en el texto en APA 7 (autor, año)
+  enlazadas a la lista de referencias, DOI y PMID como hipervínculos en esa lista, conceptos citados
+  por su título entre comillas, y en la cabecera el grado de **certeza** y el nivel de **madurez** con
+  su significado (`src/lib/escalas.js`, copiado de `vocabularios.yaml`/`certeza.yaml`/PMD §7.3; la
+  previa los explica en una tarjeta). La base guarda ahora `madurez` y `conceptos_citados`, y cada
+  referencia lleva `parentetica`/`narrativa`/`doi`/`pmid` (las calcula `apa.py` del corpus).
 
 ### Sesión 1 (22-ago-2026) · construcción y despliegue
 

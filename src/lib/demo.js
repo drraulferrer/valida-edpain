@@ -47,8 +47,10 @@ const CATALOGO = {
 }
 
 const REFS = (n) => [
-  { id: `REF-${9000 + n}`, apa: `Autora A, Autor B. Artículo de demostración nº ${n}. Revista Demo. 2024;1(${n}):10-20.`, nota_uso: 'Referencia inventada para la demo.' },
-  { id: `REF-${9100 + n}`, apa: `Colectivo C. Guía de demostración nº ${n}. Organismo Demo; 2023.`, nota_uso: 'Referencia inventada para la demo.' },
+  { id: `REF-${9000 + n}`, apa: `Autora, A., & Autor, B. (2024). Artículo de demostración nº ${n}. _Revista Demo_, _1_(${n}), 10–20. https://doi.org/10.1000/demo.${n}`,
+    parentetica: 'Autora y Autor, 2024', narrativa: 'Autora y Autor (2024)', doi: `10.1000/demo.${n}`, pmid: '', url: '', nota_uso: 'Referencia inventada para la demo.' },
+  { id: `REF-${9100 + n}`, apa: `Colectivo C. (2023). Guía de demostración nº ${n}. Organismo Demo.`,
+    parentetica: 'Colectivo C., 2023', narrativa: 'Colectivo C. (2023)', doi: '', pmid: '', url: '', nota_uso: 'Referencia inventada para la demo.' },
 ]
 
 function concepto(n, dominio, modulo, titulo, extra = {}) {
@@ -67,13 +69,14 @@ function concepto(n, dominio, modulo, titulo, extra = {}) {
     controversia: !!extra.controversia, nota_controversia: extra.nota_controversia || null,
     referencias: REFS(n), hash: `h${n}abc`, version: 1, prn: (n * 0.137) % 1,
     estratos: extra.estratos || ['aleatorio'], senales: extra.senales || [], incluido: true, activo: true,
-    cambiado_desde_valoracion: false,
+    cambiado_desde_valoracion: false, madurez: extra.madurez || 'M4',
+    conceptos_citados: n === 2 ? [{ id: 'DEMO-00001', titulo: 'El dolor es una experiencia, no una medida del daño en los tejidos' }] : [],
   }
 }
 
 const CONCEPTOS = [
   concepto(1, 'D01', 'D01.M01', 'El dolor es una experiencia, no una medida del daño en los tejidos', { certeza: 'consenso', tipo_afirmacion: 'definicional', exigencia_evidencia: 'fuente normativa (IASP, CIE-11, guía oficial)' }),
-  concepto(2, 'D01', 'D01.M01', 'Nocicepción y dolor no son lo mismo, y pueden darse por separado'),
+  concepto(2, 'D01', 'D01.M01', 'Nocicepción y dolor no son lo mismo, y pueden darse por separado', { definicion: '**Definición de demostración.** La nocicepción es el proceso neural; el dolor es la experiencia (DEMO-00001). No pertenece al corpus.' }),
   concepto(3, 'D02', 'D02.M09', 'La sensibilización central amplifica la respuesta a estímulos normales', { estratos: ['aleatorio', 'cribado'], senales: [{ tipo: 'G11', detalle: 'certeza declarada alta; fuentes sostienen moderada' }] }),
   concepto(4, 'D02', 'D02.M09', 'Alodinia e hiperalgesia son signos clínicos, no diagnósticos', { certeza: 'alta' }),
   concepto(5, 'D04', 'D04.M05', 'La educación en neurociencia del dolor reduce el miedo al movimiento más que el dolor', {
