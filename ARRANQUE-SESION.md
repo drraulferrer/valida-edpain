@@ -250,10 +250,19 @@ python3 pipeline/avisos.py                                # envía de verdad y m
 
 ## 7 · Pendientes (ordenados)
 
-1. **HTTPS en valida.edpain.com**: GitHub emite el certificado solo cuando ve el CNAME; el registro
-   se creó el 22-ago a las ~15:15. Cuando `gh api repos/drraulferrer/valida-edpain/pages` devuelva
-   `https_enforced` posible, activar con `gh api -X PUT repos/drraulferrer/valida-edpain/pages -F https_enforced=true`.
-   Mientras tanto la web se sirve por http (y por https con el certificado de github.io).
+1. ~~**HTTPS en valida.edpain.com**~~ **RESUELTO el 22-ago por la noche.** El certificado no salía solo
+   (`https_certificate: null` durante horas). Lo que lo destrabó fue **quitar y volver a poner el dominio
+   por la API** —el equivalente de tocarlo en Settings → Pages—, y en segundos pasó a `authorized` y luego
+   a `approved`:
+
+   ```bash
+   gh api -X PUT repos/drraulferrer/valida-edpain/pages -f cname=""
+   gh api -X PUT repos/drraulferrer/valida-edpain/pages -f cname="valida.edpain.com"
+   gh api -X PUT repos/drraulferrer/valida-edpain/pages -F https_enforced=true
+   ```
+
+   Ahora `https://valida.edpain.com` responde 200 y el http redirige con un 301. Importa: por ahí viajan
+   las claves de acceso de los panelistas.
 2. **Decisiones tomadas el 22-ago** (spec §3.8): 3 dimensiones expertas + comprensibilidad solo paciente;
    fracción 12 %; suelo 8; nivel de calidad 0,85/IC 0,75; cribado ≥ 2 señales. Pendiente solo confirmar
    el nivel de calidad al cerrar la ronda 1.
