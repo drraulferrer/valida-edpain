@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { scvi, tasaValidez } from '../../lib/metricas.js'
 import { CLASES, ESTRATOS, NOMBRE_CLASE, Sem, Vacio, contar, entradasCatalogo, fecha, media, n2, pct } from './comun.jsx'
+import { CONTACTO_POR_DEFECTO, ReenviosNoTramitados } from './Reenvios.jsx'
 
 const EVENTOS_VISIBLES = 15
 
@@ -48,6 +49,8 @@ function resumir(datos, clases, dimsExpertas) {
 export default function Resumen({ datos, clases, dimsExpertas }) {
   const r = useMemo(() => resumir(datos, clases, dimsExpertas), [datos, clases, dimsExpertas])
   const { estudio, eventos_recientes } = datos
+  const bloqueadas = datos.solicitudes?.bloqueadas || 0
+  const contacto = estudio.contacto_email || CONTACTO_POR_DEFECTO
   const nombreDim = Object.fromEntries((estudio.dimensiones || []).map((d) => [d.clave, d.nombre]))
   const umbralScvi = estudio.umbrales?.scvi_ave ?? 0.9
   const eventos = (eventos_recientes || []).slice(0, EVENTOS_VISIBLES)
@@ -75,6 +78,13 @@ export default function Resumen({ datos, clases, dimsExpertas }) {
           <div className="l">Panelistas activos</div>
           <div className="s">experto {r.activosExperto} · paciente {r.activosPaciente}{datos.solicitudes ? ` · solicitudes ${datos.solicitudes.total} (${datos.solicitudes.aceptadas} aceptadas)` : ''}{estudio.inscripcion_abierta ? ' · inscripción abierta' : ''}</div>
         </div>
+        {bloqueadas > 0 && (
+          <div className="kpi destacado">
+            <div className="v">{bloqueadas}</div>
+            <div className="l">Reenvíos no tramitados</div>
+            <div className="s">solicitudes que hay que mirar a mano</div>
+          </div>
+        )}
         <div className="kpi">
           <div className="v">{pct(r.tasa.p)}</div>
           <div className="l">Tasa de validez · aleatorio</div>
@@ -83,6 +93,8 @@ export default function Resumen({ datos, clases, dimsExpertas }) {
           </div>
         </div>
       </div>
+
+      <ReenviosNoTramitados solicitudes={datos.solicitudes} contacto={contacto} />
 
       <div className="tarjeta">
         <h3>Clasificación en la ronda {estudio.ronda_actual}</h3>

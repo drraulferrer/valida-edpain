@@ -394,3 +394,8 @@ table.tabla tr.fila-detalle > td { background: var(--papel-2); padding: 0.9rem 1
 .avisos-lista li:first-child { border-top: 0; }
 .avisos-lista .quien { flex: 1; min-width: 12rem; }
 .avisos-lista .quien b { display: block; }
+
+/* --- lo que hay que mirar a mano: acento de oro, sin gritar --- */
+.kpi.destacado { background: var(--aviso-suave); border-color: color-mix(in srgb, var(--oro) 45%, var(--linea)); }
+.kpi.destacado .v { color: var(--aviso); }
+.tarjeta.destacado { background: var(--aviso-suave); border-color: color-mix(in srgb, var(--oro) 45%, var(--linea)); }

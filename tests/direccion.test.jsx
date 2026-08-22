@@ -6,12 +6,15 @@ import { aCsv } from '../src/pantallas/direccion/comun.jsx'
 
 // Estado de sesión compartido con el mock (vi.mock se iza por encima de los imports).
 const sesion = vi.hoisted(() => ({ clave: 'demo-dire-cci1' }))
+// El backend de demostración vive dentro del mock; este cofre lo saca para poder prepararle datos.
+const cofre = vi.hoisted(() => ({}))
 
 // La capa de datos se sustituye por el backend de demostración en memoria: las mismas RPC
 // `valida_dir_*`, con 60 ms de latencia, y una clave de dirección ya en sesión.
 vi.mock('../src/lib/api.js', async () => {
   const { crearDemo } = await import('../src/lib/demo.js')
   const demo = crearDemo()
+  cofre.demo = demo
   const via = (nombre, params) => vi.fn((...args) => demo.rpc(nombre, params(...args)))
   return {
     DEMO: true,
@@ -30,6 +33,15 @@ vi.mock('../src/lib/api.js', async () => {
     dirEstudio: via('valida_dir_estudio', (clave, datos) => ({ clave, datos })),
     dirPropuesta: via('valida_dir_propuesta', (clave, valoracion_id, indice, estado, nota) =>
       ({ clave, valoracion_id, indice, estado, nota })),
+    dirIdentidades: via('valida_dir_identidades', (clave) => ({ clave })),
+    dirBorrarPrueba: via('valida_dir_borrar_prueba', (clave, codigo) => ({ clave, codigo })),
+    dirAvisos: via('valida_dir_avisos', (clave) => ({ clave })),
+    dirMarcarAvisos: via('valida_dir_marcar_avisos', (clave, codigos, tipo) => ({ clave, codigos, tipo })),
+    dirPlazo: via('valida_dir_plazo', (clave, codigo, dias, motivo) => ({ clave, codigo, dias, motivo })),
+    dirRondaFechas: via('valida_dir_ronda_fechas', (clave, ronda, abre_en, cierra_en, notas) => ({ clave, ronda, abre_en, cierra_en, notas })),
+    solicitar: via('valida_solicitar', (estudio, codigo_invitacion, disciplina, anios, dominios, perfil) =>
+      ({ estudio, codigo_invitacion, disciplina, anios, dominios, perfil })),
+    publico: via('valida_publico', (estudio = 1) => ({ estudio })),
   }
 })
 
@@ -139,5 +151,26 @@ describe('asignaciones por panelista', () => {
     fireEvent.click(boton)
     expect(await screen.findByText('La sensibilización central amplifica la respuesta a estímulos normales')).toBeTruthy()
     expect(screen.getAllByText(/hecha/).length).toBeGreaterThan(0)
+  })
+})
+
+describe('reenvíos no tramitados', () => {
+  it('destaca el contador y lista a quien lo reenvió, con el salto de puntuación', async () => {
+    const correo = 'dudoso@ejemplo.org'
+    const perfil = (titulacion, extra = {}) => ({
+      titulacion, consentimiento: true, ...extra,
+      identidad: { nombre: 'Ana', apellidos: 'Ruiz', email: correo, dois: [] },
+    })
+    await cofre.demo.rpc('valida_solicitar', { codigo_invitacion: 'DEMO', disciplina: 'fisioterapia', anios: 0, dominios: ['D01'], perfil: perfil('grado') })
+    await cofre.demo.rpc('valida_solicitar', { codigo_invitacion: 'DEMO', disciplina: 'fisioterapia', anios: 12, dominios: ['D01'],
+      perfil: perfil('doctorado', { formacion_dolor: true, publicaciones_dolor: '10+', investigacion_dolor: true }) })
+
+    render(<Direccion ruta={{ partes: ['direccion', 'resumen'], ruta: '/direccion/resumen' }} />)
+    const kpi = (await screen.findByText('Reenvíos no tramitados')).closest('.kpi')   // contador destacado
+    expect(kpi.textContent).toContain('1')
+    const caja = (await screen.findByText(/Reenvíos no tramitados \(1\)/)).closest('.tarjeta')
+    expect(caja.textContent).toContain('pasó de 0 a 13 puntos')
+    expect(caja.textContent).toContain('Ana Ruiz')
+    expect(screen.getByRole('link', { name: 'Escribirle' }).getAttribute('href')).toMatch(/^mailto:dudoso@ejemplo\.org\?subject=/)
   })
 })
