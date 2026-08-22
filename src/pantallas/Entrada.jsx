@@ -21,7 +21,7 @@ export default function Entrada({ onEntrar, errorInicial }) {
         <div className="tarjeta blanca" style={{ padding: '2rem 1.5rem' }}>
           <p className="etiqueta acento">Educación en Dolor · estudio de validez de contenido</p>
           <h1 style={{ marginTop: '0.75rem' }}>Hola. Gracias por estar en el panel.</h1>
-          <p className="silencio">Escribe la clave que te ha enviado la dirección editorial. Son tres grupos de cuatro letras y números. No hace falta cuenta ni contraseña: la clave es tu acceso y tu anonimato.</p>
+          <p className="silencio">Escribe la clave que te ha enviado la dirección editorial. No hace falta cuenta ni contraseña: la clave es tu acceso y tu anonimato.</p>
           <form onSubmit={enviar}>
             <div className="campo">
               <label htmlFor="clave" className="oculto-visual">Clave de acceso</label>
