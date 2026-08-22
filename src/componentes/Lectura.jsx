@@ -95,7 +95,6 @@ function Referencia({ r }) {
       <span dangerouslySetInnerHTML={{ __html: enLineaHtml(apaSinEnlace(r.apa)) }} />
       {enlace && <> <a className="doi" href={enlace} target="_blank" rel="noopener noreferrer">{doi ? `https://doi.org/${doi}` : enlace}</a></>}
       {r.pmid && <> · <a className="doi" href={`https://pubmed.ncbi.nlm.nih.gov/${r.pmid}/`} target="_blank" rel="noopener noreferrer">PMID {r.pmid}</a></>}
-      {r.nota_uso && <span className="nota">Nota de uso: {r.nota_uso}</span>}
     </li>
   )
 }

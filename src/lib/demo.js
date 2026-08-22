@@ -70,13 +70,13 @@ function concepto(n, dominio, modulo, titulo, extra = {}) {
     referencias: REFS(n), hash: `h${n}abc`, version: 1, prn: (n * 0.137) % 1,
     estratos: extra.estratos || ['aleatorio'], senales: extra.senales || [], incluido: true, activo: true,
     cambiado_desde_valoracion: false, madurez: extra.madurez || 'M4',
-    conceptos_citados: n === 2 ? [{ id: 'DEMO-00001', titulo: 'El dolor es una experiencia, no una medida del daño en los tejidos' }] : [],
+    entidades_citadas: n === 2 ? [{ id: 'CPT-00001', nombre: 'El dolor es una experiencia, no una medida del daño en los tejidos', tipo: 'concepto' }, { id: 'ERR-0001', nombre: 'Creer que el dolor mide el daño', tipo: 'error frecuente' }] : [],
   }
 }
 
 const CONCEPTOS = [
   concepto(1, 'D01', 'D01.M01', 'El dolor es una experiencia, no una medida del daño en los tejidos', { certeza: 'consenso', tipo_afirmacion: 'definicional', exigencia_evidencia: 'fuente normativa (IASP, CIE-11, guía oficial)' }),
-  concepto(2, 'D01', 'D01.M01', 'Nocicepción y dolor no son lo mismo, y pueden darse por separado', { definicion: '**Definición de demostración.** La nocicepción es el proceso neural; el dolor es la experiencia (DEMO-00001). No pertenece al corpus.' }),
+  concepto(2, 'D01', 'D01.M01', 'Nocicepción y dolor no son lo mismo, y pueden darse por separado', { definicion: '**Definición de demostración.** La nocicepción es el proceso neural; el dolor es la experiencia (CPT-00001). El error habitual es ERR-0001. No pertenece al corpus.' }),
   concepto(3, 'D02', 'D02.M09', 'La sensibilización central amplifica la respuesta a estímulos normales', { estratos: ['aleatorio', 'cribado'], senales: [{ tipo: 'G11', detalle: 'certeza declarada alta; fuentes sostienen moderada' }] }),
   concepto(4, 'D02', 'D02.M09', 'Alodinia e hiperalgesia son signos clínicos, no diagnósticos', { certeza: 'alta' }),
   concepto(5, 'D04', 'D04.M05', 'La educación en neurociencia del dolor reduce el miedo al movimiento más que el dolor', {

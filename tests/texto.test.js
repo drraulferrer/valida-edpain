@@ -20,20 +20,33 @@ describe('texto', () => {
   it('marcas internas del corpus como nota', () => {
     expect(aHtml('Texto [[CARENCIA DECLARADA: no hay RS]] aquí.')).toContain('<span class="marca">CARENCIA DECLARADA: no hay RS</span>')
   })
-  it('citas en APA 7 con autor y año, enlazadas a la referencia', () => {
+  it('citas en APA 7 con autor y año, sin paréntesis y enlazadas al DOI', () => {
     const mapas = mapasDe({ referencias: [
-      { id: 'REF-0001', apa: 'Raja, S. N., et al. (2020). The revised IASP definition. _Pain_, _161_(9), 1976–1982. https://doi.org/10.1097/j.pain.0000000000001939', parentetica: 'Raja et al., 2020', narrativa: 'Raja et al. (2020)' },
-      { id: 'REF-0009', apa: 'Treede, R. D., et al. (2019). Chronic pain as a symptom or a disease. _Pain_, _160_(1), 19–27.', parentetica: 'Treede et al., 2019', narrativa: 'Treede et al. (2019)' },
+      { id: 'REF-0001', apa: 'Raja, S. N., et al. (2020). The revised IASP definition. _Pain_, _161_(9), 1976–1982. https://doi.org/10.1097/j.pain.0000000000001939', parentetica: 'Raja et al., 2020', narrativa: 'Raja et al. (2020)', doi: '10.1097/j.pain.0000000000001939' },
+      { id: 'REF-0009', apa: 'Treede, R. D., et al. (2019). Chronic pain as a symptom or a disease. _Pain_, _160_(1), 19–27.', parentetica: 'Treede et al., 2019', narrativa: 'Treede et al. (2019)', doi: '' },
     ] })
     const h = aHtml('Lo define la IASP (REF-0001). Según REF-0009, es enfermedad (REF-0001, REF-0009).', mapas)
-    expect(h).toContain('(<a class="ref" href="#ref-REF-0001" data-ref="REF-0001" title="Raja, S. N., et al. (2020). The revised IASP definition. _Pain_, _161_(9), 1976–1982. https://doi.org/10.1097/j.pain.0000000000001939">Raja et al., 2020</a>)')
+    expect(h).toContain('Lo define la IASP <a class="ref" href="https://doi.org/10.1097/j.pain.0000000000001939" data-ref="REF-0001" target="_blank" rel="noopener noreferrer" title="Raja, S. N., et al. (2020). The revised IASP definition. _Pain_, _161_(9), 1976–1982.">Raja et al., 2020</a>.')
     expect(h).toContain('Según <a class="ref" href="#ref-REF-0009" data-ref="REF-0009" title="Treede, R. D., et al. (2019). Chronic pain as a symptom or a disease. _Pain_, _160_(1), 19–27.">Treede et al. (2019)</a>')
     expect(h).toContain('>Raja et al., 2020</a>; <a class="ref" href="#ref-REF-0009"')
+    expect(h).not.toContain('(<a')
     expect(apaSinEnlace(mapas.refs['REF-0001'].apa)).toBe('Raja, S. N., et al. (2020). The revised IASP definition. _Pain_, _161_(9), 1976–1982.')
   })
-  it('conceptos citados por su título entre comillas', () => {
-    const mapas = mapasDe({ conceptos_citados: [{ id: 'CPT-00060', titulo: 'Dolor crónico primario' }] })
-    expect(aHtml('Ver CPT-00060 y CPT-00061.', mapas)).toBe('<p>Ver <span class="cpt" title="CPT-00060">"Dolor crónico primario"</span> y <span class="cpt">CPT-00061</span>.</p>')
+  it('entidades citadas por su nombre entre comillas: conceptos, errores, metáforas, módulos', () => {
+    const mapas = mapasDe({ entidades_citadas: [
+      { id: 'CPT-00060', nombre: 'Dolor crónico primario', tipo: 'concepto' },
+      { id: 'ERR-2828', nombre: 'Tratar los seis niveles como una escalera', tipo: 'error frecuente' },
+      { id: 'MET-001', nombre: 'La alarma', tipo: 'metáfora' },
+      { id: 'D04.M09', nombre: 'Medir el aprendizaje', tipo: 'módulo' },
+    ] })
+    expect(aHtml('Ver CPT-00060 y CPT-00061.', mapas)).toBe('<p>Ver <span class="cpt" title="concepto · CPT-00060">"Dolor crónico primario"</span> y <span class="cpt codigo">CPT-00061</span>.</p>')
+    const h = aHtml('ERR-2828 es el error natural; la metáfora MET-001 y el módulo D04.M09.', mapas)
+    expect(h).toContain('title="error frecuente · ERR-2828">"Tratar los seis niveles como una escalera"</span> es el error natural')
+    expect(h).toContain('title="metáfora · MET-001">"La alarma"</span>')
+    expect(h).toContain('title="módulo · D04.M09">"Medir el aprendizaje"</span>')
+  })
+  it('la marca de autoría truncada se sustituye por «et al.» en la lista', () => {
+    expect(apaSinEnlace('Treede, R. D., Rief, W., [autoría truncada en la fuente] (2019). Chronic pain. _Pain_, _160_(1), 19–27. https://doi.org/10.1097/x')).toBe('Treede, R. D., Rief, W., et al. (2019). Chronic pain. _Pain_, _160_(1), 19–27.')
   })
   it('cursiva con guion bajo (revistas en APA)', () => {
     expect(aHtml('en _Pain_, _161_(9)')).toBe('<p>en <em>Pain</em>, <em>161</em>(9)</p>')

@@ -100,7 +100,12 @@ create table if not exists valida.conceptos (
   cambiado_desde_valoracion boolean not null default false
 );
 alter table valida.conceptos add column if not exists madurez text;               -- M0–M5, calculado por kb.py
-alter table valida.conceptos add column if not exists conceptos_citados jsonb not null default '[]';  -- [{id, titulo}]
+do $$ begin
+  if exists (select 1 from information_schema.columns where table_schema = 'valida' and table_name = 'conceptos' and column_name = 'conceptos_citados') then
+    alter table valida.conceptos rename column conceptos_citados to entidades_citadas;
+  end if;
+end $$;
+alter table valida.conceptos add column if not exists entidades_citadas jsonb not null default '[]';  -- [{id, nombre, tipo}]: conceptos, errores, metáforas, módulos…
 create index if not exists conceptos_dom_mod on valida.conceptos (estudio_id, dominio, modulo);
 create index if not exists conceptos_incluidos on valida.conceptos (estudio_id, incluido, activo);
 
@@ -352,7 +357,7 @@ language sql stable as $$
                        'exigencia_evidencia', c.exigencia_evidencia,
                        'controversia', c.controversia, 'nota_controversia', c.nota_controversia,
                        'referencias', c.referencias, 'estratos', c.estratos, 'hash', c.hash,
-                       'madurez', c.madurez, 'conceptos_citados', c.conceptos_citados)
+                       'madurez', c.madurez, 'entidades_citadas', c.entidades_citadas)
   end
 $$;
 
@@ -565,7 +570,7 @@ begin
     insert into valida.conceptos as c (id, estudio_id, dominio, modulo, titulo, definicion, resumen,
         explicacion_profesional, explicacion_paciente, puntos_clave, advertencias, certeza,
         tipo_afirmacion, exigencia_evidencia, controversia, nota_controversia, referencias, hash,
-        version, prn, estratos, senales, incluido, activo, madurez, conceptos_citados)
+        version, prn, estratos, senales, incluido, activo, madurez, entidades_citadas)
     values (fila->>'id', estudio, fila->>'dominio', fila->>'modulo', fila->>'titulo',
         fila->>'definicion', fila->>'resumen', fila->>'explicacion_profesional',
         fila->>'explicacion_paciente', fila->>'puntos_clave', fila->>'advertencias',
@@ -575,7 +580,7 @@ begin
         (fila->>'prn')::double precision,
         coalesce((select array_agg(x) from jsonb_array_elements_text(fila->'estratos') x), '{}'),
         coalesce(fila->'senales', '[]'::jsonb), coalesce((fila->>'incluido')::boolean, false), true,
-        fila->>'madurez', coalesce(fila->'conceptos_citados', '[]'::jsonb))
+        fila->>'madurez', coalesce(fila->'entidades_citadas', '[]'::jsonb))
     on conflict (id) do update set
         dominio = excluded.dominio, modulo = excluded.modulo, titulo = excluded.titulo,
         definicion = excluded.definicion, resumen = excluded.resumen,
@@ -586,7 +591,7 @@ begin
         controversia = excluded.controversia, nota_controversia = excluded.nota_controversia,
         referencias = excluded.referencias, version = excluded.version,
         estratos = excluded.estratos, senales = excluded.senales,
-        madurez = excluded.madurez, conceptos_citados = excluded.conceptos_citados,
+        madurez = excluded.madurez, entidades_citadas = excluded.entidades_citadas,
         -- incluido solo sube: un concepto ya incluido no se excluye por una reimportación
         incluido = c.incluido or excluded.incluido,
         activo = true,

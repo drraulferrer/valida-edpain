@@ -147,6 +147,13 @@ update valida.panelistas set activo = false where codigo = 'PRU-01';
   su significado (`src/lib/escalas.js`, copiado de `vocabularios.yaml`/`certeza.yaml`/PMD §7.3; la
   previa los explica en una tarjeta). La base guarda ahora `madurez` y `conceptos_citados`, y cada
   referencia lleva `parentetica`/`narrativa`/`doi`/`pmid` (las calcula `apa.py` del corpus).
+- **Ajustes posteriores de la dirección (misma tarde):** las citas en el texto van **sin paréntesis**,
+  como marcador enlazado **al DOI** del artículo (o a su URL; si no hay, a la entrada de la lista);
+  la marca «[autoría truncada en la fuente]» se sustituye por «et al.»; la lista de referencias no
+  muestra la nota de uso (sigue en la base, por si la dirección la necesita); y la sustitución por
+  nombre cubre **todas** las entidades citadas por código (conceptos, errores frecuentes,
+  metáforas, objetivos, competencias, instrumentos, módulos y dominios) — columna
+  `entidades_citadas` y `RE_ENTIDAD` en `pipeline/importar.py` y `src/lib/texto.js`.
 
 ### Sesión 1 (22-ago-2026) · construcción y despliegue
 

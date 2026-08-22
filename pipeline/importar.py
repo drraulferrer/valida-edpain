@@ -149,7 +149,7 @@ def fila(c, prn_valor: float, estratos: list[str], senales: list[dict], incluido
     m, b = c.meta, c.cuerpo
     return {
         "madurez": c.madurez(),
-        "conceptos_citados": conceptos_citados(c, corpus) if corpus is not None else [],
+        "entidades_citadas": entidades_citadas(c, corpus) if corpus is not None else [],
         "id": c.id, "dominio": m["dominio"], "modulo": m["modulo"], "titulo": m.get("titulo", c.id),
         "definicion": b.get("definicion"), "resumen": b.get("resumen"),
         "explicacion_profesional": b.get("explicacion_profesional"),
@@ -164,7 +164,14 @@ def fila(c, prn_valor: float, estratos: list[str], senales: list[dict], incluido
     }
 
 
-RE_CPT = re.compile(r"\bCPT-\d{5}\b")
+RE_ENTIDAD = re.compile(r"\b(CPT-\d{5}|ERR-\d{4}|MET-\d{3}|OBJ-\d{4}|COM-\d{3}|INS-\d{3}|CAS-\d{3,4}|PER-\d{3}|D\d{2}(?:\.M\d{2})?)\b")
+
+# Colección de entidades.yaml → (campo con el nombre, tipo legible)
+CAMPOS_ENTIDAD = {
+    "errores": ("enunciado", "error frecuente"), "metaforas": ("nombre", "metáfora"),
+    "objetivos": ("enunciado", "objetivo de aprendizaje"), "competencias": ("enunciado", "competencia"),
+    "instrumentos": ("nombre", "instrumento"), "personas": ("nombre", "persona"), "casos": ("nombre", "caso"),
+}
 
 
 def referencias(corpus, ids: set[str]) -> dict[str, dict]:
@@ -184,7 +191,9 @@ def referencias(corpus, ids: set[str]) -> dict[str, dict]:
         c = citas.get(rid)
         salida[rid] = {
             "id": rid,
-            "apa": c.completa if c else f.get("cita", ""),
+            # APA admite «et al.» en la lista cuando la fuente no da la autoría completa; la
+            # marca editorial «[autoría truncada en la fuente]» es para el corpus, no para el panel.
+            "apa": (c.completa if c else f.get("cita", "")).replace(", [autoría truncada en la fuente]", ", et al."),
             "parentetica": c.parentetica if c else rid,
             "narrativa": c.narrativa if c else rid,
             "exacta": c.exacta if c else False,
@@ -195,15 +204,38 @@ def referencias(corpus, ids: set[str]) -> dict[str, dict]:
     return salida
 
 
-def conceptos_citados(c, corpus) -> list[dict]:
-    """Los CPT-xxxxx que nombra el texto, con su título: la interfaz los muestra entre comillas."""
+_NOMBRES: dict | None = None
+
+
+def nombres_entidades(corpus) -> dict[str, tuple[str, str]]:
+    """id → (nombre legible, tipo) para todo lo que un texto puede citar por código:
+    conceptos, módulos, dominios y las colecciones de entidades.yaml."""
+    global _NOMBRES
+    if _NOMBRES is None:
+        import consenso  # noqa: E402
+        nombres = {k: (v.meta.get("titulo", k), "concepto") for k, v in corpus.conceptos.items()}
+        nombres |= {k: (v.get("nombre", k), "módulo") for k, v in corpus.modulos.items()}
+        nombres |= {k: (v.get("nombre", k), "dominio") for k, v in corpus.dominios.items()}
+        ent = consenso._entidades()
+        for coleccion, (campo, tipo) in CAMPOS_ENTIDAD.items():
+            for e in ent.get(coleccion) or []:
+                if isinstance(e, dict) and e.get("id"):
+                    nombres[e["id"]] = (e.get(campo) or e.get("nombre") or e.get("titulo") or e["id"], tipo)
+        _NOMBRES = nombres
+    return _NOMBRES
+
+
+def entidades_citadas(c, corpus) -> list[dict]:
+    """Los códigos que nombra el texto, con su nombre y tipo: la interfaz los muestra entre
+    comillas en lugar del código. Lo que no se resuelve se deja fuera (y se ve como código)."""
     textos = " ".join(str(v or "") for v in c.cuerpo.values()) + " " + str(c.meta.get("nota_controversia") or "")
+    nombres = nombres_entidades(corpus)
     vistos = []
-    for cid in RE_CPT.findall(textos):
-        if cid == c.id or cid in vistos:
+    for cid in RE_ENTIDAD.findall(textos):
+        if cid == c.id or cid in vistos or cid not in nombres:
             continue
         vistos.append(cid)
-    return [{"id": cid, "titulo": corpus.conceptos[cid].meta.get("titulo", cid)} for cid in vistos if cid in corpus.conceptos]
+    return [{"id": cid, "nombre": nombres[cid][0], "tipo": nombres[cid][1]} for cid in vistos]
 
 
 def catalogo(corpus) -> list[dict]:
