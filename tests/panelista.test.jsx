@@ -416,6 +416,8 @@ describe('convocatoria de pacientes (#/participar/paciente)', () => {
     rellenarCorreoPaciente('huecos@ejemplo.org')
     rellenarPacientePaso1()
     fireEvent.click(screen.getByLabelText('Espalda baja o lumbares'))   // se desmarca la única zona
+    // El botón sigue vivo: apagarlo por un hueco dejaría a la persona sin saber qué falta.
+    expect(screen.getByRole('button', { name: 'Seguir' }).disabled).toBe(false)
     seguirAlPaso2()
     expect((await screen.findAllByRole('alert'))[0].textContent).toMatch(/zona/)
     expect(screen.queryByLabelText(/Cuántos días ha tenido dolor/)).toBeNull()

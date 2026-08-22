@@ -538,7 +538,11 @@ export function FormularioPaciente({ inicial = {}, estudio, onEnviar, enviando, 
         {paso === 2 && (
           <button className="boton fantasma" type="button" onClick={volver}>Volver</button>
         )}
-        <button className="boton" type="submit" disabled={enviando || (paso === 1 && !!noElegible)}>
+        {/* Solo se apaga el botón cuando la persona de verdad NO puede participar. Apagarlo
+            porque falte algo por rellenar lo dejaría muerto sin decir por qué: para eso está el
+            aviso, que sí explica qué falta. */}
+        <button className="boton" type="submit"
+          disabled={enviando || (paso === 1 && f.duracion_dolor === 'menos_3m')}>
           {paso === 1 ? 'Seguir' : enviando ? 'Guardando…' : etiquetaBoton}
         </button>
       </div>

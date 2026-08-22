@@ -75,6 +75,7 @@ python3 pipeline/importar.py --simular   # qué haría la importación (≈ 30 s
 python3 pipeline/importar.py             # importa/reimporta (idempotente, nunca borra)
 python3 pipeline/exportar.py --csv       # baja todo a panel/respuestas/ (fuera de Git)
 python3 pipeline/humo.py                 # ¿responden todas las RPC? (pasar tras cada schema.sql)
+(cd ~/valida-edpain-migracion && ./volcar.sh)   # respaldo cifrado de toda la base
 python3 pipeline/avisos.py --simular     # a quién avisaría hoy y con qué texto
 supabase db query -f supabase/schema.sql --linked --project-ref nnelofgevsvdaiaryjbk   # reaplicar esquema (idempotente)
 npm run deploy                           # publica en GitHub Pages (exige árbol limpio y verify en verde)
@@ -395,6 +396,14 @@ EEE evitable. Se migró a `eu-west-3` (París): estado miembro y el más cercano
    dirección del Llavero sigue abriendo contra la base nueva.
 
 **Contraseña de la base nueva**: Llavero, servicio `valida-edpain-db-nueva`.
+
+**El proyecto de Londres se borró el 23-ago**, una vez comprobado que la plataforma, la web y el
+circuito de `consenso.py` funcionaban solos contra París. La única copia de seguridad de la base es
+ahora `~/valida-edpain-migracion/respaldo-AAAA-MM-DD.tar.gz.enc`, **cifrado con AES-256** porque
+lleva nombres, correos y los hash de las claves; la contraseña está en el Llavero
+(`valida-edpain-respaldo`) y las instrucciones para abrirlo y restaurarlo, en el `LEEME.md` de esa
+carpeta. `./volcar.sh` genera uno nuevo y borra el volcado en claro; conviene pasarlo antes de cada
+ronda, porque las respuestas del panel no se pueden repetir.
 
 6. **`.env` y el sitio publicado** apuntaban todavía al proyecto viejo, así que desde que se pausó,
    `valida.edpain.com` respondía «TypeError: Failed to fetch» en cuanto tocaba la base: la URL se
