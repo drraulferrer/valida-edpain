@@ -10,7 +10,7 @@ vi.mock('../src/lib/api.js', async () => {
   const via = (nombre) => (...args) => demo.rpc(nombre, argsA(nombre, args))
   const argsA = (nombre, a) => ({
     valida_entrar: { clave: a[0] },
-    valida_perfil: { clave: a[0], disciplina: a[1], anios: a[2], dominios: a[3] },
+    valida_perfil: { clave: a[0], disciplina: a[1], anios: a[2], dominios: a[3], perfil: a[4] },
     valida_calibracion: { clave: a[0] },
     valida_calibracion_hecha: { clave: a[0] },
     valida_bloque: { clave: a[0] },
@@ -19,6 +19,8 @@ vi.mock('../src/lib/api.js', async () => {
     valida_guardar: { clave: a[0], concepto_id: a[1], datos: a[2] },
     valida_cobertura: { clave: a[0], modulo: a[1], exhaustividad: a[2], falta: a[3], sobra: a[4] },
     valida_evento: { clave: a[0], tipo: a[1], detalle: a[2] },
+    valida_publico: { estudio: a[0] },
+    valida_solicitar: { estudio: a[0], codigo_invitacion: a[1], disciplina: a[2], anios: a[3], dominios: a[4], perfil: a[5] },
   })[nombre]
   let guardada = ''
   return {
@@ -27,6 +29,7 @@ vi.mock('../src/lib/api.js', async () => {
     entrar: via('valida_entrar'), guardarPerfil: via('valida_perfil'), calibracion: via('valida_calibracion'),
     calibracionHecha: via('valida_calibracion_hecha'), bloque: via('valida_bloque'), modulo: via('valida_modulo'), concepto: via('valida_concepto'),
     guardar: via('valida_guardar'), cobertura: via('valida_cobertura'), evento: via('valida_evento'),
+    publico: via('valida_publico'), solicitar: via('valida_solicitar'),
     claveGuardada: () => guardada, guardarClave: (c) => { guardada = c || '' },
   }
 })
@@ -48,19 +51,33 @@ describe('entrada', () => {
     await entrarComo('zzzz-zzzz-zzzz')
     expect((await screen.findByRole('alert')).textContent).toMatch(/válida/)
   })
-  it('un experto nuevo pasa por el perfil', async () => {
+  it('un experto nuevo pasa por el perfil, y sin consentimiento no sigue', async () => {
     await entrarComo(CLAVES_DEMO.experto)
-    expect(await screen.findByText('Cuatro datos sobre ti')).toBeTruthy()
+    expect(await screen.findByText('Tu perfil como panelista')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Disciplina principal'), { target: { value: 'fisioterapia' } })
+    fireEvent.change(screen.getByLabelText('Titulación académica máxima'), { target: { value: 'master' } })
+    fireEvent.click(screen.getByLabelText('Docencia', { selector: 'input[type="checkbox"]' }))
+    fireEvent.change(screen.getByLabelText(/Años de experiencia en dolor/), { target: { value: '3' } })
+    fireEvent.click(screen.getByLabelText(/Intermedio: lo aplico/))
+    fireEvent.click(await screen.findByLabelText(/Neurobiología y mecanismos/))
+    fireEvent.click(screen.getByRole('button', { name: 'Seguir' }))
+    expect((await screen.findAllByRole('alert'))[0].textContent).toMatch(/consentimiento|aceptar/)
+    expect(demo._estado.panelistas[0].perfil_completado).toBe(false)
   })
 })
 
 describe('flujo del experto', () => {
   it('perfil → instrucciones → calibración → bloque', async () => {
     await entrarComo(CLAVES_DEMO.experto)
-    await screen.findByText('Cuatro datos sobre ti')
+    await screen.findByText('Tu perfil como panelista')
     fireEvent.change(screen.getByLabelText('Disciplina principal'), { target: { value: 'fisioterapia' } })
+    fireEvent.change(screen.getByLabelText('Titulación académica máxima'), { target: { value: 'doctorado' } })
+    fireEvent.click(screen.getByLabelText('Asistencial', { selector: 'input[type="checkbox"]' }))
+    fireEvent.change(screen.getByLabelText(/Años de experiencia en dolor/), { target: { value: '12' } })
+    fireEvent.click(screen.getByLabelText(/Avanzado: lo enseño/))
     const casilla = await screen.findByLabelText(/Fundamentos del dolor/)
     fireEvent.click(casilla)
+    fireEvent.click(screen.getByLabelText(/He leído la información y acepto/))
     fireEvent.click(screen.getByRole('button', { name: 'Seguir' }))
     expect(await screen.findByText('Cuatro afirmaciones por concepto')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Seguir' }))
@@ -145,6 +162,11 @@ describe('flujo del experto', () => {
 describe('flujo del paciente', () => {
   it('ve solo la explicación de paciente y su instrumento', async () => {
     await entrarComo(CLAVES_DEMO.paciente)
+    expect(await screen.findByText('Unos datos sobre ti')).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Edad'), { target: { value: '45-59' } })
+    fireEvent.change(screen.getByLabelText('Años que llevas con dolor'), { target: { value: '7' } })
+    fireEvent.click(screen.getByLabelText(/He leído la información y acepto/))
+    fireEvent.click(screen.getByRole('button', { name: 'Seguir' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Empezar' }))
     fireEvent.click(await screen.findByRole('link', { name: 'Empezar' }))
     expect(await screen.findByRole('radiogroup', { name: '¿Se entiende?' })).toBeTruthy()
@@ -158,5 +180,36 @@ describe('flujo del paciente', () => {
       expect(v?.completa).toBe(true)
       expect(v.paciente).toEqual({ comprension: 'si', efecto: 'igual', vetos: ['culpa'] })
     })
+  })
+})
+
+describe('convocatoria pública (#/participar)', () => {
+  const rellenar = async ({ titulacion, anios, formacion = false }) => {
+    window.location.hash = '#/participar'
+    render(<App />)
+    fireEvent.change(await screen.findByLabelText(/Código de invitación/), { target: { value: 'demo' } })
+    fireEvent.change(screen.getByLabelText('Disciplina principal'), { target: { value: 'fisioterapia' } })
+    fireEvent.change(screen.getByLabelText('Titulación académica máxima'), { target: { value: titulacion } })
+    if (formacion) fireEvent.click(screen.getByLabelText(/formación específica acreditada/))
+    fireEvent.click(screen.getByLabelText('Asistencial', { selector: 'input[type="checkbox"]' }))
+    fireEvent.change(screen.getByLabelText(/Años de experiencia en dolor/), { target: { value: String(anios) } })
+    fireEvent.click(screen.getByLabelText(/Avanzado: lo enseño/))
+    fireEvent.click(await screen.findByLabelText(/Fundamentos del dolor/))
+    fireEvent.click(screen.getByLabelText(/He leído la información y acepto/))
+    fireEvent.click(screen.getByRole('button', { name: 'Enviar solicitud' }))
+  }
+  it('acepta a quien alcanza la puntuación de Fehring, le da clave y bloque', async () => {
+    await rellenar({ titulacion: 'doctorado', anios: 10, formacion: true })
+    expect(await screen.findByText(/Solicitud aceptada/)).toBeTruthy()
+    expect(screen.getByText(/Eres PAN-08/)).toBeTruthy()
+    const nuevo = demo._estado.panelistas.find((p) => p.codigo === 'PAN-08')
+    expect(nuevo.perfil_completado).toBe(true)
+    expect(demo._estado.asignaciones.filter((a) => a.panelista_id === nuevo.id).length).toBe(6)
+  })
+  it('rechaza a quien no la alcanza, sin crear panelista', async () => {
+    const antes = demo._estado.panelistas.length
+    await rellenar({ titulacion: 'grado', anios: 0 })
+    expect(await screen.findByText(/no alcanza el mínimo \(0 de 5 puntos\)/)).toBeTruthy()
+    expect(demo._estado.panelistas.length).toBe(antes)
   })
 })

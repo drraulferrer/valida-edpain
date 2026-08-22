@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import * as api from '../../lib/api.js'
 import { MS_MUY_RAPIDO, MiniBarra, PATRON_CODIGO, PERFILES, Vacio, entradasCatalogo, mmss, relativo } from './comun.jsx'
+import { esExpertoFehring, puntuacionFehring, resumenPerfil } from '../../lib/perfil.js'
 
 const ORDEN_PERFIL = { direccion: 0, experto: 1, paciente: 2 }
 const NOMBRE_ESTADO = { pendiente: 'pendiente', hecha: 'hecha', abstenida: 'abstenida' }
@@ -56,7 +57,7 @@ export default function Panelistas({ datos, clave, nombres, recargar }) {
           <table className="tabla">
             <thead>
               <tr>
-                <th>Código</th><th>Perfil</th><th>Disciplina</th><th>Dominios</th>
+                <th>Código</th><th>Perfil</th><th>Disciplina</th><th>Dominios</th><th className="num" title="Puntuación de Fehring (1987) adaptada, 0–14; experto ≥ 5">Fehring</th>
                 <th className="num">Asignadas</th><th>Hechas</th><th className="num">Abstenidas</th>
                 <th className="num">Tiempo medio</th><th>Último acceso</th><th>Estado</th><th>Acciones</th>
               </tr>
@@ -84,7 +85,7 @@ function FilaConDetalle(props) {
       <Fila {...props} />
       {abierto && (
         <tr className="fila-detalle">
-          <td colSpan={11}><Asignadas p={p} datos={datos} nombres={nombres} /></td>
+          <td colSpan={12}><PerfilResumen p={p} /><Asignadas p={p} datos={datos} nombres={nombres} /></td>
         </tr>
       )}
     </>
@@ -100,6 +101,7 @@ function Fila({ p, nombres, ocupado, abierto, onAbrir, onReclave, onActivo }) {
       <td>{p.perfil}</td>
       <td>{p.disciplina || <span className="silencio">—</span>}</td>
       <td title={dominios.map((d) => nombres[d] || d).join(' · ')}>{dominios.length ? dominios.join(', ') : <span className="silencio">—</span>}</td>
+      <td className="num">{p.perfil === 'experto' ? <Fehring p={p} /> : <span className="silencio">—</span>}</td>
       <td className="num">{p.asignadas ?? 0}</td>
       <td>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -127,6 +129,23 @@ function Fila({ p, nombres, ocupado, abierto, onAbrir, onReclave, onActivo }) {
         </div>
       </td>
     </tr>
+  )
+}
+
+function Fehring({ p }) {
+  if (!p.perfil_completado) return <span className="silencio" title="Aún no ha rellenado el perfil">—</span>
+  const puntos = puntuacionFehring(p.perfil_datos, p.anios)
+  return <span className={`sem ${esExpertoFehring(puntos) ? 'valido' : 'revisar'}`} title={esExpertoFehring(puntos) ? 'Cumple el criterio de experto (≥ 5)' : 'Por debajo del criterio de experto (< 5)'}>{puntos}/14</span>
+}
+
+function PerfilResumen({ p }) {
+  const texto = resumenPerfil(p.perfil_datos || {}, p.perfil)
+  if (!p.perfil_completado) return <p className="silencio" style={{ margin: '0 0 0.6rem' }}>Perfil no rellenado todavía.</p>
+  return (
+    <p style={{ margin: '0 0 0.6rem', fontSize: '0.9rem' }}>
+      <b>Perfil</b> · {p.disciplina || '—'}{p.anios != null ? ` · ${p.anios} años en dolor` : ''}{texto ? ` · ${texto}` : ''}
+      {p.perfil_datos?.consentimiento_en ? <span className="silencio"> · consentimiento {new Date(p.perfil_datos.consentimiento_en).toLocaleDateString('es-ES')}</span> : null}
+    </p>
   )
 }
 

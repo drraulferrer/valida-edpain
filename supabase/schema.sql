@@ -51,6 +51,14 @@ create table if not exists valida.estudios (
   notas          text
 );
 
+-- Inscripción abierta (convocatoria pública): el servidor calcula la puntuación de Fehring del
+-- perfil y solo crea el panelista si alcanza `fehring_minimo`. Dos salvaguardas: un código de
+-- invitación que va en la convocatoria y un tope diario de solicitudes.
+alter table valida.estudios add column if not exists inscripcion_abierta boolean not null default false;
+alter table valida.estudios add column if not exists codigo_invitacion text;
+alter table valida.estudios add column if not exists tope_solicitudes_dia smallint not null default 200;
+alter table valida.estudios add column if not exists fehring_minimo smallint not null default 5;
+
 -- Las dimensiones del instrumento son datos, no código: cuatro hoy, cinco si se decide
 -- separar corrección de representatividad. El wizard las lee de aquí.
 create table if not exists valida.dimensiones (
@@ -141,6 +149,8 @@ create table if not exists valida.panelistas (
   notas                text
 );
 
+alter table valida.panelistas add column if not exists perfil_datos jsonb not null default '{}';  -- expertise (Fehring/CREDES) y consentimiento; sin datos identificativos. (`perfil` es el rol)
+
 create table if not exists valida.asignaciones (
   panelista_id  integer not null references valida.panelistas(id) on delete cascade,
   concepto_id   text not null references valida.conceptos(id),
@@ -205,6 +215,19 @@ create table if not exists valida.propuestas_estado (
   nota           text,
   actualizado_en timestamptz not null default now(),
   primary key (valoracion_id, indice)
+);
+
+-- Cada solicitud de inscripción, aceptada o no: describe a quién llegó la convocatoria (CREDES).
+create table if not exists valida.solicitudes (
+  id            bigserial primary key,
+  estudio_id    smallint not null references valida.estudios(id),
+  creada_en     timestamptz not null default now(),
+  aceptada      boolean not null,
+  puntuacion    smallint not null,
+  disciplina    text,
+  anios         smallint,
+  perfil        jsonb not null default '{}',
+  panelista_id  integer
 );
 
 create table if not exists valida.eventos (
@@ -278,6 +301,128 @@ begin
   return substr(s, 1, 4) || '-' || substr(s, 5, 4) || '-' || substr(s, 9, 4);
 end $$;
 
+-- Puntuación de Fehring (1987) adaptada; la misma regla que src/lib/perfil.js (tests allí).
+create or replace function valida.fehring(perfil jsonb, anios int) returns int
+language sql immutable as $$
+  select least(14,
+    (case when perfil->>'titulacion' in ('master','doctorado') then 4 else 0 end)
+    + (case when perfil->>'titulacion' = 'doctorado' then 2 else 0 end)
+    + (case when coalesce((perfil->>'formacion_dolor')::boolean, false) then 2 else 0 end)
+    + (case when coalesce(anios, 0) >= 1 then 1 else 0 end)
+    + (case when coalesce(perfil->>'publicaciones_dolor', '0') not in ('', '0') then 2 else 0 end)
+    + (case when coalesce((perfil->>'investigacion_dolor')::boolean, false) then 2 else 0 end)
+    + (case when coalesce((perfil->>'formacion_dolor')::boolean, false)
+                and coalesce(perfil->>'formacion_dolor_cual', '') ~* 'm[aá]ster|doctor|tesis' then 1 else 0 end))
+$$;
+
+-- Asigna a UN panelista experto hasta su capacidad: primero los conceptos de sus dominios de
+-- competencia con menos jueces, después el resto si aún caben generalistas. Orden de lectura
+-- agrupado por módulo, como en valida_dir_asignar.
+create or replace function valida.asignar_a(pid int, max_generalistas int default 3) returns int
+language plpgsql as $$
+declare
+  p valida.panelistas; e valida.estudios; r int; cap int; hueco int; n int := 0; c record;
+begin
+  select * into p from valida.panelistas where id = pid;
+  select * into e from valida.estudios where id = p.estudio_id;
+  r := e.ronda_actual;
+  cap := coalesce(p.capacidad, e.capacidad);
+  select cap - count(*) into hueco from valida.asignaciones a where a.panelista_id = pid and a.ronda = r;
+  for c in
+    select co.id, (co.dominio = any(p.dominios_competencia)) as competente,
+           (select count(*) from valida.asignaciones a join valida.panelistas q on q.id = a.panelista_id
+             where a.concepto_id = co.id and a.ronda = r and q.perfil = 'experto') as jueces,
+           (select count(*) from valida.asignaciones a join valida.panelistas q on q.id = a.panelista_id
+             where a.concepto_id = co.id and a.ronda = r and q.perfil = 'experto'
+               and not (co.dominio = any(q.dominios_competencia))) as generalistas
+      from valida.conceptos co
+     where co.estudio_id = e.id and co.incluido and co.activo
+       and not exists (select 1 from valida.asignaciones a where a.panelista_id = pid and a.concepto_id = co.id and a.ronda = r)
+     order by (co.dominio = any(p.dominios_competencia)) desc, 3 asc, co.prn
+  loop
+    exit when n >= hueco;
+    continue when c.jueces >= e.k_jueces;
+    continue when not c.competente and c.generalistas >= max_generalistas;
+    insert into valida.asignaciones (panelista_id, concepto_id, ronda, orden) values (pid, c.id, r, 0);
+    n := n + 1;
+  end loop;
+  update valida.asignaciones a set orden = o.orden
+    from (select a2.concepto_id,
+                 row_number() over (order by md5(e.semilla || p.codigo || co.modulo), md5(e.semilla || p.codigo || co.id)) as orden
+            from valida.asignaciones a2 join valida.conceptos co on co.id = a2.concepto_id
+           where a2.panelista_id = pid and a2.ronda = r) o
+   where a.panelista_id = pid and a.concepto_id = o.concepto_id and a.ronda = r;
+  return n;
+end $$;
+
+-- ============================================================================
+-- FUNCIONES PÚBLICAS (sin clave): lo que ve quien llega por la convocatoria
+-- ============================================================================
+
+create or replace function public.valida_publico(estudio int default 1) returns jsonb
+language plpgsql security definer set search_path = valida, public, pg_temp as $$
+declare e valida.estudios;
+begin
+  select * into e from valida.estudios where id = estudio;
+  if not found then raise exception 'estudio no encontrado' using errcode = '22023'; end if;
+  return jsonb_build_object(
+    'nombre', e.nombre, 'inscripcion_abierta', e.inscripcion_abierta and e.cerrado_en is null,
+    'requiere_codigo', e.codigo_invitacion is not null and e.codigo_invitacion <> '',
+    'fehring_minimo', e.fehring_minimo,
+    'dominios', (select coalesce(jsonb_agg(jsonb_build_object('id', id, 'nombre', nombre) order by orden), '[]')
+                 from valida.catalogo where tipo = 'dominio'));
+end $$;
+
+-- Solicitud de inscripción. Devuelve la clave EN CLARO una sola vez si se acepta.
+create or replace function public.valida_solicitar(estudio int, codigo_invitacion text, disciplina text, anios int, dominios text[], perfil jsonb) returns jsonb
+language plpgsql security definer set search_path = valida, public, pg_temp as $$
+declare
+  e valida.estudios; puntos int; hoy int; nuevo_id int; nuevo_codigo text; nueva text; siguiente int; asignados int;
+begin
+  select * into e from valida.estudios where id = estudio;
+  if not found or not e.inscripcion_abierta or e.cerrado_en is not null then
+    raise exception 'la inscripción no está abierta' using errcode = '42501';
+  end if;
+  if e.codigo_invitacion is not null and e.codigo_invitacion <> ''
+     and lower(trim(coalesce(codigo_invitacion, ''))) <> lower(trim(e.codigo_invitacion)) then
+    raise exception 'el código de invitación no es válido' using errcode = '28000';
+  end if;
+  select count(*) into hoy from valida.solicitudes s where s.estudio_id = e.id and s.creada_en > now() - interval '1 day';
+  if hoy >= e.tope_solicitudes_dia then
+    raise exception 'se ha alcanzado el máximo de solicitudes de hoy; inténtalo mañana' using errcode = '42501';
+  end if;
+  if coalesce((perfil->>'consentimiento')::boolean, false) is not true then
+    raise exception 'falta el consentimiento' using errcode = '22023';
+  end if;
+  if coalesce(array_length(dominios, 1), 0) = 0 then
+    raise exception 'hace falta al menos un dominio de competencia' using errcode = '22023';
+  end if;
+  puntos := valida.fehring(perfil, anios);
+
+  if puntos < e.fehring_minimo then
+    insert into valida.solicitudes (estudio_id, aceptada, puntuacion, disciplina, anios, perfil)
+    values (e.id, false, puntos, disciplina, anios, perfil - 'consentimiento_en');
+    return jsonb_build_object('aceptado', false, 'puntuacion', puntos, 'minimo', e.fehring_minimo);
+  end if;
+
+  -- Código PAN-nnn correlativo; la clave se genera aquí y no se vuelve a ver.
+  select coalesce(max(substring(codigo from '^PAN-(\d+)$')::int), 0) + 1 into siguiente
+    from valida.panelistas where estudio_id = e.id and codigo ~ '^PAN-\d+$';
+  nuevo_codigo := 'PAN-' || lpad(siguiente::text, 2, '0');
+  nueva := valida.clave_nueva();
+  insert into valida.panelistas (estudio_id, codigo, clave_hash, perfil, disciplina, anios, dominios_competencia,
+                                 perfil_completado, notas)
+  values (e.id, nuevo_codigo, valida.hash_clave(nueva), 'experto', disciplina, anios, dominios, true,
+          'inscripción abierta · Fehring ' || puntos)
+  returning id into nuevo_id;
+  update valida.panelistas set perfil_datos = valida_solicitar.perfil where id = nuevo_id;
+  insert into valida.solicitudes (estudio_id, aceptada, puntuacion, disciplina, anios, perfil, panelista_id)
+  values (e.id, true, puntos, disciplina, anios, perfil - 'consentimiento_en', nuevo_id);
+  asignados := valida.asignar_a(nuevo_id);
+  insert into valida.eventos (panelista_id, tipo, detalle) values (nuevo_id, 'inscripcion', jsonb_build_object('puntuacion', puntos, 'asignados', asignados));
+  return jsonb_build_object('aceptado', true, 'codigo', nuevo_codigo, 'clave', nueva, 'puntuacion', puntos, 'asignados', asignados);
+end $$;
+
 -- ============================================================================
 -- FUNCIONES DEL PANELISTA (public.valida_*, expuestas por la API)
 -- ============================================================================
@@ -299,21 +444,26 @@ begin
   insert into valida.eventos (panelista_id, tipo) values (p.id, 'entrada');
   return jsonb_build_object(
     'codigo', p.codigo, 'perfil', p.perfil, 'disciplina', p.disciplina, 'anios', p.anios,
-    'dominios_competencia', p.dominios_competencia,
+    'dominios_competencia', p.dominios_competencia, 'perfil_datos', p.perfil_datos,
     'perfil_completado', p.perfil_completado, 'calibracion_hecha', p.calibracion_hecha,
     'estudio', jsonb_build_object('id', e.id, 'nombre', e.nombre, 'ronda_actual', e.ronda_actual,
                                   'umbrales', e.umbrales, 'dimensiones', dims,
                                   'cerrado', e.cerrado_en is not null));
 end $$;
 
-create or replace function public.valida_perfil(clave text, disciplina text, anios int, dominios text[]) returns jsonb
+drop function if exists public.valida_perfil(text, text, integer, text[]);
+create or replace function public.valida_perfil(clave text, disciplina text, anios int, dominios text[], perfil jsonb default '{}'::jsonb) returns jsonb
 language plpgsql security definer set search_path = valida, public, pg_temp as $$
 declare p valida.panelistas;
 begin
   p := valida.quien(clave);
+  if coalesce((perfil->>'consentimiento')::boolean, false) is not true then
+    raise exception 'falta el consentimiento' using errcode = '22023';
+  end if;
   update valida.panelistas
      set disciplina = valida_perfil.disciplina, anios = valida_perfil.anios,
-         dominios_competencia = coalesce(dominios, '{}'), perfil_completado = true
+         dominios_competencia = coalesce(dominios, '{}'), perfil_completado = true,
+         perfil_datos = coalesce(valida_perfil.perfil, '{}'::jsonb)
    where id = p.id;
   insert into valida.eventos (panelista_id, tipo) values (p.id, 'perfil');
   return jsonb_build_object('ok', true);
@@ -648,7 +798,11 @@ begin
       k_jueces = coalesce((datos->>'k_jueces')::int, k_jueces), k_paciente = coalesce((datos->>'k_paciente')::int, k_paciente),
       capacidad = coalesce((datos->>'capacidad')::int, capacidad),
       capacidad_paciente = coalesce((datos->>'capacidad_paciente')::int, capacidad_paciente),
-      umbrales = coalesce(datos->'umbrales', umbrales), notas = coalesce(datos->>'notas', notas)
+      umbrales = coalesce(datos->'umbrales', umbrales), notas = coalesce(datos->>'notas', notas),
+      inscripcion_abierta = coalesce((datos->>'inscripcion_abierta')::boolean, inscripcion_abierta),
+      codigo_invitacion = case when datos ? 'codigo_invitacion' then nullif(trim(datos->>'codigo_invitacion'), '') else codigo_invitacion end,
+      tope_solicitudes_dia = coalesce((datos->>'tope_solicitudes_dia')::int, tope_solicitudes_dia),
+      fehring_minimo = coalesce((datos->>'fehring_minimo')::int, fehring_minimo)
    where id = eid;
   if datos ? 'dimensiones' then
     delete from valida.dimensiones where estudio_id = eid;
@@ -861,7 +1015,7 @@ begin
     'panelistas', (select coalesce(jsonb_agg(jsonb_build_object(
         'id', p.id, 'codigo', p.codigo, 'perfil', p.perfil, 'disciplina', p.disciplina, 'anios', p.anios,
         'dominios_competencia', p.dominios_competencia, 'capacidad', p.capacidad, 'activo', p.activo,
-        'perfil_completado', p.perfil_completado, 'calibracion_hecha', p.calibracion_hecha,
+        'perfil_datos', p.perfil_datos, 'perfil_completado', p.perfil_completado, 'calibracion_hecha', p.calibracion_hecha,
         'alta_en', p.alta_en, 'ultimo_acceso', p.ultimo_acceso, 'notas', p.notas,
         'asignadas', (select count(*) from valida.asignaciones a where a.panelista_id = p.id and a.ronda = e.ronda_actual),
         'hechas', (select count(*) from valida.asignaciones a where a.panelista_id = p.id and a.ronda = e.ronda_actual and a.estado = 'hecha'),
@@ -893,6 +1047,13 @@ begin
         'exhaustividad', cb.exhaustividad, 'falta', cb.falta, 'sobra', cb.sobra)), '[]')
       from valida.cobertura cb join valida.panelistas p on p.id = cb.panelista_id where p.estudio_id = e.id),
     'propuestas_estado', (select coalesce(jsonb_agg(to_jsonb(pe)), '[]') from valida.propuestas_estado pe),
+    'solicitudes', (select jsonb_build_object(
+        'total', count(*), 'aceptadas', count(*) filter (where aceptada), 'rechazadas', count(*) filter (where not aceptada),
+        'hoy', count(*) filter (where creada_en > now() - interval '1 day'),
+        'ultimas', (select coalesce(jsonb_agg(jsonb_build_object('creada_en', x.creada_en, 'aceptada', x.aceptada, 'puntuacion', x.puntuacion,
+                        'disciplina', x.disciplina, 'anios', x.anios) order by x.creada_en desc), '[]')
+                    from (select * from valida.solicitudes where estudio_id = e.id order by creada_en desc limit 30) x))
+      from valida.solicitudes where estudio_id = e.id),
     'eventos_recientes', (select coalesce(jsonb_agg(jsonb_build_object('tipo', ev.tipo, 'en', ev.en, 'panelista_id', ev.panelista_id, 'detalle', ev.detalle) order by ev.en desc), '[]')
       from (select * from valida.eventos order by en desc limit 200) ev)
   );

@@ -1,10 +1,12 @@
-import { useState } from 'react'
-import { DEMO, normalizarClave } from '../lib/api.js'
+import { useEffect, useState } from 'react'
+import { DEMO, normalizarClave, publico } from '../lib/api.js'
 
 export default function Entrada({ onEntrar, errorInicial }) {
   const [clave, setClave] = useState('')
   const [error, setError] = useState(errorInicial || '')
   const [cargando, setCargando] = useState(false)
+  const [abierta, setAbierta] = useState(false)
+  useEffect(() => { publico().then((p) => setAbierta(!!p?.inscripcion_abierta)).catch(() => {}) }, [])
 
   const enviar = async (e) => {
     e.preventDefault()
@@ -33,6 +35,9 @@ export default function Entrada({ onEntrar, errorInicial }) {
               <a className="boton fantasma" href="#/direccion">Dirección editorial</a>
             </div>
           </form>
+          {abierta && (
+            <p style={{ marginTop: '1.25rem', marginBottom: 0 }}>¿No tienes clave y eres profesional con experiencia en dolor? <a href="#/participar">Solicita participar en el panel</a>.</p>
+          )}
           {DEMO && (
             <p className="silencio" style={{ marginTop: '1.5rem', fontSize: '0.85rem' }}>
               Modo demostración. Claves: <code>demo-expe-rto1</code> (experto) · <code>demo-paci-ent1</code> (paciente) · <code>demo-dire-cci1</code> (dirección).

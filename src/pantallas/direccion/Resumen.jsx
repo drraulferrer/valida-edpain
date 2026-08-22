@@ -73,7 +73,7 @@ export default function Resumen({ datos, clases, dimsExpertas }) {
         <div className="kpi">
           <div className="v">{r.activosExperto + r.activosPaciente}</div>
           <div className="l">Panelistas activos</div>
-          <div className="s">experto {r.activosExperto} · paciente {r.activosPaciente}</div>
+          <div className="s">experto {r.activosExperto} · paciente {r.activosPaciente}{datos.solicitudes ? ` · solicitudes ${datos.solicitudes.total} (${datos.solicitudes.aceptadas} aceptadas)` : ''}{estudio.inscripcion_abierta ? ' · inscripción abierta' : ''}</div>
         </div>
         <div className="kpi">
           <div className="v">{pct(r.tasa.p)}</div>

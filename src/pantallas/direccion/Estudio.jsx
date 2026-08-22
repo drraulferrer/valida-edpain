@@ -3,8 +3,8 @@ import * as api from '../../lib/api.js'
 import { aikenMinimaParaIc } from '../../lib/metricas.js'
 import { fecha, n2 } from './comun.jsx'
 
-const CAMPOS_EDITABLES = ['nombre', 'corpus_commit', 'fraccion', 'suelo', 'k_jueces', 'k_paciente', 'capacidad', 'capacidad_paciente', 'notas']
-const NUMERICOS = ['fraccion', 'suelo', 'k_jueces', 'k_paciente', 'capacidad', 'capacidad_paciente']
+const CAMPOS_EDITABLES = ['nombre', 'corpus_commit', 'fraccion', 'suelo', 'k_jueces', 'k_paciente', 'capacidad', 'capacidad_paciente', 'notas', 'codigo_invitacion', 'tope_solicitudes_dia', 'fehring_minimo']
+const NUMERICOS = ['fraccion', 'suelo', 'k_jueces', 'k_paciente', 'capacidad', 'capacidad_paciente', 'tope_solicitudes_dia', 'fehring_minimo']
 const N_AIKEN = [5, 6, 7, 8, 9, 10, 11, 12]
 const CATEGORIAS = 4
 
@@ -24,14 +24,16 @@ const NOMBRE_UMBRAL = {
 }
 
 function formularioDe(estudio) {
-  return Object.fromEntries(CAMPOS_EDITABLES.map((k) => [k, estudio[k] == null ? '' : String(estudio[k])]))
+  return { ...Object.fromEntries(CAMPOS_EDITABLES.map((k) => [k, estudio[k] == null ? '' : String(estudio[k])])), inscripcion_abierta: !!estudio.inscripcion_abierta }
 }
 
 function aDatos(f) {
-  return Object.fromEntries(CAMPOS_EDITABLES.map((k) => {
+  const d = Object.fromEntries(CAMPOS_EDITABLES.map((k) => {
     if (NUMERICOS.includes(k)) return [k, f[k] === '' ? null : Number(f[k])]
+    if (k === 'codigo_invitacion') return [k, f[k].trim()]   // vacío = sin código (el servidor lo pone a null)
     return [k, f[k].trim() === '' ? null : f[k].trim()]
   }))
+  return { ...d, inscripcion_abierta: !!f.inscripcion_abierta }
 }
 
 export default function Estudio({ datos, clave, recargar }) {
@@ -103,6 +105,21 @@ export default function Estudio({ datos, clave, recargar }) {
           <label htmlFor="estudio-notas">Notas</label>
           <textarea id="estudio-notas" value={f.notas} onChange={(e) => cambiar('notas', e.target.value)} />
         </div>
+
+        <h3 style={{ marginTop: '1rem' }}>Convocatoria pública (inscripción abierta)</h3>
+        <p className="silencio">Con la inscripción abierta, cualquiera puede rellenar el perfil en <code>#/participar</code>; el servidor calcula la puntuación de Fehring y solo crea el panelista (con clave y bloque asignado) si alcanza el mínimo. El código de invitación va en la convocatoria y frena el ruido; el tope diario frena el abuso.</p>
+        <label className="casilla" style={{ marginBottom: '0.6rem' }}>
+          <input type="checkbox" checked={!!f.inscripcion_abierta} onChange={(e) => cambiar('inscripcion_abierta', e.target.checked)} />
+          <span><b>Inscripción abierta</b>{estudio.inscripcion_abierta ? <span className="sub">Abierta ahora: el enlace «Solicita participar» se muestra en la entrada.</span> : <span className="sub">Cerrada: la página de solicitud avisa de que no está abierta.</span>}</span>
+        </label>
+        <div className="panel-dos">
+          <Campo id="codigo_invitacion" etiqueta="Código de invitación" f={f} cambiar={cambiar} ayuda="Vacío = sin código. No es secreto: va en el mensaje de la convocatoria." />
+          <Campo id="fehring_minimo" etiqueta="Puntuación de Fehring mínima (0–14)" f={f} cambiar={cambiar} tipo="number" ayuda="Fehring (1987) fija el experto en 5. Máster 4 · doctorado +2 · formación en dolor +2 · ≥ 1 año en dolor +1 · publicaciones +2 · investigación +2 · máster/tesis en dolor +1." />
+          <Campo id="tope_solicitudes_dia" etiqueta="Tope de solicitudes por día" f={f} cambiar={cambiar} tipo="number" />
+        </div>
+        {datos.solicitudes && (
+          <p className="silencio">Solicitudes recibidas: <b>{datos.solicitudes.total}</b> · aceptadas {datos.solicitudes.aceptadas} · rechazadas {datos.solicitudes.rechazadas} · en las últimas 24 h: {datos.solicitudes.hoy}.</p>
+        )}
         <div className="acciones">
           <button type="submit" className="boton" disabled={!!ocupado}>{ocupado === 'guardar' ? 'Guardando…' : 'Guardar configuración'}</button>
           <button type="button" className="boton secundario" disabled={!!ocupado} onClick={() => setF(formularioDe(estudio))}>Deshacer cambios</button>

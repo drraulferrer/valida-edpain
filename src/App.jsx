@@ -9,6 +9,7 @@ import Concepto from './pantallas/Concepto.jsx'
 import FinModulo from './pantallas/FinModulo.jsx'
 import Cierre from './pantallas/Cierre.jsx'
 import Direccion from './pantallas/direccion/Direccion.jsx'
+import Participar from './pantallas/Participar.jsx'
 
 // Rutas por hash: #/ entrada · #/bloque · #/c/<id> · #/modulo/<id> · #/instrucciones ·
 // #/calibracion · #/fin · #/direccion[/pestaña]. Sin biblioteca de rutas a propósito.
@@ -59,7 +60,7 @@ export default function App() {
   useEffect(() => {
     let vivo = true
     const guardada = api.claveGuardada()
-    if (!guardada || ruta.partes[0] === 'direccion') { setCargando(false); return undefined }
+    if (!guardada || ['direccion', 'participar'].includes(ruta.partes[0])) { setCargando(false); return undefined }
     entrar(guardada)
       .catch((e) => { api.guardarClave(''); if (vivo) setError(e.message) })
       .finally(() => { if (vivo) setCargando(false) })
@@ -69,6 +70,9 @@ export default function App() {
 
   if (ruta.partes[0] === 'direccion') {
     return <Direccion ruta={ruta} />
+  }
+  if (ruta.partes[0] === 'participar' && !sesion) {
+    return <Participar onEntrar={entrar} />
   }
 
   if (cargando) {
@@ -86,7 +90,7 @@ export default function App() {
   // `calibracion_hecha` marca también «instrucciones vistas» para el perfil paciente.
   const primeraVez = !sesion.calibracion_hecha
   if (p0 === 'instrucciones') pantalla = <Instrucciones {...props} primeraVez={primeraVez} />
-  else if (!sesion.perfil_completado && sesion.perfil !== 'paciente') pantalla = <Perfil {...props} />
+  else if (!sesion.perfil_completado) pantalla = <Perfil {...props} />
   else if (primeraVez && p0 !== 'calibracion') pantalla = <Instrucciones {...props} primeraVez />
   else if (p0 === 'calibracion') pantalla = <Calibracion {...props} />
   else if (p0 === 'c' && p1) pantalla = <Concepto {...props} conceptoId={decodeURIComponent(p1)} />

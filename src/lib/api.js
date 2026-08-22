@@ -22,6 +22,7 @@ export class ErrorApi extends Error {
 const MENSAJES = {
   '28000': 'Esa clave no es válida. Revísala: son tres grupos de cuatro letras y números.',
   '42501': 'No tienes acceso a eso.',
+  '28000': 'Esa clave no es válida. Revísala: son tres grupos de cuatro letras y números.',
   '22023': 'Los datos no son válidos.',
   PGRST301: 'No se pudo conectar. Comprueba la conexión e inténtalo de nuevo.',
 }
@@ -67,11 +68,17 @@ export function normalizarClave(texto) {
   return `${limpio.slice(0, 4)}-${limpio.slice(4, 8)}-${limpio.slice(8, 12)}`
 }
 
+// --- público (sin clave) ---------------------------------------------------------
+
+export const publico = (estudio = 1) => rpc('valida_publico', { estudio })
+export const solicitar = (estudio, codigo_invitacion, disciplina, anios, dominios, perfil) =>
+  rpc('valida_solicitar', { estudio, codigo_invitacion, disciplina, anios, dominios, perfil })
+
 // --- panelista ---------------------------------------------------------------
 
 export const entrar = (clave) => rpc('valida_entrar', { clave })
-export const guardarPerfil = (clave, disciplina, anios, dominios) =>
-  rpc('valida_perfil', { clave, disciplina, anios, dominios })
+export const guardarPerfil = (clave, disciplina, anios, dominios, perfil = {}) =>
+  rpc('valida_perfil', { clave, disciplina, anios, dominios, perfil })
 export const calibracion = (clave) => rpc('valida_calibracion', { clave })
 export const calibracionHecha = (clave) => rpc('valida_calibracion_hecha', { clave })
 export const bloque = (clave) => rpc('valida_bloque', { clave })

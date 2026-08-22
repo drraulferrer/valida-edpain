@@ -89,11 +89,29 @@ update valida.panelistas set activo = false where codigo = 'PRU-01';
 
 (Es el único borrado previsto, y es de datos de prueba. Las funciones de la plataforma no borran.)
 
+## 5b · Perfil del panelista y convocatoria pública (22-ago, tarde)
+
+- **Perfil obligatorio antes de validar** (`src/lib/perfil.js`, `Perfil.jsx`), con consentimiento. Base:
+  criterios de **Fehring (1987)** para paneles de validez de contenido (titulación, formación específica en el
+  área, práctica, publicaciones, investigación; 0–14, experto ≥ 5), recomendaciones **CREDES** (describir el
+  panel) y las variables del Delphi de educación en dolor (Di-Bonaventura 2026). Se guarda en
+  `valida.panelistas.perfil_datos` (jsonb; `perfil` es el rol). El panel de paciente tiene un perfil breve.
+- **Convocatoria pública** (`#/participar`): con `estudios.inscripcion_abierta = true`, cualquiera rellena el
+  perfil; `valida_solicitar` calcula la puntuación de Fehring **en el servidor** (`valida.fehring`, misma
+  regla que `perfil.js`), y solo si ≥ `fehring_minimo` crea el panelista (código PAN-nn correlativo), devuelve
+  la clave una vez y le asigna bloque (`valida.asignar_a`). Salvaguardas: `codigo_invitacion` (va en el mensaje
+  de la convocatoria) y `tope_solicitudes_dia`. Todo se configura en Dirección → Estudio; las solicitudes
+  (aceptadas y rechazadas, sin datos identificativos) quedan en `valida.solicitudes`.
+- Dirección → Panelistas muestra la puntuación de Fehring de cada experto y el resumen de su perfil.
+
 ## 6 · Gotchas encontrados construyéndolo (22-ago)
 
 - **`supabase db query --linked --project-ref …` falla a la primera** con «Failed to create login role:
   connection timeout» y funciona al reintentar un par de veces. No es que la base esté caída
   (Auth y PostgREST responden): es el mecanismo de «login role» del CLI.
+- **La columna `perfil` de `panelistas` es el ROL** (experto/paciente/dirección); los datos del perfil van en
+  `perfil_datos`. Un `add column if not exists perfil jsonb` no falla: simplemente no hace nada, y el
+  siguiente `update` mete JSON en el rol y viola el check.
 - **pgcrypto vive en el esquema `extensions`**: con `search_path = valida, public` hay que escribir
   `extensions.digest(...)` y `extensions.gen_random_bytes(...)`.
 - **plpgsql y parámetros homónimos**: un parámetro `concepto_id` hace ambiguo `on conflict

@@ -7,6 +7,8 @@
 // Claves de la demo:  demo-expe-rto1 (experto) · demo-paci-ent1 (paciente) · demo-dire-cci1 (dirección)
 // ---------------------------------------------------------------------------
 
+import { puntuacionFehring } from './perfil.js'
+
 export const CLAVES_DEMO = { experto: 'demo-expe-rto1', paciente: 'demo-paci-ent1', direccion: 'demo-dire-cci1' }
 
 const DIMENSIONES = [
@@ -91,6 +93,7 @@ const CONCEPTOS = [
 const ESTUDIO = {
   id: 1, nombre: 'Validez de contenido · demo', corpus_commit: 'demo', semilla: 'valida-2026', fraccion: 0.1, suelo: 8,
   k_jueces: 7, k_paciente: 3, capacidad: 80, capacidad_paciente: 25, ronda_actual: 1, abierto_en: '2026-09-01T09:00:00Z', cerrado_en: null,
+  inscripcion_abierta: true, codigo_invitacion: 'DEMO', tope_solicitudes_dia: 200, fehring_minimo: 5,
   umbrales: { icvi_n_pequeno: 1.0, icvi_n_grande: 0.78, n_corte_icvi: 6, aiken: 0.70, exigir_ic: true, minimo_panel: 5, desacuerdo: 0.30,
               scvi_ave: 0.90, paciente_comprension: 0.75, minimo_paciente: 3, estable_v: 0.10, rondas_max: 3 },
   dimensiones: DIMENSIONES,
@@ -99,13 +102,14 @@ const ESTUDIO = {
 export function crearDemo() {
   const panelistas = [
     { id: 1, codigo: 'PAN-01', clave: CLAVES_DEMO.experto, perfil: 'experto', disciplina: null, anios: null, dominios_competencia: [], capacidad: 80, activo: true, perfil_completado: false, calibracion_hecha: false, alta_en: '2026-09-01T09:00:00Z', ultimo_acceso: null, notas: 'demo' },
-    { id: 2, codigo: 'PAC-01', clave: CLAVES_DEMO.paciente, perfil: 'paciente', disciplina: null, anios: null, dominios_competencia: [], capacidad: 25, activo: true, perfil_completado: true, calibracion_hecha: false, alta_en: '2026-09-01T09:00:00Z', ultimo_acceso: null, notas: 'demo' },
+    { id: 2, codigo: 'PAC-01', clave: CLAVES_DEMO.paciente, perfil: 'paciente', disciplina: null, anios: null, dominios_competencia: [], capacidad: 25, activo: true, perfil_completado: false, calibracion_hecha: false, alta_en: '2026-09-01T09:00:00Z', ultimo_acceso: null, notas: 'demo' },
     { id: 3, codigo: 'DIR-00', clave: CLAVES_DEMO.direccion, perfil: 'direccion', disciplina: 'dirección editorial', anios: null, dominios_competencia: [], capacidad: null, activo: true, perfil_completado: true, calibracion_hecha: true, alta_en: '2026-09-01T09:00:00Z', ultimo_acceso: null, notas: 'demo' },
   ]
   // Seis jueces más, ya con valoraciones, para que el panel de dirección tenga algo que enseñar.
   for (let i = 2; i <= 7; i += 1) {
     panelistas.push({ id: 10 + i, codigo: `PAN-0${i}`, clave: `zzzz-zzzz-zz0${i}`, perfil: 'experto', disciplina: ['fisioterapia', 'medicina de familia', 'psicología clínica', 'enfermería', 'medicina del dolor', 'terapia ocupacional'][i - 2],
-      anios: 5 + i, dominios_competencia: i % 2 ? ['D01', 'D02'] : ['D04', 'D09'], capacidad: 80, activo: true, perfil_completado: true, calibracion_hecha: true, alta_en: '2026-09-01T09:00:00Z', ultimo_acceso: '2026-09-03T10:00:00Z', notas: null })
+      anios: 5 + i, dominios_competencia: i % 2 ? ['D01', 'D02'] : ['D04', 'D09'], capacidad: 80, activo: true, perfil_completado: true, calibracion_hecha: true, alta_en: '2026-09-01T09:00:00Z', ultimo_acceso: '2026-09-03T10:00:00Z', notas: null,
+      perfil_datos: { titulacion: i % 3 ? 'master' : 'doctorado', formacion_dolor: i % 2 === 0, pais: 'España', ambitos: ['asistencial', 'docencia'], publicaciones_dolor: i % 3 ? '1-4' : '10+', investigacion_dolor: i % 3 === 0, delphi_previo: i % 2 === 0, autoexpertise: 'avanzado', consentimiento: true } })
   }
   const conceptos = CONCEPTOS.map((c) => ({ ...c }))
   const asignaciones = []
@@ -113,6 +117,7 @@ export function crearDemo() {
   const cobertura = []
   const eventos = []
   const propuestas_estado = []
+  const solicitudes = []
   let ronda_actual = 1
   let cerrado_en = null
   let siguienteValoracion = 1
@@ -151,15 +156,37 @@ export function crearDemo() {
   const clon = (x) => JSON.parse(JSON.stringify(x))
 
   const fns = {
+    valida_publico() {
+      return clon({ nombre: ESTUDIO.nombre, inscripcion_abierta: ESTUDIO.inscripcion_abierta && !cerrado_en, requiere_codigo: !!ESTUDIO.codigo_invitacion,
+        fehring_minimo: ESTUDIO.fehring_minimo, dominios: Object.entries(CATALOGO).filter(([, v]) => v.tipo === 'dominio').map(([id, v]) => ({ id, nombre: v.nombre })) })
+    },
+    valida_solicitar({ codigo_invitacion, disciplina, anios, dominios, perfil }) {
+      if (!ESTUDIO.inscripcion_abierta || cerrado_en) { const e = new Error('La inscripción no está abierta.'); e.codigo = '42501'; throw e }
+      if (ESTUDIO.codigo_invitacion && (codigo_invitacion || '').trim().toLowerCase() !== ESTUDIO.codigo_invitacion.toLowerCase()) { const e = new Error('El código de invitación no es válido.'); e.codigo = '28000'; throw e }
+      if (!perfil?.consentimiento) { const e = new Error('Falta el consentimiento.'); e.codigo = '22023'; throw e }
+      const puntuacion = puntuacionFehring(perfil, anios)
+      if (puntuacion < ESTUDIO.fehring_minimo) { solicitudes.push({ creada_en: new Date().toISOString(), aceptada: false, puntuacion, disciplina, anios }); return { aceptado: false, puntuacion, minimo: ESTUDIO.fehring_minimo } }
+      const n = panelistas.filter((p) => /^PAN-\d+$/.test(p.codigo)).length + 1
+      const codigo = `PAN-${String(n).padStart(2, '0')}`
+      const clave = `nuev-${Math.random().toString(36).slice(2, 6)}-${Math.random().toString(36).slice(2, 6)}`
+      const id = Math.max(...panelistas.map((p) => p.id)) + 1
+      panelistas.push({ id, codigo, clave, perfil: 'experto', disciplina, anios, dominios_competencia: dominios, capacidad: 80, activo: true, perfil_completado: true, calibracion_hecha: false, alta_en: new Date().toISOString(), ultimo_acceso: null, notas: `inscripción abierta · Fehring ${puntuacion}`, perfil_datos: perfil })
+      let asignados = 0
+      conceptos.filter((c) => c.incluido && c.activo).forEach((c, i) => { asignaciones.push({ panelista_id: id, concepto_id: c.id, ronda: ronda_actual, orden: i + 1, estado: 'pendiente' }); asignados += 1 })
+      solicitudes.push({ creada_en: new Date().toISOString(), aceptada: true, puntuacion, disciplina, anios })
+      return { aceptado: true, codigo, clave, puntuacion, asignados }
+    },
     valida_entrar({ clave }) {
       const p = quien(clave)
       eventos.push({ panelista_id: p.id, tipo: 'entrada', en: new Date().toISOString() })
       return clon({ codigo: p.codigo, perfil: p.perfil, disciplina: p.disciplina, anios: p.anios, dominios_competencia: p.dominios_competencia,
-        perfil_completado: p.perfil_completado, calibracion_hecha: p.calibracion_hecha,
+        perfil_datos: p.perfil_datos || {}, perfil_completado: p.perfil_completado, calibracion_hecha: p.calibracion_hecha,
         estudio: { id: 1, nombre: ESTUDIO.nombre, ronda_actual, umbrales: ESTUDIO.umbrales, dimensiones: DIMENSIONES, cerrado: !!cerrado_en } })
     },
-    valida_perfil({ clave, disciplina, anios, dominios }) {
-      const p = quien(clave); Object.assign(p, { disciplina, anios, dominios_competencia: dominios || [], perfil_completado: true }); return { ok: true }
+    valida_perfil({ clave, disciplina, anios, dominios, perfil }) {
+      const p = quien(clave)
+      if (!perfil?.consentimiento) { const e = new Error('Falta el consentimiento.'); e.codigo = '22023'; throw e }
+      Object.assign(p, { disciplina, anios, dominios_competencia: dominios || [], perfil_completado: true, perfil_datos: perfil || {} }); return { ok: true }
     },
     valida_calibracion({ clave }) {
       const p = quien(clave)
@@ -254,6 +281,7 @@ export function crearDemo() {
         asignaciones: asignaciones.map((a) => ({ panelista: codigoDe(a.panelista_id), concepto_id: a.concepto_id, ronda: a.ronda, orden: a.orden, estado: a.estado })),
         cobertura: cobertura.map((x) => ({ ...x, panelista: codigoDe(x.panelista_id), panelista_id: undefined })),
         propuestas_estado,
+        solicitudes: { total: solicitudes.length, aceptadas: solicitudes.filter((x) => x.aceptada).length, rechazadas: solicitudes.filter((x) => !x.aceptada).length, hoy: solicitudes.length, ultimas: [...solicitudes].reverse().slice(0, 30) },
         eventos_recientes: eventos.slice(-200).reverse(),
       })
     },
@@ -291,7 +319,7 @@ export function crearDemo() {
       return { ronda: ronda_actual, asignaciones: n }
     },
     valida_dir_cerrar({ clave }) { direccion(clave); cerrado_en = new Date().toISOString(); return { ok: true } },
-    valida_dir_estudio({ clave, datos }) { direccion(clave); Object.assign(ESTUDIO, Object.fromEntries(Object.entries(datos).filter(([k]) => k !== 'dimensiones'))); return { ok: true } },
+    valida_dir_estudio({ clave, datos }) { direccion(clave); Object.assign(ESTUDIO, Object.fromEntries(Object.entries(datos).filter(([k, v]) => k !== 'dimensiones' && v !== undefined && v !== null))); return { ok: true } },
     valida_dir_propuesta({ clave, valoracion_id, indice, estado, nota }) {
       direccion(clave)
       const i = propuestas_estado.findIndex((x) => x.valoracion_id === valoracion_id && x.indice === indice)
