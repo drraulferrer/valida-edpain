@@ -54,10 +54,10 @@ aleatorios permanentes; decisión del 22-ago justificada en la spec §3.8), `con
 |---|---|
 | Clave de la **dirección editorial** (código `DIR-00`) | Llavero de macOS: `security find-generic-password -s valida-edpain-direccion -w` |
 | Clave del **panelista de prueba** `PRU-01` (experto, D01+D02, capacidad 40) | Llavero: `security find-generic-password -s valida-edpain-prueba -w` |
-| Clave anon de Supabase (pública por diseño) | `.env` (gitignored) → `VITE_SUPABASE_ANON_KEY`; también `supabase projects api-keys --project-ref mmwytewpfnckymjxldye` |
+| Clave anon de Supabase (pública por diseño) | `.env` (gitignored) → `VITE_SUPABASE_ANON_KEY`; también `supabase projects api-keys --project-ref nnelofgevsvdaiaryjbk` |
 | **API key de Resend** (envío de avisos) | Llavero: `security find-generic-password -s valida-edpain-resend -w` · permiso «Sending access», limitada a edpain.com |
 | Remitente de los avisos (opcional) | Llavero: `valida-edpain-remitente`; por defecto `Estudio EdPain <estudio@edpain.com>` |
-| SQL contra la base | `supabase db query --linked --project-ref mmwytewpfnckymjxldye "select …"` (o `-f fichero.sql`) |
+| SQL contra la base | `supabase db query --linked --project-ref nnelofgevsvdaiaryjbk "select …"` (o `-f fichero.sql`) |
 
 Si una clave de panelista se pierde: panel de dirección → Panelistas → «Nueva clave» (la anterior deja
 de valer). La clave de dirección se regenera con SQL: `update valida.panelistas set clave_hash =
@@ -74,7 +74,7 @@ python3 pipeline/importar.py             # importa/reimporta (idempotente, nunca
 python3 pipeline/exportar.py --csv       # baja todo a panel/respuestas/ (fuera de Git)
 python3 pipeline/humo.py                 # ¿responden todas las RPC? (pasar tras cada schema.sql)
 python3 pipeline/avisos.py --simular     # a quién avisaría hoy y con qué texto
-supabase db query -f supabase/schema.sql --linked --project-ref mmwytewpfnckymjxldye   # reaplicar esquema (idempotente)
+supabase db query -f supabase/schema.sql --linked --project-ref nnelofgevsvdaiaryjbk   # reaplicar esquema (idempotente)
 npm run deploy                           # publica en GitHub Pages (exige árbol limpio y verify en verde)
 ```
 
@@ -200,11 +200,12 @@ para que el servidor no dependa del navegador):
 
 | Bloque | Qué | Base |
 |---|---|---|
-| Quién es | edad, género, estudios, situación laboral | GRIPP2: describir quién participó |
+| Quién es | **fecha de nacimiento**, **sexo**, estudios, situación laboral | GRIPP2: describir quién participó |
 | Temporalidad | cuánto tiempo, con qué frecuencia | CIE-11 (≥ 3 meses); modelo de «dos preguntas» del NIH Task Force |
 | Localización | zonas del cuerpo | familias de la CIE-11, en lenguaje llano |
 | Diagnóstico | qué le han dicho (multi) + «no me han dado ninguno» + si se lo explicaron | CIE-11 primario/secundario |
-| Impacto | **PEG**: intensidad, disfrute de la vida, actividad general (0-10) | Krebs et al., *J Gen Intern Med* 2009 |
+| Impacto | **EGDC** (Escala de Gradación del Dolor Crónico): 3 de intensidad + 3 de discapacidad (0-10) + días de actividad perdidos → grado 0-IV | Von Korff et al., *Pain* 1992 |
+| Ánimo | **PHQ-4**: GAD-2 + PHQ-2, cribado, no diagnóstico | Kroenke et al., *Psychosomatics* 2009 |
 | Tratamientos | qué ha probado (multi) + quién le lleva | conjunto mínimo del NIH Task Force |
 | Educación previa | si le han explicado el dolor, si lee por su cuenta | el sesgo grande de un panel de comprensibilidad |
 | Alfabetización | **3 ítems de Chew** (ayuda para leer, seguridad con impresos, dificultad para entender) | Chew et al., *Fam Med* 2004 |
@@ -218,6 +219,33 @@ impresos, el que mejor discrimina en el original).
 Referencias: Deyo et al., *J Pain* 2014 (NIH Task Force, doi:10.1016/j.jpain.2014.03.005) ·
 Treede et al., *Pain* 2019 (doi:10.1097/j.pain.0000000000001384) · Krebs et al. 2009
 (doi:10.1007/s11606-009-0981-1) · Chew et al., *Fam Med* 2004 · Staniszewska et al., *BMJ* 2017 (GRIPP2).
+
+## 5e-ter · Instrumentos del panel de paciente y qué se le promete (22-ago, sesión 3)
+
+**El PEG salió y entró la EGDC** (`src/lib/cuestionarios.js`, tests en `tests/cuestionarios.test.js`).
+Mismo esquema 0-10 y solo siete ítems, pero da **intensidad característica y discapacidad sobre 100
+y un grado de 0 a IV**, que es lo que permite comparar este panel con la literatura y estratificarlo
+en el informe. Se añade el **PHQ-4** (libre, sin licencia) porque el ánimo y la preocupación cambian
+cómo se lee un texto, y describir eso es parte de describir al panel.
+
+**La HADS está implementada pero no distribuida.** La puntuación, los dominios y los cortes (≤7
+normal · 8-10 dudoso · ≥11 caso probable) están escritos y probados, pero los **catorce ítems van
+vacíos a propósito**: el texto es propiedad de **GL Assessment** y reproducirlo en una web exige
+licencia. `HADS_DISPONIBLE` es `false` y la interfaz no la ofrece. El día que haya licencia de la
+versión española, basta rellenar `texto` y `opciones` en los catorce huecos: no hay que tocar nada
+más. Mientras tanto, el cribado de ánimo lo cubre el PHQ-4, que sí es de uso libre.
+
+**Al paciente NO se le reconoce autoría, y la hoja se lo dice.** Los textos ya están escritos y los
+firma quien responde de ellos; decir si se entienden es otra cosa. En su lugar se le ofrece lo que
+sí es cierto: sus correcciones entran en los textos, la publicación agradece al panel como grupo y
+dice cuántos fueron, y si lo pide se le mandan los textos corregidos. Por eso **tampoco se le pide
+nombre ni apellidos** —sin autoría no hacen falta, y sin ellos sus respuestas no quedan unidas a un
+nombre—: solo un correo, que se archiva aparte y del que se guarda una **huella** para comprobar que
+nadie responde dos veces. El experto sí da nombre, apellidos y filiación, porque la autoría de grupo
+del ICMJE los exige.
+
+Referencias: Von Korff et al., *Pain* 1992 (doi:10.1016/0304-3959(92)90154-4) · Kroenke et al. 2009
+(doi:10.1016/S0033-3182(09)70864-3) · Zigmond y Snaith, *Acta Psychiatr Scand* 1983.
 
 ## 5g · El apartado RGPD de la hoja de información (22-ago, sesión 3)
 
@@ -307,6 +335,14 @@ EEE evitable. Se migró a `eu-west-3` (París): estado miembro y el más cercano
    dirección del Llavero sigue abriendo contra la base nueva.
 
 **Contraseña de la base nueva**: Llavero, servicio `valida-edpain-db-nueva`.
+
+6. **`.env` y el sitio publicado** apuntaban todavía al proyecto viejo, así que desde que se pausó,
+   `valida.edpain.com` respondía «TypeError: Failed to fetch» en cuanto tocaba la base: la URL se
+   compila dentro del bundle, o sea que **no basta con cambiar `.env`, hay que volver a publicar**.
+   Resuelto el 22-ago a las 23:5x: `.env` → `nnelofgevsvdaiaryjbk`, `npm run deploy`, y comprobado en
+   vivo que la convocatoria de pacientes carga y que la hoja ya no declara transferencia
+   internacional. El `.env` viejo quedó como `.env.bak-2352` (gitignored) por si hace falta la marcha
+   atrás.
 
 **Gotchas de la migración**, todos reales:
 
