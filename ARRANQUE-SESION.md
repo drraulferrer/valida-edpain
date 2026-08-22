@@ -216,6 +216,38 @@ Referencias: Deyo et al., *J Pain* 2014 (NIH Task Force, doi:10.1016/j.jpain.201
 Treede et al., *Pain* 2019 (doi:10.1097/j.pain.0000000000001384) · Krebs et al. 2009
 (doi:10.1007/s11606-009-0981-1) · Chew et al., *Fam Med* 2004 · Staniszewska et al., *BMJ* 2017 (GRIPP2).
 
+## 5g · El apartado RGPD de la hoja de información (22-ago, sesión 3)
+
+Reescrito entero al abrir el panel de paciente, porque ahora se recogen **datos de categoría
+especial** (art. 9 RGPD) y el texto anterior no los nombraba. `HojaInformacion.jsx` tiene ahora un
+apartado 6 con nueve subapartados —responsable, qué se recoge, para qué y con qué base jurídica,
+seudonimización, encargados y dónde están, plazos, decisiones automatizadas, derechos y si es
+obligatorio— y **cambia según el perfil**: al paciente le nombra sus datos de salud y le pide
+consentimiento **expreso** (art. 9.2.a exige que se nombren, no vale un «acepto participar»
+genérico); al experto le declara el rechazo automático de Fehring.
+
+Tres cosas que salieron al escribirlo y conviene no perder de vista:
+
+1. **La hoja decía «Supabase, región eu-west-2, Irlanda». Es falso: eu-west-2 es Londres.** La base
+   con los datos de salud está en **Reino Unido**, fuera del EEE. Ahora se declara como
+   transferencia internacional amparada en la decisión de adecuación de la Comisión Europea. Sigue
+   siendo mejor mover el proyecto a una región de la UE antes de presentar al CEIm; Supabase no deja
+   cambiar de región en caliente, hay que crear proyecto nuevo y migrar. La región ya no está
+   escrita en el código: sale de `estudios.region_datos`.
+2. **El rechazo por Fehring es una decisión automatizada del art. 22** y hay que declararla, junto
+   con el derecho a revisión humana. Eso obliga a mencionar también el **control de reenvíos**, que
+   en la sesión 2 se decidió no explicar en ningún sitio. Se ha resuelto diciendo la verdad sin dar
+   el manual: «se comprueba de forma automática que no haya varias solicitudes con el mismo correo».
+   El detalle del salto de puntuación entre envíos sigue sin aparecer.
+3. **El responsable del tratamiento suele ser la institución, no el investigador principal.** Se han
+   añadido `estudios.responsable_tratamiento` y `estudios.dpd_contacto`, editables en Dirección →
+   Estudio. Mientras estén vacíos la hoja cae en el IP, que es lo mínimo defendible pero **hay que
+   concretarlo antes de presentar al comité**.
+
+`tests/hoja.test.jsx` fija por contenido lo que el RGPD obliga a decir, para que no se pierda en una
+reescritura: artículos citados, plazos, derechos, AEPD, la transferencia internacional y las dos
+variantes de perfil.
+
 ## 5f · Correo saliente con Resend (22-ago, sesión 3)
 
 Los avisos ya se pueden mandar solos. Montaje:
@@ -312,6 +344,15 @@ python3 pipeline/avisos.py                                # envía de verdad y m
 
    Ahora `https://valida.edpain.com` responde 200 y el http redirige con un 301. Importa: por ahí viajan
    las claves de acceso de los panelistas.
+1b. **ANTES DE PRESENTAR AL CEIm** (los tres los deja abiertos la hoja de información, §5g):
+   - **Responsable del tratamiento**: hoy cae en el investigador principal. Poner la institución con su
+     forma jurídica y el correo de su DPD en Dirección → Estudio.
+   - **La base de datos está en Londres** (Supabase eu-west-2), fuera del EEE. Se declara como
+     transferencia con decisión de adecuación, pero para un estudio con datos de salud lo limpio es
+     migrar a una región de la UE. Supabase no cambia de región en caliente: proyecto nuevo + migración.
+   - **Plazo de conservación**: la hoja dice cinco años tras la publicación. Confirmarlo con el comité,
+     que a veces fija otro.
+
 2. **Decisiones tomadas el 22-ago** (spec §3.8): 3 dimensiones expertas + comprensibilidad solo paciente;
    fracción 12 %; suelo 8; nivel de calidad 0,85/IC 0,75; cribado ≥ 2 señales. Pendiente solo confirmar
    el nivel de calidad al cerrar la ronda 1.
@@ -361,7 +402,9 @@ python3 pipeline/avisos.py                                # envía de verdad y m
   tratamientos, temporalidad, impacto (PEG) y alfabetización en salud (Chew).
 - Probada contra la base real de punta a punta; en el camino salieron dos bugs más: el `lpad` que
   trunca los códigos a partir del 100 y el `not null` de `solicitudes.puntuacion` (§6).
-- 93 tests en verde, build limpio, sin secretos en el bundle.
+- **Apartado RGPD de la hoja reescrito** (§5g), con consentimiento expreso para datos de salud y la
+  región de los datos corregida: estaba declarada como Irlanda y es Londres.
+- 101 tests en verde, build limpio, sin secretos en el bundle.
 
 
 

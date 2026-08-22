@@ -400,7 +400,10 @@ table.tabla tr.fila-detalle > td { background: var(--papel-2); padding: 0.9rem 1
 .hoja { background: var(--superficie); border: 1px solid var(--linea); border-radius: var(--radio); padding: 1.25rem 1.35rem; margin: 1rem 0; box-shadow: var(--sombra); }
 .hoja h3 { margin-top: 1.25rem; font-size: 1.05rem; }
 .hoja h3:first-of-type { margin-top: 0; }
+.hoja h4 { margin: 1rem 0 0.3rem; font-size: 0.95rem; color: var(--tinta-1); }
 .hoja p, .hoja li { font-size: 0.95rem; line-height: 1.55; }
+.hoja ul { margin: 0.4rem 0 0.6rem; padding-left: 1.1rem; }
+.hoja li { margin-bottom: 0.35rem; }
 .hoja .dato { display: flex; gap: 0.5rem; flex-wrap: wrap; font-size: 0.9rem; padding: 0.3rem 0; border-top: 1px solid var(--papel-2); }
 .hoja .dato:first-of-type { border-top: 0; }
 .hoja .dato b { min-width: 11rem; }

@@ -65,6 +65,14 @@ alter table valida.estudios add column if not exists grupo_autoria text default 
 -- Código de PRUEBAS: funciona con la inscripción CERRADA y crea panelistas marcados como prueba,
 -- para ensayar el circuito completo antes de lanzar la convocatoria. Se borran de un clic.
 alter table valida.estudios add column if not exists codigo_pruebas text;
+-- RGPD: el responsable del tratamiento suele ser la INSTITUCIÓN, no la persona del
+-- investigador principal, y si la institución tiene delegado de protección de datos hay que
+-- darlo (art. 13.1.a-b RGPD). Vacíos = la hoja cae en el investigador principal y no muestra DPD.
+alter table valida.estudios add column if not exists responsable_tratamiento text;
+alter table valida.estudios add column if not exists dpd_contacto text;
+-- Dónde viven de verdad los datos, para que la hoja no lo diga de memoria. `region_datos` es
+-- la región del proyecto de Supabase (hoy eu-west-2 = Londres, Reino Unido).
+alter table valida.estudios add column if not exists region_datos text not null default 'eu-west-2 (Londres, Reino Unido)';
 -- Interruptor propio para el panel de paciente: se abre y se cierra por separado del de
 -- expertos, porque casi nunca se reclutan a la vez ni al mismo ritmo.
 alter table valida.estudios add column if not exists inscripcion_pacientes_abierta boolean not null default false;
@@ -517,6 +525,7 @@ begin
     'pruebas', e.codigo_pruebas is not null and e.codigo_pruebas <> '' and e.cerrado_en is null,
     'fehring_minimo', e.fehring_minimo, 'investigador_principal', e.investigador_principal,
     'contacto_email', e.contacto_email, 'comite_etica', e.comite_etica, 'grupo_autoria', e.grupo_autoria,
+    'responsable_tratamiento', e.responsable_tratamiento, 'dpd_contacto', e.dpd_contacto, 'region_datos', e.region_datos,
     'dominios', (select coalesce(jsonb_agg(jsonb_build_object('id', id, 'nombre', nombre) order by orden), '[]')
                  from valida.catalogo where tipo = 'dominio'));
 end $$;
@@ -678,6 +687,8 @@ begin
                                   'umbrales', e.umbrales, 'dimensiones', dims,
                                   'investigador_principal', e.investigador_principal, 'contacto_email', e.contacto_email,
                                   'comite_etica', e.comite_etica, 'grupo_autoria', e.grupo_autoria,
+                                  'responsable_tratamiento', e.responsable_tratamiento,
+                                  'dpd_contacto', e.dpd_contacto, 'region_datos', e.region_datos,
                                   'cerrado', e.cerrado_en is not null));
 end $$;
 
@@ -1053,6 +1064,9 @@ begin
       contacto_email = coalesce(datos->>'contacto_email', contacto_email),
       comite_etica = case when datos ? 'comite_etica' then nullif(trim(datos->>'comite_etica'), '') else comite_etica end,
       grupo_autoria = coalesce(datos->>'grupo_autoria', grupo_autoria),
+      responsable_tratamiento = case when datos ? 'responsable_tratamiento' then nullif(trim(datos->>'responsable_tratamiento'), '') else responsable_tratamiento end,
+      dpd_contacto = case when datos ? 'dpd_contacto' then nullif(trim(datos->>'dpd_contacto'), '') else dpd_contacto end,
+      region_datos = coalesce(nullif(trim(datos->>'region_datos'), ''), region_datos),
       plazo_dias = coalesce((datos->>'plazo_dias')::int, plazo_dias)
    where id = eid;
   if datos ? 'dimensiones' then

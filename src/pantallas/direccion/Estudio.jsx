@@ -3,7 +3,8 @@ import * as api from '../../lib/api.js'
 import { aikenMinimaParaIc } from '../../lib/metricas.js'
 import { fecha, n2 } from './comun.jsx'
 
-const CAMPOS_EDITABLES = ['nombre', 'corpus_commit', 'fraccion', 'suelo', 'k_jueces', 'k_paciente', 'capacidad', 'capacidad_paciente', 'notas', 'codigo_invitacion', 'codigo_pruebas', 'tope_solicitudes_dia', 'fehring_minimo', 'investigador_principal', 'contacto_email', 'comite_etica', 'grupo_autoria']
+const CAMPOS_EDITABLES = ['nombre', 'corpus_commit', 'fraccion', 'suelo', 'k_jueces', 'k_paciente', 'capacidad', 'capacidad_paciente', 'notas', 'codigo_invitacion', 'codigo_pruebas', 'tope_solicitudes_dia', 'fehring_minimo', 'investigador_principal', 'contacto_email', 'comite_etica', 'grupo_autoria',
+  'responsable_tratamiento', 'dpd_contacto', 'region_datos']
 const NUMERICOS = ['fraccion', 'suelo', 'k_jueces', 'k_paciente', 'capacidad', 'capacidad_paciente', 'tope_solicitudes_dia', 'fehring_minimo']
 const N_AIKEN = [5, 6, 7, 8, 9, 10, 11, 12]
 const CATEGORIAS = 4
@@ -31,7 +32,7 @@ function formularioDe(estudio) {
 function aDatos(f) {
   const d = Object.fromEntries(CAMPOS_EDITABLES.map((k) => {
     if (NUMERICOS.includes(k)) return [k, f[k] === '' ? null : Number(f[k])]
-    if (k === 'codigo_invitacion' || k === 'codigo_pruebas' || k === 'comite_etica') return [k, f[k].trim()]   // vacío = sin código (el servidor lo pone a null)
+    if (['codigo_invitacion', 'codigo_pruebas', 'comite_etica', 'responsable_tratamiento', 'dpd_contacto'].includes(k)) return [k, f[k].trim()]   // vacío = el servidor lo pone a null
     return [k, f[k].trim() === '' ? null : f[k].trim()]
   }))
   return { ...d, inscripcion_abierta: !!f.inscripcion_abierta, inscripcion_pacientes_abierta: !!f.inscripcion_pacientes_abierta }
@@ -140,6 +141,22 @@ export default function Estudio({ datos, clave, recargar }) {
           <Campo id="contacto_email" etiqueta="Correo de contacto del estudio" f={f} cambiar={cambiar} ayuda="Público: es el que ve el panel. Redirígelo donde quieras (Cloudflare Email Routing)." />
           <Campo id="grupo_autoria" etiqueta="Nombre del grupo de autoría" f={f} cambiar={cambiar} />
           <Campo id="comite_etica" etiqueta="Comité de ética / dictamen" f={f} cambiar={cambiar} ayuda="Cuando lo haya. Vacío = no se muestra." />
+        </div>
+
+        <h3 style={{ marginTop: '1rem' }}>Protección de datos (lo que declara la hoja de información)</h3>
+        <p className="silencio">
+          El <b>responsable del tratamiento</b> suele ser la institución que ampara el estudio, no la persona del investigador
+          principal: si se deja vacío, la hoja cae en el IP, que es lo mínimo defendible pero conviene concretar antes de presentar
+          al comité. La <b>región</b> es donde está de verdad la base de datos; si está fuera del EEE, la hoja lo declara como
+          transferencia internacional.
+        </p>
+        <div className="panel-dos">
+          <Campo id="responsable_tratamiento" etiqueta="Responsable del tratamiento" f={f} cambiar={cambiar}
+            ayuda="La institución, con su forma jurídica. Vacío = el investigador principal." />
+          <Campo id="dpd_contacto" etiqueta="Delegado de protección de datos" f={f} cambiar={cambiar}
+            ayuda="Correo del DPD de la institución. Vacío = no se muestra." />
+          <Campo id="region_datos" etiqueta="Región donde están los datos" f={f} cambiar={cambiar}
+            ayuda="La del proyecto de Supabase. Hoy: eu-west-2 (Londres, Reino Unido)." />
         </div>
         {datos.solicitudes && (
           <p className="silencio">
