@@ -182,14 +182,16 @@ export default function HojaInformacion({ estudio = {}, perfil = 'experto', valo
             No se usan para ninguna otra cosa: ni publicidad, ni perfiles comerciales, ni se cruzan con historias clínicas.
           </p>
 
-          <h4>6.4 · Cómo se separan de tu nombre</h4>
+          <h4>6.4 · Cómo se separan de ti</h4>
           <p>
             Lo que te identifica se guarda en una <b>tabla distinta</b> de tus respuestas, y el conjunto que se analiza y se publica
             lleva solo tu código de panelista. Quien analiza los datos ve una fila como
             {paciente
-              ? ' «PAC-07 · 45-59 años · dolor de 5 a 10 años · fibromialgia»'
-              : ' «PAN-07 · fisioterapia · doctorado · 12 años»'}, nunca tu nombre. Solo la dirección del estudio puede unir el
-            código con la persona, y lo hace para avisarte, para la autoría y para comprobar los datos declarados.
+              ? ' «PAC-07 · 52 años · dolor de 5 a 10 años · fibromialgia»'
+              : ' «PAN-07 · fisioterapia · doctorado · 12 años»'}
+            {paciente
+              ? ', y ahí no hay forma de llegar hasta ti. Solo la dirección del estudio puede unir tu código con tu correo, y lo hace para una sola cosa: mandarte la clave y los avisos de cada ronda.'
+              : ', nunca tu nombre. Solo la dirección del estudio puede unir el código con la persona, y lo hace para avisarte, para la autoría y para comprobar los datos declarados.'}
           </p>
 
           <h4>6.5 · Dónde están y quién más los trata</h4>

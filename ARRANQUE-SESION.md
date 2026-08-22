@@ -36,9 +36,12 @@ aleatorios permanentes; decisión del 22-ago justificada en la spec §3.8), `con
   V de Aiken con IC 95 % ≥ 0,70 (como `consenso_metricas.py` y Di-Bonaventura 2026). Las dos en
   `src/lib/metricas.js`; cuando discrepan, se informa la discrepancia.
 - **Acceso por clave**, sin Supabase Auth ni correo. Códigos, no nombres. La clave se guarda hasheada.
-- **Base de datos**: el proyecto Supabase ya existente «Delphi Educación en Dolor»
-  (`mmwytewpfnckymjxldye`, org `drraulferrer`, eu-west-2), esquema nuevo `valida`. Su tabla antigua
-  `public.respuestas_consenso` (buzón de `consenso.py`) sigue ahí, intacta.
+- **Base de datos**: proyecto Supabase **`valida-edpain`** (`nnelofgevsvdaiaryjbk`, org `drraulferrer`,
+  **eu-west-3 = París**), esquema `valida`. Migrado el 22-ago desde «Delphi Educación en Dolor»
+  (`mmwytewpfnckymjxldye`, eu-west-2 = **Londres**), que queda **pausado** como marcha atrás. Se movió
+  porque los datos de salud del panel de paciente no pueden salir de la UE, y eu-west-2 es Reino Unido.
+  Detalle de la migración en §5h. **Ojo**: `public.respuestas_consenso` (buzón de `consenso.py`, vacía)
+  NO se recreó en el proyecto nuevo: si `consenso.py` la vuelve a necesitar, hay que crearla.
 - **Hosting**: GitHub Pages (repo público `drraulferrer/valida-edpain`, rama `gh-pages`) con
   `valida.edpain.com`; DNS en **Cloudflare** (los NS de edpain.com están ahí; Hostinger es solo el
   registrador). Vercel queda como opción: tu cuenta está logueada en Chrome pero la app de GitHub de
@@ -282,6 +285,41 @@ python3 pipeline/avisos.py --probar-envio tu@correo.com   # un correo de prueba,
 python3 pipeline/avisos.py                                # envía de verdad y marca
 ```
 
+## 5h · La migración a la UE (22-ago, sesión 3)
+
+**Por qué.** La base estaba en `eu-west-2`, que es **Londres**, no Irlanda como decía la hoja de
+información. Con el panel de paciente recogiendo datos de salud, eso es una transferencia fuera del
+EEE evitable. Se migró a `eu-west-3` (París): estado miembro y el más cercano a España.
+
+**Cómo, sin Docker ni `pg_dump`** (no hay ninguno de los dos en este Mac):
+
+1. Volcado tabla a tabla con `supabase db query` a JSON → `~/valida-edpain-migracion/datos/`
+   (`volcar.sh`). 902 filas, 4,6 MB.
+2. Verificado el volcado antes de tocar nada: recuentos, los `clave_hash` de los tres panelistas y
+   la **semilla del muestreo**, que es lo único irrecuperable —si cambia, cambia la muestra—.
+3. Supabase free solo deja **2 proyectos activos**, así que hubo que **pausar** el viejo. Pausar no
+   borra y es reversible; el CLI no tiene `pause`, va por la API de gestión:
+   `curl -X POST https://api.supabase.com/v1/projects/<ref>/pause` con el token del Llavero
+   (servicio `Supabase CLI`).
+4. Proyecto nuevo, `supabase link`, `schema.sql`, y `restaurar.py` reconstruye cada tabla con
+   `jsonb_populate_recordset` (respeta tipos, fechas y arrays sin escribir un INSERT a mano).
+5. Comprobado que la **huella SHA-256 del conjunto de conceptos es idéntica** y que la clave de
+   dirección del Llavero sigue abriendo contra la base nueva.
+
+**Contraseña de la base nueva**: Llavero, servicio `valida-edpain-db-nueva`.
+
+**Gotchas de la migración**, todos reales:
+
+- `supabase db dump` **exige Docker**. Sin él, la vía es `db query` + JSON.
+- El endpoint de `db query` devuelve **413 por encima de ~1 MB**: hay que trocear (`restaurar.py`
+  parte en trozos de 400 kB).
+- `supabase db query --project-ref X` **solo vale junto a `--linked`**: hay que enlazar el proyecto
+  destino antes.
+- **`valida.avisos` no tiene `id`** (su clave es compuesta), así que una lista de secuencias escrita
+  a mano falla. `restaurar.py` las saca del catálogo (`pg_depend`).
+- **El proyecto viejo se queda pausado**, no borrado. Es la marcha atrás. Borrarlo es una decisión
+  aparte, y hay que acordarse de `public.respuestas_consenso`.
+
 ## 6 · Gotchas encontrados construyéndolo (22-ago)
 
 - **`supabase db query --linked --project-ref …` falla a la primera** con «Failed to create login role:
@@ -345,11 +383,9 @@ python3 pipeline/avisos.py                                # envía de verdad y m
    Ahora `https://valida.edpain.com` responde 200 y el http redirige con un 301. Importa: por ahí viajan
    las claves de acceso de los panelistas.
 1b. **ANTES DE PRESENTAR AL CEIm** (los tres los deja abiertos la hoja de información, §5g):
-   - **Responsable del tratamiento**: hoy cae en el investigador principal. Poner la institución con su
-     forma jurídica y el correo de su DPD en Dirección → Estudio.
-   - **La base de datos está en Londres** (Supabase eu-west-2), fuera del EEE. Se declara como
-     transferencia con decisión de adecuación, pero para un estudio con datos de salud lo limpio es
-     migrar a una región de la UE. Supabase no cambia de región en caliente: proyecto nuevo + migración.
+   - ~~**Responsable del tratamiento**~~ **DECIDIDO**: es el investigador principal, Dr. Raúl
+     Ferrer-Peña, a título personal. Ya está puesto. Sin DPD, porque no hay institución detrás.
+   - ~~**La base de datos está en Londres**~~ **RESUELTO**: migrada a eu-west-3 (París) el 22-ago (§5h).
    - **Plazo de conservación**: la hoja dice cinco años tras la publicación. Confirmarlo con el comité,
      que a veces fija otro.
 

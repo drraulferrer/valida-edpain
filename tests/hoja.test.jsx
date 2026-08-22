@@ -58,6 +58,28 @@ describe('hoja de información · lo que exige el art. 13 RGPD', () => {
   })
 })
 
+describe('hoja de información · coherencia interna', () => {
+  // Una hoja que se contradice a sí misma no vale: si §5 dice que no hay autoría ni nombre,
+  // §6.4 no puede seguir diciendo que el código se une a la persona «para la autoría».
+  it('al paciente no le promete autoría en ningún apartado', () => {
+    const t = abrir({ perfil: 'paciente' })
+    expect(t).toMatch(/tu participación no da autoría/i)
+    expect(t).not.toMatch(/para la autoría y para comprobar los datos declarados/)
+    expect(t).toMatch(/mandarte la clave y los avisos/)
+  })
+
+  it('al paciente no le pide nombre en ningún apartado', () => {
+    const t = abrir({ perfil: 'paciente' })
+    expect(t).toMatch(/solo un correo de contacto/i)
+    expect(t).not.toMatch(/Cómo se separan de tu nombre/)
+  })
+
+  it('al experto sí le mantiene la autoría de grupo y la verificación', () => {
+    const t = abrir({ perfil: 'experto' })
+    expect(t).toMatch(/para la autoría y para comprobar los datos declarados/)
+  })
+})
+
 describe('hoja de información · lo que cambia entre paciente y experto', () => {
   it('al paciente le nombra sus datos de salud y le pide consentimiento expreso', () => {
     const t = abrir({ perfil: 'paciente' })
