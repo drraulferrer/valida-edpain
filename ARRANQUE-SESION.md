@@ -69,6 +69,8 @@ npm test · npm run verify                # tests · tests + build + secretos
 python3 pipeline/importar.py --simular   # qué haría la importación (≈ 30 s: carga y valida el corpus entero)
 python3 pipeline/importar.py             # importa/reimporta (idempotente, nunca borra)
 python3 pipeline/exportar.py --csv       # baja todo a panel/respuestas/ (fuera de Git)
+python3 pipeline/humo.py                 # ¿responden todas las RPC? (pasar tras cada schema.sql)
+python3 pipeline/avisos.py --simular     # a quién avisaría hoy y con qué texto
 supabase db query -f supabase/schema.sql --linked --project-ref mmwytewpfnckymjxldye   # reaplicar esquema (idempotente)
 npm run deploy                           # publica en GitHub Pages (exige árbol limpio y verify en verde)
 ```
@@ -243,6 +245,11 @@ python3 pipeline/avisos.py                                # envía de verdad y m
   devolvía `asignadas: 0` y un mensaje neutro, que se lee como «el botón no hace nada». Ahora la RPC
   devuelve también `panelistas_activos` y `capacidad_libre`, y la pantalla distingue los tres casos
   (nadie de alta · todos a tope de capacidad · asignado bien).
+- **`Api.rpc` de `pipeline/importar.py` aborta con `sys.exit`**, que lanza `SystemExit` —una
+  `BaseException`—, así que **`except Exception` no la captura**. Quien tenga que seguir después de
+  un fallo (recorrer más pruebas, avisar de lo que quedó a medias) debe usar `Api.intentar`, que
+  lanza `ErrorApi`. Se descubrió porque `avisos.py` mandó los correos, falló al marcarlos y murió
+  sin decir cuáles se habían quedado sin marcar.
 - **Los formularios del panel de Cloudflare y de Resend se resisten a la automatización**: los `<select>`
   son listboxes de Radix que ignoran los clics sintéticos y el `Esc` cierra el diálogo entero. Para DNS,
   usar «Importar» con un fichero de zona BIND; para los desplegables, clic real por coordenadas y
@@ -293,6 +300,20 @@ python3 pipeline/avisos.py                                # envía de verdad y m
   («Texto 1»), sin código de concepto.
 - **Comprensibilidad en Likert 1-4** y en tres ítems (PEMAT-P), con I-CVI y V de Aiken calculados por el
   mismo código que las dimensiones expertas. `metricas.paciente()` ya no puntúa `sí/casi/no`.
+- **Circuito del panel de paciente probado de punta a punta** contra la base real con un
+  panelista de prueba (`PAC-99`, marcado `es_prueba`): alta → asignación → entrada → perfil con
+  consentimiento → bloque → 4 textos valorados con distintas combinaciones → métricas de la
+  dirección → exportación a CSV → aviso de plazo por correo. El veto se comportó como debe: un
+  texto con acuerdo 4·4·4 **no supera** porque un paciente marcó «culpa» y «miedo».
+- **Alta de panelista acepta ahora `es_prueba`** (casilla en el formulario). Antes solo se podía
+  crear un panelista de prueba por la convocatoria, y esa vía **solo crea expertos**: no había
+  forma de ensayar el circuito de paciente sin ensuciar el panel real.
+- **Tercer bug de plpgsql, y el peor**: `valida_dir_marcar_avisos` tenía `tipo` ambiguo en el
+  `on conflict`. Los correos **se mandaban y no se marcaban**, así que se habrían repetido cada
+  día a cada panelista. Se descubrió justo al probar el circuito entero.
+- **`pipeline/humo.py`**: chequeo de humo que recorre las RPC y dice cuáles revientan. Nace de que
+  los tres bugs de esta sesión eran errores de runtime de plpgsql que ni los tests de JS ni el
+  `create function` pueden coger. Comprobado rompiendo funciones a propósito y viendo que las caza.
 - 80 tests en verde, build limpio, sin secretos en el bundle.
 
 

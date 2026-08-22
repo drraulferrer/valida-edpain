@@ -270,7 +270,7 @@ function ClaveUnaVez({ claveNueva, onCerrar }) {
   )
 }
 
-const FORMULARIO_VACIO = { codigo: '', perfil: 'experto', disciplina: '', dominios: [], capacidad: '', notas: '' }
+const FORMULARIO_VACIO = { codigo: '', perfil: 'experto', disciplina: '', dominios: [], capacidad: '', notas: '', es_prueba: false }
 
 function Alta({ datos, clave, onAlta }) {
   const [f, setF] = useState(FORMULARIO_VACIO)
@@ -291,7 +291,7 @@ function Alta({ datos, clave, onAlta }) {
     setEnviando(true)
     setError('')
     try {
-      const r = await api.dirAlta(clave, codigo, f.perfil, f.disciplina.trim() || null, f.dominios, capacidad, f.notas.trim() || null)
+      const r = await api.dirAlta(clave, codigo, f.perfil, f.disciplina.trim() || null, f.dominios, capacidad, f.notas.trim() || null, f.es_prueba)
       setF(FORMULARIO_VACIO)
       await onAlta(r)
     } catch (err) {
@@ -343,6 +343,10 @@ function Alta({ datos, clave, onAlta }) {
         <label htmlFor="alta-notas">Notas</label>
         <textarea id="alta-notas" value={f.notas} onChange={(e) => cambiar('notas', e.target.value)} />
       </div>
+      <label className="casilla">
+        <input type="checkbox" checked={f.es_prueba} onChange={(e) => cambiar('es_prueba', e.target.checked)} />
+        <span>Es un panelista de prueba<span className="sub">Para ensayar el circuito. No cuenta como panel real y se borra de un clic, con todas sus respuestas.</span></span>
+      </label>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="acciones">
         <button type="submit" className="boton" disabled={enviando}>{enviando ? 'Dando de alta…' : 'Dar de alta y generar clave'}</button>

@@ -79,11 +79,27 @@ def clave_direccion() -> str:
                  "  o pásala en VALIDA_CLAVE_DIRECCION.")
 
 
+class ErrorApi(Exception):
+    """La API respondió con un error. Se lanza desde `Api.intentar`."""
+
+
 class Api:
     def __init__(self, url: str, anon: str, clave: str):
         self.url, self.anon, self.clave = url.rstrip("/"), anon, clave
 
     def rpc(self, nombre: str, params: dict) -> dict | list | None:
+        """Llama a la RPC y ABORTA el script si falla. Es lo que quiere un pipeline de una pasada."""
+        try:
+            return self.intentar(nombre, params)
+        except ErrorApi as e:
+            sys.exit(f"✗ {e}")
+
+    def intentar(self, nombre: str, params: dict) -> dict | list | None:
+        """Igual, pero lanza ErrorApi en vez de abortar: para quien tiene que seguir tras un fallo.
+
+        `rpc` aborta con sys.exit, que lanza SystemExit —una BaseException— y por tanto **no la
+        captura un `except Exception`**. Quien necesite reaccionar a un error (seguir probando el
+        resto, avisar de lo que quedó a medias) tiene que usar esta."""
         datos = json.dumps({**params, "clave": self.clave}).encode("utf-8")
         req = urllib.request.Request(f"{self.url}/rest/v1/rpc/{nombre}", data=datos, method="POST", headers={
             "apikey": self.anon, "Authorization": f"Bearer {self.anon}", "Content-Type": "application/json"})
@@ -93,9 +109,9 @@ class Api:
                 return json.loads(cuerpo) if cuerpo else None
         except urllib.error.HTTPError as e:
             detalle = e.read().decode("utf-8", "replace")
-            sys.exit(f"✗ {nombre}: HTTP {e.code} · {detalle[:400]}")
+            raise ErrorApi(f"{nombre}: HTTP {e.code} · {detalle[:400]}") from None
         except urllib.error.URLError as e:
-            sys.exit(f"✗ {nombre}: sin conexión ({e.reason})")
+            raise ErrorApi(f"{nombre}: sin conexión ({e.reason})") from None
 
 
 # --------------------------------------------------------------------------- #

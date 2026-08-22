@@ -93,8 +93,8 @@ export const evento = (clave, tipo, detalle) => rpc('valida_evento', { clave, ti
 
 export const dirDatos = (clave) => rpc('valida_dir_datos', { clave })
 export const dirConcepto = (clave, concepto_id) => rpc('valida_dir_concepto', { clave, concepto_id })
-export const dirAlta = (clave, codigo, perfil, disciplina, dominios, capacidad, notas) =>
-  rpc('valida_dir_alta', { clave, codigo, perfil, disciplina, dominios, capacidad, notas })
+export const dirAlta = (clave, codigo, perfil, disciplina, dominios, capacidad, notas, es_prueba = false) =>
+  rpc('valida_dir_alta', { clave, codigo, perfil, disciplina, dominios, capacidad, notas, es_prueba })
 export const dirReclave = (clave, codigo) => rpc('valida_dir_reclave', { clave, codigo })
 export const dirPanelista = (clave, codigo, datos) => rpc('valida_dir_panelista', { clave, codigo, datos })
 export const dirAsignar = (clave, perfil_objetivo, max_generalistas = 3) =>

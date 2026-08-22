@@ -996,7 +996,13 @@ begin
 end $$;
 
 -- Alta de panelista: devuelve la clave EN CLARO una sola vez. No se vuelve a poder leer.
-create or replace function public.valida_dir_alta(clave text, codigo text, perfil text, disciplina text, dominios text[], capacidad int, notas text) returns jsonb
+--
+-- `es_prueba` marca al panelista como ensayo del circuito: no cuenta como panel real y la
+-- dirección lo borra con TODO su rastro desde Panelistas (`valida_dir_borrar_prueba`), que es
+-- el único borrado que hace la plataforma. Hasta ahora solo se podía crear un panelista de
+-- prueba por la convocatoria con `codigo_pruebas`, y esa vía solo crea expertos: no había
+-- forma de ensayar el circuito del panel de paciente sin ensuciar el panel real.
+create or replace function public.valida_dir_alta(clave text, codigo text, perfil text, disciplina text, dominios text[], capacidad int, notas text, es_prueba boolean default false) returns jsonb
 language plpgsql security definer set search_path = valida, public, pg_temp as $$
 declare d valida.panelistas; nueva text; nuevo_id int;
 begin
@@ -1005,12 +1011,17 @@ begin
     raise exception 'código con formato PAN-17' using errcode = '22023';
   end if;
   nueva := valida.clave_nueva();
-  insert into valida.panelistas (estudio_id, codigo, clave_hash, perfil, disciplina, dominios_competencia, capacidad, notas)
-  values (d.estudio_id, codigo, valida.hash_clave(nueva), perfil, disciplina, coalesce(dominios, '{}'), capacidad, notas)
+  insert into valida.panelistas (estudio_id, codigo, clave_hash, perfil, disciplina, dominios_competencia, capacidad, notas, es_prueba)
+  values (d.estudio_id, codigo, valida.hash_clave(nueva), perfil, disciplina, coalesce(dominios, '{}'), capacidad, notas,
+          coalesce(valida_dir_alta.es_prueba, false))
   returning id into nuevo_id;
-  insert into valida.eventos (panelista_id, tipo, detalle) values (d.id, 'alta_panelista', jsonb_build_object('codigo', codigo, 'perfil', perfil));
+  insert into valida.eventos (panelista_id, tipo, detalle) values (d.id, 'alta_panelista',
+    jsonb_build_object('codigo', codigo, 'perfil', perfil, 'es_prueba', coalesce(valida_dir_alta.es_prueba, false)));
   return jsonb_build_object('id', nuevo_id, 'codigo', codigo, 'clave', nueva);
 end $$;
+
+-- La firma antigua (7 argumentos) se retira para que PostgREST no tenga dos candidatas.
+drop function if exists public.valida_dir_alta(text, text, text, text, text[], int, text);
 
 -- Regenerar la clave de un panelista (si la perdió). La anterior deja de valer.
 create or replace function public.valida_dir_reclave(clave text, codigo text) returns jsonb
@@ -1305,6 +1316,14 @@ end $$;
 -- quedan conceptos pendientes, así que en cuanto termina su bloque los avisos dejan de
 -- aparecer sin que nadie los cancele. Tipos: mitad del plazo, 3 días, 1 día y vencido.
 -- Devuelve el texto listo para enviar (asunto y cuerpo) y a quién.
+-- «concepto/s» para el experto, «texto/s» para el paciente: la misma palabra que ve en la web.
+create or replace function valida.cosa(perfil text, n bigint) returns text
+language sql immutable as $$
+  select case when perfil = 'paciente'
+              then case when n = 1 then 'texto' else 'textos' end
+              else case when n = 1 then 'concepto' else 'conceptos' end end
+$$;
+
 create or replace function public.valida_dir_avisos(clave text) returns jsonb
 language plpgsql security definer set search_path = valida, public, pg_temp as $$
 declare d valida.panelistas; e valida.estudios;
@@ -1345,13 +1364,15 @@ begin
             when 'un_dia' then 'Último día para tu bloque del estudio EdPain'
             when 'tres_dias' then 'Te quedan 3 días para tu bloque del estudio EdPain'
             else 'Vas por la mitad del plazo del estudio EdPain' end,
+        -- Al panel de paciente se le habla de «textos», no de «conceptos», igual que en la web.
+        -- Y se concuerda el singular: «te falta 1 texto», no «te faltan 1 conceptos».
         'cuerpo', concat(
             'Hola', case when c.nombre is not null then ' ' || c.nombre else '' end, ':', chr(10), chr(10),
             case c.tipo
-              when 'vencido' then concat('El plazo para valorar tu bloque terminó el ', to_char(c.fin, 'DD/MM/YYYY'), '. Te quedaron ', c.pendientes, ' conceptos sin valorar de ', c.total, '.', chr(10), 'Si quieres seguir participando, responde a este correo y te ampliamos el plazo.')
-              when 'un_dia' then concat('Mañana se cierra tu plazo para valorar el bloque de la ronda ', e.ronda_actual, '. Te faltan ', c.pendientes, ' conceptos de ', c.total, '.')
-              when 'tres_dias' then concat('Te quedan 3 días para terminar tu bloque de la ronda ', e.ronda_actual, '. Llevas ', c.total - c.pendientes, ' de ', c.total, ' y te faltan ', c.pendientes, '.')
-              else concat('Vas por la mitad del plazo de la ronda ', e.ronda_actual, '. Llevas ', c.total - c.pendientes, ' conceptos de ', c.total, ' y te faltan ', c.pendientes, '. El plazo termina el ', to_char(c.fin, 'DD/MM/YYYY'), '.') end,
+              when 'vencido' then concat('El plazo para valorar tu bloque terminó el ', to_char(c.fin, 'DD/MM/YYYY'), '. Te ', case when c.pendientes = 1 then 'quedó ' else 'quedaron ' end, c.pendientes, ' ', valida.cosa(c.perfil, c.pendientes), ' sin valorar de ', c.total, '.', chr(10), 'Si quieres seguir participando, responde a este correo y te ampliamos el plazo.')
+              when 'un_dia' then concat('Mañana se cierra tu plazo para valorar el bloque de la ronda ', e.ronda_actual, '. Te ', case when c.pendientes = 1 then 'falta ' else 'faltan ' end, c.pendientes, ' ', valida.cosa(c.perfil, c.pendientes), ' de ', c.total, '.')
+              when 'tres_dias' then concat('Te quedan 3 días para terminar tu bloque de la ronda ', e.ronda_actual, '. Llevas ', c.total - c.pendientes, ' de ', c.total, ' y te ', case when c.pendientes = 1 then 'falta 1.' else concat('faltan ', c.pendientes, '.') end)
+              else concat('Vas por la mitad del plazo de la ronda ', e.ronda_actual, '. Llevas ', c.total - c.pendientes, ' ', valida.cosa(c.perfil, c.total - c.pendientes), ' de ', c.total, ' y te ', case when c.pendientes = 1 then 'falta 1.' else concat('faltan ', c.pendientes, '.') end, ' El plazo termina el ', to_char(c.fin, 'DD/MM/YYYY'), '.') end,
             chr(10), chr(10),
             'Entra con tu clave en https://valida.edpain.com/ y sigue donde lo dejaste; todo se guarda solo.', chr(10), chr(10),
             'Si ya lo has terminado, ignora este mensaje.', chr(10),
@@ -1365,8 +1386,12 @@ begin
 end $$;
 
 -- Deja constancia de los avisos ya enviados para no repetirlos.
+-- `#variable_conflict use_column`: sin él, el `tipo` del `on conflict` es ambiguo entre el
+-- parámetro y la columna, y la función revienta con 42702 DESPUÉS de haber mandado los
+-- correos —así que el aviso se reenviaría cada día—. Mismo caso que en `valida_guardar`.
 create or replace function public.valida_dir_marcar_avisos(clave text, codigos text[], tipo text) returns jsonb
 language plpgsql security definer set search_path = valida, public, pg_temp as $$
+#variable_conflict use_column
 declare d valida.panelistas; e valida.estudios; n int;
 begin
   d := valida.direccion(clave);
@@ -1374,7 +1399,8 @@ begin
   insert into valida.avisos (panelista_id, ronda, tipo, pendientes)
     select p.id, e.ronda_actual, valida_dir_marcar_avisos.tipo,
            (select count(*) from valida.asignaciones a where a.panelista_id = p.id and a.ronda = e.ronda_actual and a.estado = 'pendiente')
-      from valida.panelistas p where p.codigo = any(codigos) and p.estudio_id = e.id
+      from valida.panelistas p
+     where p.codigo = any(valida_dir_marcar_avisos.codigos) and p.estudio_id = e.id
   on conflict (panelista_id, ronda, tipo) do nothing;
   get diagnostics n = row_count;
   return jsonb_build_object('ok', true, 'marcados', n);

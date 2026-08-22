@@ -40,15 +40,18 @@ def main() -> int:
         ruta_csv = destino / f"valoraciones-{hoy}.csv"
         with ruta_csv.open("w", newline="") as f:
             w = csv.writer(f)
+            # Las dimensiones de paciente (comprensibilidad, palabras, orden) salen en `dims`
+            # como cualquier otra: son Likert 1-4. Del bloque `paciente` solo quedan el efecto
+            # afectivo y los vetos, que no son escalas de acuerdo.
             w.writerow(["valoracion_id", "panelista", "perfil", "concepto_id", "ronda", "hash_concepto", *dims,
-                        "abstencion", "motivo_abstencion", "banderas", "comentario", "n_ajustes", "paciente_comprension",
+                        "abstencion", "motivo_abstencion", "banderas", "comentario", "n_ajustes",
                         "paciente_efecto", "paciente_vetos", "completa", "tiempo_ms", "actualizada_en"])
             for v in datos["valoraciones"]:
                 p = v.get("paciente") or {}
                 w.writerow([v["id"], v["panelista"], v["perfil"], v["concepto_id"], v["ronda"], v["hash_concepto"],
                             *[(v.get("puntuaciones") or {}).get(d) for d in dims],
                             v["abstencion"], v.get("motivo_abstencion"), json.dumps(v.get("banderas") or {}, ensure_ascii=False),
-                            v.get("comentario"), len(v.get("ajustes") or []), p.get("comprension"), p.get("efecto"),
+                            v.get("comentario"), len(v.get("ajustes") or []), p.get("efecto"),
                             "|".join(p.get("vetos") or []), v["completa"], v.get("tiempo_ms"), v.get("actualizada_en")])
         print(f"✓ {ruta_csv}")
     return 0

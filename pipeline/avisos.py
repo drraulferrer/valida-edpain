@@ -51,7 +51,7 @@ from email.message import EmailMessage
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from importar import Api, clave_direccion, leer_env  # noqa: E402
+from importar import Api, ErrorApi, clave_direccion, leer_env  # noqa: E402
 
 TIPOS = ("mitad", "tres_dias", "un_dia", "vencido")
 NOMBRE = {"mitad": "mitad del plazo", "tres_dias": "quedan 3 días", "un_dia": "último día", "vencido": "plazo vencido"}
@@ -197,9 +197,24 @@ def main() -> int:
             print(f"  ✓ {a['codigo']}" + (f" · {ident}" if ident else ""))
         except Exception as e:  # noqa: BLE001 — un fallo no debe tumbar el resto
             print(f"  ✗ {a['codigo']}: {e}")
+    # Marcar es tan importante como enviar: si falla, el aviso se repite mañana. Si no se
+    # puede marcar, hay que gritarlo con los códigos concretos, no morir en silencio.
+    sin_marcar: list[str] = []
     for tipo, codigos in enviados.items():
-        api.rpc("valida_dir_marcar_avisos", {"codigos": codigos, "tipo": tipo})
-    print(f"\n✓ {sum(len(v) for v in enviados.values())} enviados y marcados")
+        try:
+            api.intentar("valida_dir_marcar_avisos", {"codigos": codigos, "tipo": tipo})
+        except ErrorApi as e:
+            sin_marcar += [f"{c} ({tipo})" for c in codigos]
+            print(f"  ✗ no se pudo marcar {tipo}: {e}")
+
+    total = sum(len(v) for v in enviados.values())
+    print(f"\n✓ {total} enviados" + (f", {total - len(sin_marcar)} marcados" if enviados else ""))
+    if sin_marcar:
+        print("\n⚠ ENVIADOS PERO NO MARCADOS — se volverían a mandar en la próxima pasada:")
+        for x in sin_marcar:
+            print(f"    {x}")
+        print("  Arregla `valida_dir_marcar_avisos` y márcalos a mano antes de volver a ejecutar esto.")
+        return 1
     return 0
 
 
