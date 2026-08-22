@@ -104,15 +104,41 @@ update valida.panelistas set activo = false where codigo = 'PRU-01';
   las copias de `propuestas/`. Contar solo `conceptos/`.
 - El corpus tarda ~26 s en cargar y validar (`kb.cargar_todo`); `importar.py` lo paga cada vez.
 
-## 7 · Estado al cierre de la sesión y pendientes
+## 7 · Pendientes (ordenados)
 
-Ver §8 (se rellena al final de cada sesión).
+1. **HTTPS en valida.edpain.com**: GitHub emite el certificado solo cuando ve el CNAME; el registro
+   se creó el 22-ago a las ~15:15. Cuando `gh api repos/drraulferrer/valida-edpain/pages` devuelva
+   `https_enforced` posible, activar con `gh api -X PUT repos/drraulferrer/valida-edpain/pages -F https_enforced=true`.
+   Mientras tanto la web se sirve por http (y por https con el certificado de github.io).
+2. **Decisiones de la spec §3.8** (4 vs 5 dimensiones, fracción 10 vs 12 %, suelo 8, nivel de calidad
+   aceptable 0,85/IC 0,75, cribado ≥ 2 señales). Todo son datos en `valida.estudios` / `valida.dimensiones`.
+3. **Calibración**: elegir 2 conceptos de práctica y su modelo → `valida_dir_calibracion` (aún sin pantalla).
+4. **Panelista de prueba PRU-01**: retirarlo con el SQL de §5 antes de abrir el panel real.
+5. **Piloto**: entra tú con la clave de PRU-01 (Llavero `valida-edpain-prueba`; tiene 40 conceptos
+   asignados, 1 ya valorado de prueba) y con la de dirección (`valida-edpain-direccion`).
+6. **Vercel** (opcional): ampliar el permiso de la app de GitHub de Vercel al repo `valida-edpain` e
+   importarlo; `vercel.json` no existe aún (copiar el de `~/vulpex/app/` con las cabeceras de seguridad).
+7. **Informe del estudio**: `pipeline/informe.py` (CREDES + tabla de flujo + I-CVI/V por estrato) no está
+   escrito; `exportar.py --csv` ya deja los datos listos para R/pandas.
+8. **Corpus al 100 %**: `python3 pipeline/importar.py --simular` y luego sin `--simular`. La muestra crece
+   sola; ejecutar después `Asignar expertos` en Cobertura para rellenar jueces de los conceptos nuevos.
 
 ## 8 · Dónde lo dejamos
 
-### Sesión 1 (22-ago-2026) · construcción
+### Sesión 1 (22-ago-2026) · construcción y despliegue
 
-- Hecho: spec + evaluación metodológica; esquema SQL aplicado y probado de extremo a extremo con
-  datos reales; 373 conceptos importados; app del panelista (wizard experto y paciente) con tests;
-  panel de dirección; pipeline importar/exportar; scripts de verificación y despliegue.
-- Pendiente: ver el final de este fichero, que se actualiza al cerrar la sesión.
+- **Hecho**: evaluación metodológica + spec (`~/specs/valida-edpain.md`, publicada también como
+  artefacto); esquema SQL aplicado en Supabase y probado de extremo a extremo con datos reales;
+  **373 conceptos importados** (corpus `0746d88`); app del panelista (wizard experto y paciente),
+  panel de dirección (6 pestañas), pipeline importar/exportar, 46 tests en verde, verificación en
+  navegador (modo demo) de entrada → perfil → instrucciones → calibración → bloque → wizard
+  (incluido el ajuste obligatorio con un 2) → banderas, y del panel de dirección (Resumen, Consenso).
+- **Desplegado**: repo público `github.com/drraulferrer/valida-edpain` (rama `main` + `gh-pages`),
+  GitHub Pages con `cname = valida.edpain.com`, CNAME en Cloudflare (solo DNS). Commit publicado: `598026b`.
+- **Bugs reales encontrados y corregidos en el camino**: `digest()` fuera de `search_path`
+  (pgcrypto en `extensions`); `on conflict` ambiguo con parámetros homónimos en tres funciones;
+  `delete` sin WHERE bloqueado por pg_safeupdate en `valida_dir_asignar`; clics rápidos en las
+  escalas que se pisaban (estado vivo en `vRef`); `#/instrucciones` sin `primeraVez`; el panel de
+  paciente no veía sus instrucciones.
+- **Gotcha de verificación**: `form_input` del navegador integrado no dispara el `onChange` de
+  React; para probar hay que usar clics reales o eventos nativos con `dispatchEvent`.
