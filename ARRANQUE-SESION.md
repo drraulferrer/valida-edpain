@@ -9,17 +9,19 @@ metodológica y la spec completa están en `~/specs/valida-edpain.md` (§0 tiene
 página y §3.8 las decisiones que siguen abiertas). El corpus vive en `~/educacion-en-dolor/`; esta
 plataforma es una **proyección** suya más un almacén de respuestas del panel.
 
-Tres estratos, analizados por separado: `aleatorio` (10 % por dominio con suelo 8, por números
-aleatorios permanentes), `controversia` (todos los `controversia: true`) y `cribado` (≥ 2 señales
-automáticas: G11 + A6 + `certeza: muy_baja`). Hoy: **274 + 70 + 40 = 373 conceptos** en plataforma
-(corpus al 80 %, commit `0746d88`). Al 100 % serán ~460, y **la muestra crece sin re-sortear**.
+Tres estratos, analizados por separado: `aleatorio` (**12 %** por dominio con suelo 8, por números
+aleatorios permanentes; decisión del 22-ago justificada en la spec §3.8), `controversia` (todos los
+`controversia: true`) y `cribado` (≥ 2 señales automáticas: G11 + A6 + `certeza: muy_baja`). Hoy:
+**316 + 70 + 40 = 414 conceptos** en plataforma (corpus al 80 %, commit `abfecd9`). Al 100 % serán
+~500, y **la muestra crece sin re-sortear**.
 
 ## 2 · Decisiones cerradas
 
-- **Instrumento**: 4 dimensiones en Likert 1-4 sin punto medio —relevancia · claridad ·
-  representatividad · comprensibilidad— definidas en `valida.dimensiones` (datos, no código).
-  Representatividad absorbe corrección + evidencia del instrumento antiguo. Comprensibilidad la
-  decide el panel de paciente; la del experto es aproximación.
+- **Instrumento** (decisión del 22-ago): el panel experto puntúa **3 dimensiones** en Likert 1-4 sin
+  punto medio —relevancia · claridad · representatividad— y la **comprensibilidad la juzga solo el
+  panel de paciente** con su instrumento. Todo en `valida.dimensiones` (datos, no código; la fila
+  `comprensibilidad` tiene `quien = 'paciente'`). Representatividad absorbe corrección + evidencia
+  del instrumento antiguo.
 - **Exhaustividad** se pregunta por módulo (`valida.cobertura`), no por concepto.
 - **Métrica de decisión**: I-CVI (Lynn; 1,00 con n ≤ 5, 0,78 con n ≥ 6) + kappa*. **Comparabilidad**:
   V de Aiken con IC 95 % ≥ 0,70 (como `consenso_metricas.py` y Di-Bonaventura 2026). Las dos en

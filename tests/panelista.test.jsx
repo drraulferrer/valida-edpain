@@ -78,9 +78,9 @@ describe('flujo del experto', () => {
     expect(await screen.findByRole('button', { name: 'He leído: puntuar' })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'He leído: puntuar' }))
     const grupos = await screen.findAllByRole('radiogroup')
-    expect(grupos.length).toBe(4)
-    // 4, 2, 4, 4 → la claridad en 2 obliga a ajustar
-    const valores = [4, 2, 4, 4]
+    expect(grupos.length).toBe(3)
+    // 4, 2, 4 → la claridad en 2 obliga a ajustar
+    const valores = [4, 2, 4]
     grupos.forEach((g, i) => fireEvent.click(g.querySelectorAll('button')[valores[i] - 1]))
     fireEvent.click(screen.getByRole('button', { name: 'Seguir' }))
     expect(await screen.findByText(/Has puntuado 1 o 2/)).toBeTruthy()
@@ -96,7 +96,7 @@ describe('flujo del experto', () => {
     await waitFor(() => {
       const v = demo._estado.valoraciones.find((x) => x.panelista_id === 1 && x.concepto_id === 'DEMO-00001')
       expect(v?.completa).toBe(true)
-      expect(v.puntuaciones).toEqual({ relevancia: 4, claridad: 2, representatividad: 4, comprensibilidad: 4 })
+      expect(v.puntuaciones).toEqual({ relevancia: 4, claridad: 2, representatividad: 4 })
       expect(v.ajustes[0].redaccion).toBe('Mi redacción.')
     })
     expect(window.location.hash).toBe('#/c/DEMO-00002')
@@ -120,7 +120,7 @@ describe('flujo del experto', () => {
     const p = demo._estado.panelistas[0]
     p.perfil_completado = true; p.calibracion_hecha = true
     // DEMO-00001 ya hecha; al cerrar DEMO-00002 se completa D01.M01
-    await demo.rpc('valida_guardar', { clave: CLAVES_DEMO.experto, concepto_id: 'DEMO-00001', datos: { puntuaciones: { relevancia: 4, claridad: 4, representatividad: 4, comprensibilidad: 4 } } })
+    await demo.rpc('valida_guardar', { clave: CLAVES_DEMO.experto, concepto_id: 'DEMO-00001', datos: { puntuaciones: { relevancia: 4, claridad: 4, representatividad: 4 } } })
     window.location.hash = '#/c/DEMO-00002'
     await entrarComo(CLAVES_DEMO.experto)
     fireEvent.click(await screen.findByRole('button', { name: 'He leído: puntuar' }))

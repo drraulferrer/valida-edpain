@@ -43,6 +43,7 @@ export default function Calibracion({ sesion, refrescar }) {
   return (
     <main className="pantalla">
       <p className="etiqueta acento">Práctica · {i + 1} de {items.length} · no cuenta</p>
+      <p className="silencio">Puntúa como lo harías de verdad; después verás la referencia de la dirección editorial y su razonamiento. No es para que converjas con ella: es para que las afirmaciones se entiendan igual.</p>
       <Lectura concepto={item.concepto} nombres={nombres} />
       <div className="tarjeta blanca" style={{ marginTop: '1.5rem' }}>
         {dims.map((d) => (
@@ -52,7 +53,7 @@ export default function Calibracion({ sesion, refrescar }) {
             <Likert nombre={d.nombre} valor={punt[d.clave] || null} onCambio={(v) => setPunt({ ...punt, [d.clave]: v })} deshabilitado={revelado} />
             {revelado && (
               <p className="ayuda" style={{ marginTop: '0.5rem' }}>
-                El panel suele dar <b>{item.modelo?.[d.clave] ?? '—'}</b>{punt[d.clave] ? <> · tú has dado <b>{punt[d.clave]}</b></> : null}.
+                Referencia de la dirección editorial: <b>{item.modelo?.[d.clave] ?? '—'}</b>{punt[d.clave] ? <> · tú has dado <b>{punt[d.clave]}</b></> : null}.
               </p>
             )}
           </div>
@@ -60,7 +61,7 @@ export default function Calibracion({ sesion, refrescar }) {
         {revelado && <div className="ok-caja">{item.explicacion}</div>}
         <div className="acciones">
           {!revelado
-            ? <button className="boton" type="button" disabled={!completo} onClick={() => setRevelado(true)}>Ver cómo lo vio el panel</button>
+            ? <button className="boton" type="button" disabled={!completo} onClick={() => setRevelado(true)}>Ver la referencia</button>
             : i + 1 < items.length
               ? <button className="boton" type="button" onClick={() => { setI(i + 1); setPunt({}); setRevelado(false); window.scrollTo({ top: 0 }) }}>Siguiente práctica</button>
               : <button className="boton" type="button" onClick={terminar}>Empezar con mi bloque</button>}

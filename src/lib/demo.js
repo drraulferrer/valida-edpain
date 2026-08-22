@@ -19,9 +19,9 @@ const DIMENSIONES = [
   { clave: 'representatividad', orden: 3, nombre: 'Representatividad', quien: 'experto', sobre_texto: ['explicacion_profesional', 'referencias', 'certeza'],
     afirmacion: 'Lo que afirma es correcto y representa fielmente lo que la evidencia citada y el conocimiento actual sostienen, con la certeza que declara.',
     ayuda: 'La exigencia no es la misma para una definición que para una afirmación de eficacia: arriba se indica qué se le pide a esta.' },
-  { clave: 'comprensibilidad', orden: 4, nombre: 'Comprensibilidad', quien: 'ambos', sobre_texto: ['explicacion_paciente'],
+  { clave: 'comprensibilidad', orden: 4, nombre: 'Comprensibilidad', quien: 'paciente', sobre_texto: ['explicacion_paciente'],
     afirmacion: 'La explicación para pacientes se entiende sin conocimientos previos y no dice nada distinto de lo que dice el texto profesional.',
-    ayuda: 'Tu juicio aquí es una aproximación: la última palabra sobre esta dimensión la tiene el panel de personas con dolor.' },
+    ayuda: 'La juzga el panel de personas con dolor con su propio instrumento; el panel experto no la puntúa.' },
 ]
 
 const CATALOGO = {
@@ -122,7 +122,7 @@ export function crearDemo() {
     conceptos.forEach((c, j) => {
       asignaciones.push({ panelista_id: 10 + i, concepto_id: c.id, ronda: 1, orden: j + 1, estado: 'hecha' })
       const base = patron[c.id][i - 2]
-      const p = { relevancia: Math.min(4, base + (j % 2)), claridad: base, representatividad: base, comprensibilidad: Math.max(1, base - (i % 2)) }
+      const p = { relevancia: Math.min(4, base + (j % 2)), claridad: base, representatividad: base }
       const ajustes = base <= 2 ? [{ parte: 'explicacion_profesional', motivo: 'evidencia', redaccion: 'Propuesta de redacción alternativa del juez PAN-0' + i + ': «…con un efecto pequeño y heterogéneo sobre el dolor».' }] : []
       valoraciones.push({ id: siguienteValoracion++, panelista_id: 10 + i, concepto_id: c.id, ronda: 1, hash_concepto: c.hash, puntuaciones: p,
         abstencion: false, motivo_abstencion: null, banderas: c.id === 'DEMO-00005' && i === 3 ? { certeza: 'muy_baja' } : {},
@@ -159,10 +159,10 @@ export function crearDemo() {
     valida_calibracion({ clave }) {
       const p = quien(clave)
       return clon([
-        { orden: 1, concepto: recorte(conceptos[0], p.perfil), modelo: { relevancia: 4, claridad: 4, representatividad: 4, comprensibilidad: 3 },
-          explicacion: 'El panel suele dar 4 en relevancia y representatividad: es la definición de la IASP, con fuente normativa. En comprensibilidad suele bajar a 3 porque «tejidos» no es una palabra de paciente.' },
-        { orden: 2, concepto: recorte(conceptos[4], p.perfil), modelo: { relevancia: 4, claridad: 3, representatividad: 2, comprensibilidad: 3 },
-          explicacion: 'Es relevante y está bien escrito, pero el título afirma más de lo que sostienen las revisiones: por eso el panel baja representatividad a 2 y propone otra redacción. Fíjate en que un 2 obliga a decir por qué.' },
+        { orden: 1, concepto: recorte(conceptos[0], p.perfil), modelo: { relevancia: 4, claridad: 4, representatividad: 4 },
+          explicacion: 'La dirección editorial da 4 en las tres: es la definición de la IASP, con fuente normativa, y el texto no afirma nada más que eso.' },
+        { orden: 2, concepto: recorte(conceptos[4], p.perfil), modelo: { relevancia: 4, claridad: 3, representatividad: 2 },
+          explicacion: 'Es relevante y está bien escrito, pero el título afirma más de lo que sostienen las revisiones: por eso la dirección baja representatividad a 2 y propondría otra redacción. Fíjate en que un 2 obliga a decir por qué.' },
       ])
     },
     valida_calibracion_hecha({ clave }) { quien(clave).calibracion_hecha = true; return { ok: true } },

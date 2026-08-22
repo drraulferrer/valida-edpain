@@ -194,6 +194,7 @@ def main() -> int:
     ap.add_argument("--forzar", action="store_true", help="importa aunque el corpus tenga errores de validación")
     ap.add_argument("--senales-minimas", type=int, default=2, help="señales automáticas para entrar en `cribado` (2)")
     ap.add_argument("--estudio", type=int, default=1)
+    ap.add_argument("--extra", default="", help="ids (coma) a importar con incluido=false, p. ej. conceptos de calibración")
     args = ap.parse_args()
 
     import kb  # noqa: E402
@@ -238,6 +239,7 @@ def main() -> int:
     filas_incluidas, filas_todas = [], []
     por_dominio = defaultdict(Counter)
     exigencias = consenso.EXIGENCIAS
+    extra = {x.strip() for x in args.extra.split(",") if x.strip()}
     ids_refs: set[str] = set()
     decisiones = {}
     for c, b in zip(marco, base):
@@ -252,20 +254,27 @@ def main() -> int:
         if len(senales) >= args.senales_minimas:
             estratos.append("cribado")
         incluido = bool(estratos)
+        if c.id in extra and not incluido:
+            estratos = ["calibracion"]          # entra en la base sin contar en ningún estrato del estudio
         decisiones[c.id] = (b["prn"], estratos, senales, incluido)
         for e in estratos:
             por_dominio[c.meta["dominio"]][e] += 1
         por_dominio[c.meta["dominio"]]["marco"] += 1
-        if incluido:
+        if incluido or c.id in extra:
             ids_refs.update(c.meta.get("referencias") or [])
 
     refs = referencias(corpus, ids_refs)
     for c in marco:
         p, estratos, senales, incluido = decisiones[c.id]
         f = fila(c, p, estratos, senales, incluido, refs, exigencias)
-        (filas_incluidas if incluido else filas_todas).append(f)
+        if incluido or c.id in extra:
+            filas_incluidas.append(f)
+        else:
+            filas_todas.append(f)
 
     # Diff contra lo que hay.
+    if extra:
+        print(f"· Extra (incluido=false, estrato calibracion): {', '.join(sorted(extra))}")
     nuevos = [f for f in filas_incluidas if f["id"] not in existentes]
     cambiados = [f for f in filas_incluidas if f["id"] in existentes and existentes[f["id"]]["hash"] != f["hash"]]
     iguales = len(filas_incluidas) - len(nuevos) - len(cambiados)

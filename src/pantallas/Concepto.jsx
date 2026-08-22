@@ -289,7 +289,7 @@ export default function Concepto({ sesion, conceptoId }) {
           <div className="tarjeta">
             <h3>Tus puntuaciones</h3>
             {v.abstencion ? <p className="silencio">Abstención: fuera de tu ámbito.</p> : (
-              <div className="cuadricula-celdas">
+              <div className="cuadricula-celdas" style={{ gridTemplateColumns: `repeat(${dims.length}, 1fr)` }}>
                 {dims.map((d) => <div className="celda" key={d.clave}><b>{v.puntuaciones[d.clave] || '—'}</b>{d.nombre}</div>)}
               </div>
             )}
