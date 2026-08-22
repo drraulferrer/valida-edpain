@@ -183,17 +183,26 @@ function rellenarPerfilPaciente({ duracion = '1_5a' } = {}) {
   fireEvent.change(screen.getByLabelText('¿Cada cuánto te duele?'), { target: { value: 'casi_diario' } })
   fireEvent.click(screen.getByLabelText('Espalda baja o lumbares'))
   fireEvent.click(screen.getByLabelText('Fibromialgia'))
-  // EGDC: tres de intensidad, tres de discapacidad y los días de actividad perdidos.
-  for (const [rotulo, n] of [[/^Tu dolor ahora mismo$/, 5],
-                             [/tu peor dolor/, 8],
-                             [/tu dolor de media/, 5],
-                             [/actividades de cada día/, 5],
-                             [/actividades de ocio/, 6],
-                             [/capacidad de trabajar/, 4]]) {
+  // EGDC española: días con dolor, tres de intensidad, el tramo de días perdidos y tres de interferencia.
+  fireEvent.change(screen.getByLabelText(/Cuántos días ha tenido dolor/), { target: { value: '150' } })
+  for (const [rotulo, n] of [[/EN ESTE MOMENTO/, 5],
+                             [/su PEOR dolor/, 8],
+                             [/EN PROMEDIO/, 5]]) {
     fireEvent.click(within(screen.getByRole('radiogroup', { name: rotulo })).getByRole('radio', { name: String(n) }))
   }
-  fireEvent.change(screen.getByLabelText(/cuántos días te impidió el dolor/), { target: { value: '20' } })
-  // PHQ-9: las nueve del cribado de ánimo, tal como están publicadas.
+  fireEvent.change(screen.getByLabelText(/TAREAS HABITUALES/), { target: { value: '16-24' } })
+  for (const [rotulo, n] of [[/ACTIVIDADES DIARIAS/, 5],
+                             [/OCIO, SOCIALES Y FAMILIARES/, 6],
+                             [/CAPACIDAD PARA TRABAJAR/, 4]]) {
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: rotulo })).getByRole('radio', { name: String(n) }))
+  }
+  // GAD-7 y PHQ-9: los dos cribados, tal como están publicados.
+  for (const [rotulo, v] of [[/nervioso\/a, ansioso/, '2'], [/parar o controlar su preocupación/, '1'],
+                             [/preocupado demasiado/, '2'], [/dificultad para relajarse/, '1'],
+                             [/quedarse quieto/, '0'], [/molestado o irritado/, '1'],
+                             [/algo terrible fuera a pasar/, '0']]) {
+    fireEvent.change(screen.getByLabelText(rotulo), { target: { value: v } })
+  }
   for (const [rotulo, v] of [[/Poco interés o placer/, '1'], [/desanimado/, '1'],
                              [/dificultad para dormirse/, '2'], [/cansado\/a o con poca energía/, '2'],
                              [/poco apetito/, '0'], [/mal con usted mismo/, '0'],
@@ -367,9 +376,13 @@ describe('convocatoria de pacientes (#/participar/paciente)', () => {
     expect(d.zonas).toEqual(['lumbar'])
     expect(d.diagnosticos).toEqual(['fibromialgia'])
     expect([d.egdc_ahora, d.egdc_peor, d.egdc_medio]).toEqual([5, 8, 5])
-    expect([d.egdc_diaria, d.egdc_social, d.egdc_trabajo, Number(d.egdc_dias)]).toEqual([5, 6, 4, 20])
+    expect([d.egdc_diaria, d.egdc_social, d.egdc_trabajo]).toEqual([5, 6, 4])
+    expect(d.egdc_dias).toBe('16-24')
+    expect(Number(d.egdc_dias_dolor)).toBe(150)
     expect([d.phq9_interes, d.phq9_animo, d.phq9_sueno, d.phq9_energia]).toEqual([1, 1, 2, 2])
     expect([d.phq9_apetito, d.phq9_fracaso, d.phq9_concentracion, d.phq9_lentitud, d.phq9_muerte]).toEqual([0, 0, 1, 0, 0])
+    expect([d.gad7_nervioso, d.gad7_preocupacion, d.gad7_exceso, d.gad7_relajarse]).toEqual([2, 1, 2, 1])
+    expect([d.gad7_inquietud, d.gad7_irritable, d.gad7_miedo]).toEqual([0, 1, 0])
     expect(d.nacimiento).toBe('1980-05-12')
     expect(d.educacion_previa).toBe('nunca')
     expect([d.ayuda_leer, d.seguridad_formularios, d.cuesta_entender]).toEqual([1, 2, 2])

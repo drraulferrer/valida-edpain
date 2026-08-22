@@ -5,7 +5,10 @@ import { puntuacionFehring, esExpertoFehring, validarPerfilExperto, validarPerfi
 const PACIENTE_OK = {
   nacimiento: '1980-05-12', sexo: 'mujer', duracion_dolor: '1_5a', frecuencia_dolor: 'casi_diario', zonas: ['lumbar'],
   diagnosticos: ['inespecifico'],
-  egdc_ahora: 5, egdc_peor: 8, egdc_medio: 5, egdc_dias: 20, egdc_diaria: 5, egdc_social: 6, egdc_trabajo: 4,
+  egdc_dias_dolor: 150, egdc_ahora: 5, egdc_peor: 8, egdc_medio: 5, egdc_dias: '16-24',
+  egdc_diaria: 5, egdc_social: 6, egdc_trabajo: 4,
+  gad7_nervioso: 2, gad7_preocupacion: 1, gad7_exceso: 2, gad7_relajarse: 1,
+  gad7_inquietud: 0, gad7_irritable: 1, gad7_miedo: 0,
   phq9_interes: 1, phq9_animo: 1, phq9_sueno: 2, phq9_energia: 2, phq9_apetito: 0,
   phq9_fracaso: 0, phq9_concentracion: 1, phq9_lentitud: 0, phq9_muerte: 0,
   educacion_previa: 'nunca', ayuda_leer: 1, seguridad_formularios: 2, cuesta_entender: 2,
@@ -42,7 +45,7 @@ describe('validación del perfil', () => {
   it('resume el perfil en una línea', () => {
     expect(resumenPerfil({ titulacion: 'doctorado', pais: 'España', ambitos: ['docencia'], publicaciones_dolor: '5-9', autoexpertise: 'experto' })).toBe('Doctorado · España · docencia · 5-9 publicaciones en dolor · autoexpertise experto')
     expect(resumenPerfil({ nacimiento: '1960-03-01', duracion_dolor: 'mas_10a', diagnosticos: ['fibromialgia'],
-      egdc_ahora: 8, egdc_peor: 8, egdc_medio: 8, egdc_dias: 40, egdc_diaria: 8, egdc_social: 8, egdc_trabajo: 8,
+      egdc_ahora: 8, egdc_peor: 8, egdc_medio: 8, egdc_dias: '25-60', egdc_diaria: 8, egdc_social: 8, egdc_trabajo: 8,
       educacion_previa: 'nunca' }, 'paciente'))
       .toBe(`${edadDe('1960-03-01')} años · dolor más de 10 años · Fibromialgia · EGDC Grado IV (intensidad 80/100, discapacidad 80/100) · educación en dolor: nunca me han explicado cómo funciona el dolor`)
   })
@@ -69,10 +72,12 @@ describe('panel de paciente', () => {
     expect(validarPerfilPaciente({ ...PACIENTE_OK, frecuencia_dolor: '', identidad })).toMatch(/cada cuánto/)
     expect(validarPerfilPaciente({ ...PACIENTE_OK, zonas: [], identidad })).toMatch(/zona/)
     expect(validarPerfilPaciente({ ...PACIENTE_OK, diagnosticos: [], identidad })).toMatch(/diagnóstico/)
-    expect(validarPerfilPaciente({ ...PACIENTE_OK, egdc_social: '', identidad })).toMatch(/ocio, sociales y familiares/)
+    expect(validarPerfilPaciente({ ...PACIENTE_OK, egdc_social: '', identidad })).toMatch(/OCIO, SOCIALES Y FAMILIARES/)
     expect(validarPerfilPaciente({ ...PACIENTE_OK, egdc_ahora: 11, identidad })).toMatch(/0 a 10/)
-    expect(validarPerfilPaciente({ ...PACIENTE_OK, egdc_dias: 200, identidad })).toMatch(/0 a 180/)
+    expect(validarPerfilPaciente({ ...PACIENTE_OK, egdc_dias_dolor: 200, identidad })).toMatch(/0 a 180/)
+    expect(validarPerfilPaciente({ ...PACIENTE_OK, egdc_dias: '', identidad })).toMatch(/tareas habituales/)
     expect(validarPerfilPaciente({ ...PACIENTE_OK, phq9_lentitud: '', identidad })).toMatch(/nueve preguntas/)
+    expect(validarPerfilPaciente({ ...PACIENTE_OK, gad7_irritable: '', identidad })).toMatch(/siete primeras/)
     expect(validarPerfilPaciente({ ...PACIENTE_OK, educacion_previa: '', identidad })).toMatch(/cómo funciona el dolor/)
     expect(validarPerfilPaciente({ ...PACIENTE_OK, cuesta_entender: '', identidad })).toMatch(/información escrita/)
   })
@@ -92,7 +97,8 @@ describe('panel de paciente', () => {
   })
 
   it('un cero es una respuesta válida en toda escala que empiece en cero', () => {
-    const cero = { ...PACIENTE_OK, identidad, egdc_ahora: 0, egdc_diaria: 0, egdc_dias: 0, phq9_sueno: 0 }
+    const cero = { ...PACIENTE_OK, identidad, egdc_ahora: 0, egdc_diaria: 0, egdc_dias_dolor: 0,
+      egdc_dias: 'ninguno', phq9_sueno: 0 }
     expect(validarPerfilPaciente(cero)).toBe('')
   })
 

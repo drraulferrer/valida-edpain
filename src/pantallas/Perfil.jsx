@@ -4,7 +4,9 @@ import { ir } from '../App.jsx'
 import HojaInformacion from '../componentes/HojaInformacion.jsx'
 import {
   AMBITOS, AUTOEXPERTISE, CHEW, DIAGNOSTICOS, DISCIPLINAS, DOLOR_PROPIO, DURACION_DOLOR, EDAD_MAXIMA, EDAD_MINIMA,
-  EDUCACION_DOLOR, EGDC_DISCAPACIDAD, EGDC_INTENSIDAD, PHQ9_ENUNCIADO, PHQ9_ITEMS, PHQ9_OPCIONES,
+  EDUCACION_DOLOR, EGDC_DISCAPACIDAD, EGDC_INTENSIDAD, EGDC_DIAS, EGDC_DIAS_TEXTO, EGDC_DIAS_TRAMOS,
+  EGDC_DIAS_DOLOR, EGDC_DIAS_DOLOR_TEXTO, ENUNCIADO_2SEMANAS, GAD7_ITEMS, GAD7_OPCIONES,
+  PHQ9_ITEMS, PHQ9_OPCIONES,
   PHQ9_ITEM_RIESGO, PHQ9_FUNCIONAL, PHQ9_FUNCIONAL_TEXTO, PHQ9_FUNCIONAL_OPCIONES, AYUDA_RIESGO, SEXO, edadDe,
   EDUCACION_PREVIA, ENTORNOS, ESTUDIOS, EXPLICACION_RECIBIDA, FRECUENCIA_DOLOR, IDENTIDAD_VACIA,
   LECTURA_PROPIA, PERFIL_EXPERTO_VACIO, PERFIL_PACIENTE_VACIO, PUBLICACIONES, PUBLICACIONES_EDU, SEGUIMIENTO,
@@ -413,19 +415,22 @@ export function FormularioPaciente({ inicial = {}, estudio, onEnviar, enviando, 
       <div className="tarjeta">
         <h3>Cómo te afecta</h3>
         <p className="silencio">
-          Son las preguntas de la <b>Escala de Gradación del Dolor Crónico</b>, la que se usa en los estudios de dolor para
-          poder comparar grupos. Seis van de 0 a 10 y una es un número de días. Piensa en los <b>últimos seis meses</b>.
+          Son las ocho preguntas de la <b>Escala de Gradación del Dolor Crónico</b>, en su versión española validada. Van tal
+          cual se publicaron —de ahí el «usted» y el tono de cuestionario—, porque cambiarles las palabras estropearía la
+          comparación con otros estudios. Salvo la primera, todas se refieren a los <b>últimos tres meses</b>.
         </p>
+        <div className="campo">
+          <label htmlFor="egdc-dias-dolor"><Marcado texto={EGDC_DIAS_DOLOR_TEXTO} /></label>
+          <input id="egdc-dias-dolor" type="number" min="0" max="180" value={f[EGDC_DIAS_DOLOR]}
+            onChange={(e) => cambiar(EGDC_DIAS_DOLOR, e.target.value)} style={{ maxWidth: '9rem' }} required />
+          <p className="ayuda">De 0 a 180 días. Si no sabes el número exacto, pon el que más se acerque.</p>
+        </div>
         {EGDC_INTENSIDAD.map(([clave, etiqueta, izq, der]) => (
           <Escala0a10 key={clave} id={clave.replace('_', '-')} etiqueta={<Marcado texto={etiqueta} />} izquierda={izq} derecha={der}
             valor={f[clave]} onCambio={(v) => cambiar(clave, v)} />
         ))}
-        <div className="campo">
-          <label htmlFor="egdc-dias">De los últimos seis meses, ¿cuántos <b>días</b> te impidió el dolor hacer tus actividades habituales?</label>
-          <input id="egdc-dias" type="number" min="0" max="180" value={f.egdc_dias}
-            onChange={(e) => cambiar('egdc_dias', e.target.value)} style={{ maxWidth: '9rem' }} required />
-          <p className="ayuda">Trabajo, casa, estudios. De 0 a 180 días; si no sabes el número exacto, pon el que más se acerque.</p>
-        </div>
+        <Elegir id="egdc-dias" etiqueta={<Marcado texto={EGDC_DIAS_TEXTO} />} valor={f[EGDC_DIAS]}
+          onCambio={(v) => cambiar(EGDC_DIAS, v)} opciones={EGDC_DIAS_TRAMOS.map(([k, etiqueta]) => [k, etiqueta])} />
         {EGDC_DISCAPACIDAD.map(([clave, etiqueta, izq, der]) => (
           <Escala0a10 key={clave} id={clave.replace('_', '-')} etiqueta={<Marcado texto={etiqueta} />} izquierda={izq} derecha={der}
             valor={f[clave]} onCambio={(v) => cambiar(clave, v)} />
@@ -435,11 +440,15 @@ export function FormularioPaciente({ inicial = {}, estudio, onEnviar, enviando, 
       <div className="tarjeta">
         <h3>Cómo te has sentido</h3>
         <p className="silencio">
-          <Marcado texto={PHQ9_ENUNCIADO} /> Son las nueve preguntas del PHQ-9, un cuestionario de cribado: <b>no son un
-          diagnóstico</b> y nadie te va a llamar por ellas. Sirven para describir al grupo, porque el ánimo cambia cómo se lee
-          un texto. Están tal cual se publicaron, en un castellano algo más formal que el resto: cambiarles las palabras
-          estropearía la comparación con otros estudios.
+          <Marcado texto={ENUNCIADO_2SEMANAS} /> Son dos cuestionarios de cribado —siete preguntas sobre preocupación y nueve
+          sobre ánimo—: <b>no son un diagnóstico</b> y nadie te va a llamar por ellas. Sirven para describir al grupo, porque
+          la preocupación y el ánimo cambian cómo se lee un texto. Están tal cual se publicaron, en un castellano algo más
+          formal que el resto: cambiarles las palabras estropearía la comparación con otros estudios.
         </p>
+        {GAD7_ITEMS.map(([clave, pregunta]) => (
+          <Elegir key={clave} id={`gad7-${clave}`} etiqueta={pregunta} valor={f[clave]}
+            onCambio={(v) => cambiar(clave, v === '' ? '' : Number(v))} opciones={GAD7_OPCIONES} />
+        ))}
         {PHQ9_ITEMS.map(([clave, pregunta]) => (
           <Elegir key={clave} id={`phq9-${clave}`} etiqueta={pregunta} valor={f[clave]}
             onCambio={(v) => cambiar(clave, v === '' ? '' : Number(v))} opciones={PHQ9_OPCIONES} />

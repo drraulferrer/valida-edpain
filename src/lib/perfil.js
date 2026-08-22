@@ -227,8 +227,10 @@ export const CHEW = [
 
 // El impacto del dolor y el cribado de ansiedad y depresión viven en `cuestionarios.js`,
 // con sus ítems, su puntuación y sus puntos de corte publicados.
-export { egdc, phq9, gravedadPhq9, resumenInstrumentos, EGDC_ITEMS, EGDC_INTENSIDAD, EGDC_DISCAPACIDAD,
-  EGDC_DIAS, EGDC_GRADOS, PHQ9_ITEMS, PHQ9_OPCIONES, PHQ9_ENUNCIADO, PHQ9_ITEM_RIESGO,
+export { egdc, phq9, gad7, gravedadPhq9, gravedadGad7, diasDeTramo, resumenInstrumentos, EGDC_ITEMS,
+  EGDC_INTENSIDAD, EGDC_DISCAPACIDAD, EGDC_DIAS, EGDC_DIAS_TEXTO, EGDC_DIAS_TRAMOS,
+  EGDC_DIAS_DOLOR, EGDC_DIAS_DOLOR_TEXTO, EGDC_GRADOS, PHQ9_ITEMS, PHQ9_OPCIONES, PHQ9_ENUNCIADO, PHQ9_ITEM_RIESGO,
+  GAD7_ITEMS, GAD7_OPCIONES, ENUNCIADO_2SEMANAS,
   PHQ9_FUNCIONAL, PHQ9_FUNCIONAL_TEXTO, PHQ9_FUNCIONAL_OPCIONES, AYUDA_RIESGO } from './cuestionarios.js'
 
 // Alfabetización en salud (Chew 2004). Suma 3-15, y el aviso de «limitada» se apoya en el ítem
@@ -255,7 +257,11 @@ export function elegibilidadPaciente(p = {}) {
   return ''
 }
 
-import { EGDC_ITEMS as EGDC_ITEMS_VALIDAR, PHQ9_ITEMS as PHQ9_ITEMS_VALIDAR, resumenInstrumentos as resumenInstrumentosPaciente } from './cuestionarios.js'
+import { EGDC_ITEMS as EGDC_ITEMS_VALIDAR, EGDC_INTENSIDAD as EGDC_INTENSIDAD_VALIDAR,
+  EGDC_DIAS as EGDC_DIAS_VALIDAR,
+  EGDC_DIAS_DOLOR as EGDC_DIAS_DOLOR_VALIDAR, diasDeTramo as diasDeTramoValidar,
+  PHQ9_ITEMS as PHQ9_ITEMS_VALIDAR, GAD7_ITEMS as GAD7_ITEMS_VALIDAR,
+  resumenInstrumentos as resumenInstrumentosPaciente } from './cuestionarios.js'
 
 // Identidad: va en su propia tabla (`valida.identidades`), no viaja con las valoraciones.
 export const IDENTIDAD_VACIA = Object.freeze({ nombre: '', apellidos: '', email: '', filiacion: '', orcid: '', dois: '' })
@@ -283,10 +289,12 @@ export const PERFIL_PACIENTE_VACIO = Object.freeze({
   // El dolor: temporalidad, dónde, qué le han dicho
   duracion_dolor: '', frecuencia_dolor: '', zonas: [], diagnosticos: [], diagnostico_otro: '',
   explicacion_recibida: '', diagnostico: '',
-  // Impacto del dolor: EGDC (Graded Chronic Pain Scale) — 6 ítems 0-10 + días perdidos
-  egdc_ahora: '', egdc_peor: '', egdc_medio: '', egdc_dias: '',
+  // Impacto del dolor: EGDC española — 6 ítems 0-10, días con dolor y tramo de días perdidos
+  egdc_dias_dolor: '', egdc_ahora: '', egdc_peor: '', egdc_medio: '', egdc_dias: '',
   egdc_diaria: '', egdc_social: '', egdc_trabajo: '',
-  // Cribado de depresión: PHQ-9 (9 ítems que puntúan + el funcional, que no puntúa)
+  // Cribado de ansiedad (GAD-7) y de depresión (PHQ-9); el funcional no puntúa en ninguno
+  gad7_nervioso: '', gad7_preocupacion: '', gad7_exceso: '', gad7_relajarse: '',
+  gad7_inquietud: '', gad7_irritable: '', gad7_miedo: '',
   phq9_interes: '', phq9_animo: '', phq9_sueno: '', phq9_energia: '', phq9_apetito: '',
   phq9_fracaso: '', phq9_concentracion: '', phq9_lentitud: '', phq9_muerte: '', phq9_funcional: '',
   // Tratamientos
@@ -362,18 +370,30 @@ export function validarPerfilPaciente(f) {
   if (!f.frecuencia_dolor) return 'Indica cada cuánto te duele.'
   if (!f.zonas?.length) return 'Marca al menos una zona donde te duela.'
   if (!f.diagnosticos?.length) return 'Marca qué te han dicho que tienes; si no te han dado ningún diagnóstico, hay una opción para eso.'
-  for (const [clave, etiqueta] of EGDC_ITEMS_VALIDAR) {
+  // Se valida en el mismo orden en que se pregunta, para que el aviso señale el primer hueco
+  // que la persona ve al subir, no uno de más abajo.
+  const conDolor = Number(f[EGDC_DIAS_DOLOR_VALIDAR])
+  if (f[EGDC_DIAS_DOLOR_VALIDAR] === '' || f[EGDC_DIAS_DOLOR_VALIDAR] == null
+      || !Number.isFinite(conDolor) || conDolor < 0 || conDolor > 180) {
+    return 'Indica cuántos días has tenido dolor en los últimos seis meses (de 0 a 180).'
+  }
+  for (const [i, [clave, etiqueta]] of EGDC_ITEMS_VALIDAR.entries()) {
     const v = Number(f[clave])
     if (f[clave] === '' || f[clave] == null || !Number.isFinite(v) || v < 0 || v > 10) {
-      return `Contesta «${etiqueta}» en la escala de 0 a 10.`
+      // El enunciado validado lleva pegada la instrucción de la escala: para el aviso sobra.
+      const corto = etiqueta.replace(/\*\*/g, '').split('?')[0].trim()
+      return `Contesta «${corto}?» en la escala de 0 a 10.`
+    }
+    // Los tres de intensidad van antes del ítem de los días; los de interferencia, después.
+    if (i === EGDC_INTENSIDAD_VALIDAR.length - 1 && diasDeTramoValidar(f[EGDC_DIAS_VALIDAR]) == null) {
+      return 'Elige cuántos días, en los últimos tres meses, el dolor te impidió hacer tus tareas habituales.'
     }
   }
-  const dias = Number(f.egdc_dias)
-  if (f.egdc_dias === '' || f.egdc_dias == null || !Number.isFinite(dias) || dias < 0 || dias > 180) {
-    return 'Indica cuántos días, de los últimos seis meses, el dolor te impidió hacer tus actividades (de 0 a 180).'
+  for (const [clave] of GAD7_ITEMS_VALIDAR) {
+    if (f[clave] === '' || f[clave] == null) return 'Contesta las siete primeras preguntas sobre cómo te has sentido estas dos semanas.'
   }
   for (const [clave] of PHQ9_ITEMS_VALIDAR) {
-    if (f[clave] === '' || f[clave] == null) return 'Contesta las nueve preguntas sobre cómo te has sentido estas dos semanas.'
+    if (f[clave] === '' || f[clave] == null) return 'Contesta las nueve preguntas siguientes sobre cómo te has sentido estas dos semanas.'
   }
   if (!f.educacion_previa) return 'Indica si alguna vez te han explicado cómo funciona el dolor: es importante para interpretar tus respuestas.'
   for (const [clave] of CHEW) {

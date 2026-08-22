@@ -10,5 +10,9 @@ export default defineConfig({
     environment: 'jsdom',
     globals: false,
     include: ['tests/**/*.test.{js,jsx}'],
+    // El formulario de paciente son ~35 preguntas y cada `fireEvent` vuelve a pintarlo entero:
+    // en jsdom eso pasa de los 5 s por defecto. En el navegador no ocurre —se contesta una
+    // pregunta cada vez—, así que el que va lento es el test, no la web.
+    testTimeout: 20000,
   },
 })

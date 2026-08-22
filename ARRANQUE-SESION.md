@@ -207,7 +207,7 @@ para que el servidor no dependa del navegador):
 | Localización | zonas del cuerpo | familias de la CIE-11, en lenguaje llano |
 | Diagnóstico | qué le han dicho (multi) + «no me han dado ninguno» + si se lo explicaron | CIE-11 primario/secundario |
 | Impacto | **EGDC** (Escala de Gradación del Dolor Crónico): 3 de intensidad + 3 de discapacidad (0-10) + días de actividad perdidos → grado 0-IV | Von Korff et al., *Pain* 1992 |
-| Ánimo | **PHQ-9**: nueve ítems, cribado de depresión, no diagnóstico | Kroenke et al., *J Gen Intern Med* 2001 |
+| Ánimo | **GAD-7** (7 ítems, ansiedad) + **PHQ-9** (9 ítems, depresión); cribados, no diagnósticos | Spitzer et al. 2006 · Kroenke et al. 2001 |
 | Tratamientos | qué ha probado (multi) + quién le lleva | conjunto mínimo del NIH Task Force |
 | Educación previa | si le han explicado el dolor, si lee por su cuenta | el sesgo grande de un panel de comprensibilidad |
 | Alfabetización | **3 ítems de Chew** (ayuda para leer, seguridad con impresos, dificultad para entender) | Chew et al., *Fam Med* 2004 |
@@ -225,10 +225,29 @@ Treede et al., *Pain* 2019 (doi:10.1097/j.pain.0000000000001384) · Krebs et al.
 ## 5e-ter · Instrumentos del panel de paciente y qué se le promete (22-ago, sesión 3)
 
 **El PEG salió y entró la EGDC** (`src/lib/cuestionarios.js`, tests en `tests/cuestionarios.test.js`).
-Mismo esquema 0-10 y solo siete ítems, pero da **intensidad característica y discapacidad sobre 100
-y un grado de 0 a IV**, que es lo que permite comparar este panel con la literatura y estratificarlo
-en el informe. El cribado de ánimo lo hace el **PHQ-9** (23-ago), que sustituye a la vez a la HADS y al PHQ-4 que
-hubo un rato en medio.
+Da **intensidad característica y discapacidad sobre 100 y un grado de 0 a IV**, que es lo que permite
+comparar este panel con la literatura y estratificarlo en el informe.
+
+**Y es la versión española validada, no una traducción** (23-ago): Ferrer-Peña, Gil-Martínez,
+Pardo-Montero, Jiménez-Penick, Gallego-Izquierdo y La Touche, *Reumatol Clin* 2016;12(3):130-8
+(doi:10.1016/j.reuma.2015.07.004) —la del propio IP—. Tres cosas que la primera versión tenía mal y
+conviene no volver a romper:
+
+1. **Son ocho ítems, no siete.** El ítem 1 pregunta cuántos días ha habido dolor en los últimos seis
+   meses; describe el patrón y **no entra en la puntuación**.
+2. **El periodo es de tres meses**, no de seis, en todo lo demás.
+3. **Los días de actividad limitada se preguntan por tramos** (Ninguno · 1 · 2 · 3-4 · 5-6 · 7-10 ·
+   11-15 · 16-24 · 25-60 · 61-75 · 76-90), no como número libre. La puntuación se resuelve por el
+   **punto medio** de cada tramo contra los cortes publicados (0-6 · 7-14 · 15-30 · 31+), y dos tramos
+   caen a caballo de un corte: **11-15 → 1 punto** y **25-60 → 3 puntos**. Está decidido en la tercera
+   columna de `EGDC_DIAS_TRAMOS` y fijado con tests; si la dirección prefiere otra regla, se cambia ahí
+   y en ningún sitio más. `diasDeTramo` sigue entendiendo un número suelto, que es como respondieron
+   los perfiles anteriores.
+
+Los enunciados van **en usted y con la instrucción de la escala pegada**, tal como se publicaron. Del
+original solo se corrigen dos erratas de imprenta («dónde» por «donde», «ningúna» por «ninguna»). El cribado de ánimo lo hacen el **PHQ-9** y el **GAD-7** (23-ago), que sustituyen a la vez a la HADS y
+al PHQ-4 que hubo un rato en medio. Los dos comparten enunciado y las cuatro respuestas, así que se
+contestan de corrido: primero los siete de ansiedad, luego los nueve de ánimo.
 
 **Por qué el PHQ-9 y no la HADS.** El texto de la HADS es propiedad de **GL Assessment** y
 reproducirlo en una web exige licencia: se llegó a implementar su puntuación con los catorce ítems
@@ -249,8 +268,17 @@ alerta ni se ofrece como tal.
 rompe la comparabilidad con los baremos publicados, que es la única razón para usar un instrumento
 validado. La pantalla lo explica en una línea para que no parezca un descuido.
 
-**Lo que se pierde con el cambio**: el PHQ-4 traía dos ítems de **ansiedad** (GAD-2) y el PHQ-9 no
-mide ansiedad. Si hiciera falta recuperarla, el acompañante libre y estándar es el **GAD-7**.
+**El GAD-7** (Spitzer et al., *Arch Intern Med* 2006; validado en español por García-Campayo 2010) es
+lo que devuelve la ansiedad que se perdió al retirar el PHQ-4, y con siete ítems en vez de dos. Total
+0-21, franjas 5/10/15 y **corte de decisión también en 10**. También de uso libre.
+
+**El ítem de interferencia se pregunta una sola vez**, al final de la tanda: lo traen igual los dos
+cuestionarios, no suma a ningún total, y repetirlo palabra por palabra solo cansaría.
+
+**El formulario de paciente ya son ~35 preguntas**, y eso tiene un coste: en jsdom cada `fireEvent`
+repinta el formulario entero y la suite se pasaba de los 5 s por defecto. Por eso `vite.config.js`
+fija `testTimeout: 20000`. En el navegador no pasa —se contesta una pregunta cada vez—, así que el
+lento es el test, no la web.
 
 **Al paciente NO se le reconoce autoría, y la hoja se lo dice.** Los textos ya están escritos y los
 firma quien responde de ellos; decir si se entienden es otra cosa. En su lugar se le ofrece lo que

@@ -131,9 +131,10 @@ export default function HojaInformacion({ estudio = {}, perfil = 'experto', valo
             {paciente ? (
               <li>
                 <b>Datos sobre tu salud:</b> fecha de nacimiento, sexo, situación laboral, cuánto tiempo llevas con dolor y con
-                qué frecuencia, en qué zonas, qué diagnósticos te han dado, cuánto te duele y cuánto te limita (las siete
-                preguntas de la <b>Escala de Gradación del Dolor Crónico</b>), cómo te has sentido de ánimo y de preocupación
-                (las nueve preguntas del <b>PHQ-9</b>, que es un cribado y no un diagnóstico), qué tratamientos has hecho, quién te
+                qué frecuencia, en qué zonas, qué diagnósticos te han dado, cuánto te duele y cuánto te limita (las ocho
+                preguntas de la <b>Escala de Gradación del Dolor Crónico</b>, en su versión española validada), cómo te has sentido de ánimo y de preocupación
+                (las siete preguntas del <b>GAD-7</b> y las nueve del <b>PHQ-9</b>, que son cribados y no diagnósticos), qué
+                tratamientos has hecho, quién te
                 lleva, si te habían explicado antes cómo funciona el dolor y tres preguntas sobre información escrita de salud.
                 Son <b>datos de categoría especial</b> (art. 9 RGPD) y por eso se te pide un consentimiento expreso, no basta con
                 el general. <b>Una de las nueve preguntas del PHQ-9 pregunta por ideas de muerte o de hacerte daño</b>: es parte
