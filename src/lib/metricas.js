@@ -123,7 +123,7 @@ export function dimension(puntuaciones, u) {
 // Resultado: { clase, por_dimension, bloqueado_por, paciente, n }
 //   clase ∈ valido | revisar | partido | bloqueado | insuficiente | pendiente
 
-export function concepto(valoraciones, dimensiones, u, ronda) {
+export function concepto(valoraciones, dimensiones, u, ronda, dimensionesPaciente) {
   const t = umbrales(u)
   const filas = valoraciones.filter((v) => v.completa && (ronda == null || v.ronda === ronda))
   const expertas = filas.filter((v) => v.perfil !== 'paciente' && !v.abstencion)
@@ -137,7 +137,7 @@ export function concepto(valoraciones, dimensiones, u, ronda) {
     .filter((v) => v.banderas && v.banderas.seguridad === true)
     .map((v) => v.panelista)
 
-  const pac = paciente(pacientes, t)
+  const pac = paciente(pacientes, t, dimensionesPaciente)
   const dims = Object.values(por_dimension)
   const n = expertas.length
 
@@ -152,18 +152,48 @@ export function concepto(valoraciones, dimensiones, u, ronda) {
   return { clase, por_dimension, bloqueado_por, paciente: pac, n, n_pacientes: pac.n }
 }
 
-// Panel de paciente: «se entiende» (sí = 1, casi = 0,5, no = 0) y vetos. No es una escala
-// de acuerdo y no se agrega con la del panel experto.
-export function paciente(filas, u) {
+// Panel de paciente. Las dimensiones de comprensibilidad se puntúan en la MISMA Likert
+// 1-4 de acuerdo que las expertas, así que se resumen con el mismo I-CVI y la misma V de
+// Aiken (`dimension()`); es como se validan los materiales educativos con pacientes en la
+// literatura (Cho et al. 2023, doi:10.1177/20543581221150676; ETHIC, Cocchi et al. 2023,
+// doi:10.3390/healthcare11081154), y los ítems replican los dominios de comprensibilidad
+// del PEMAT-P (Shoemaker, Wolf & Brach 2014, doi:10.1016/j.pec.2014.05.027).
+//
+// El efecto afectivo y los vetos NO entran en el CVI: son un veto categórico. Un solo
+// paciente que marque una bandera obliga a reescribir, puntúe como puntúe.
+//
+// `dimensiones` son las claves de las dimensiones con quien = 'paciente'. Si no se pasan,
+// se deducen de las puntuaciones presentes, para que la función siga valiendo con datos
+// exportados sin el catálogo al lado.
+export function paciente(filas, u, dimensiones) {
   const t = umbrales(u)
   const n = filas.length
-  const puntos = { si: 1, casi: 0.5, no: 0 }
-  const comprension = n ? filas.reduce((s, v) => s + (puntos[v.paciente?.comprension] ?? 0), 0) / n : null
+  const claves = dimensiones && dimensiones.length
+    ? dimensiones
+    : [...new Set(filas.flatMap((v) => Object.keys(v.puntuaciones || {})))]
+
+  const por_dimension = {}
+  for (const d of claves) {
+    por_dimension[d] = dimension(filas.map((v) => v.puntuaciones?.[d]).filter((x) => x != null), t)
+  }
+  const dims = Object.values(por_dimension)
   const peor = filas.filter((v) => v.paciente?.efecto === 'peor').length
   const vetos = filas.flatMap((v) => v.paciente?.vetos || [])
+
+  // `comprension` se conserva como resumen en [0,1] para las pantallas y el histórico:
+  // ahora es la proporción de acuerdo (puntuación ≥ 3) del ítem de comprensibilidad,
+  // o la media de los ítems si esa clave no está.
+  const principal = por_dimension.comprensibilidad
+  const comprension = principal && principal.n
+    ? principal.icvi
+    : (dims.filter((d) => d.n).length
+        ? dims.filter((d) => d.n).reduce((s, d) => s + d.icvi, 0) / dims.filter((d) => d.n).length
+        : null)
+
   return {
-    n, comprension, peor, vetos,
-    supera: n >= t.minimo_paciente && comprension >= t.paciente_comprension && vetos.length === 0,
+    n, por_dimension, comprension, peor, vetos,
+    supera: n >= t.minimo_paciente && vetos.length === 0
+      && dims.length > 0 && dims.every((d) => d.n > 0 && d.icvi >= t.paciente_comprension),
   }
 }
 

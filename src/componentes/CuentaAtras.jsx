@@ -35,7 +35,7 @@ export default function CuentaAtras({ plazo }) {
 }
 
 // Frase completa para la pantalla del bloque.
-export function AvisoPlazo({ plazo, pendientes }) {
+export function AvisoPlazo({ plazo, pendientes, cosa = 'conceptos' }) {
   const dias = diasRestantes(plazo)
   if (dias == null) return null
   const n = nivel(dias)
@@ -46,7 +46,7 @@ export function AvisoPlazo({ plazo, pendientes }) {
   if (dias <= 0) {
     return (
       <div className="plazo-caja peligro">
-        <p><b>Tu plazo terminó el {fin}.</b> {pendientes > 0 ? `Te quedaron ${pendientes} conceptos sin valorar.` : 'Terminaste tu bloque a tiempo.'} Si necesitas más tiempo, escribe a la dirección del estudio y te lo ampliamos.</p>
+        <p><b>Tu plazo terminó el {fin}.</b> {pendientes > 0 ? `Te quedaron ${pendientes} ${cosa} sin valorar.` : 'Terminaste tu bloque a tiempo.'} Si necesitas más tiempo, escribe a la dirección del estudio y te lo ampliamos.</p>
       </div>
     )
   }
@@ -59,7 +59,7 @@ export function AvisoPlazo({ plazo, pendientes }) {
       <div className="barra"><span style={{ transform: `scaleX(${transcurrido / 100})` }} /></div>
       <p className="silencio" style={{ margin: '0.4rem 0 0' }}>
         {pendientes > 0
-          ? `Te faltan ${pendientes} conceptos. Puedes repartirlos como quieras: todo se guarda solo.`
+          ? `Te faltan ${pendientes} ${cosa}. Puedes repartirlos como quieras: todo se guarda solo.`
           : 'Has terminado tu bloque: no recibirás más avisos.'}
       </p>
     </div>

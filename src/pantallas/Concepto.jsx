@@ -21,17 +21,19 @@ export const VETOS_PACIENTE = [
   ['miedo', 'Me asusta'],
   ['palabras', 'Hay palabras que no significan nada para mí'],
 ]
-const COMPRENSION = [['si', 'Se entiende a la primera'], ['casi', 'Casi: hay algo que se atraganta'], ['no', 'No se entiende']]
+// El efecto afectivo no es una escala de acuerdo y no entra en el CVI: es la red de
+// seguridad propia de la educación en dolor. La comprensibilidad sí va en Likert 1-4,
+// en las dimensiones `quien = 'paciente'` del estudio.
 const EFECTO = [['calma', 'Con más calma, y con algo que puedo hacer hoy'], ['igual', 'Igual que antes de leerlo'], ['peor', 'Con más preocupación que antes']]
 
-const VACIA = { puntuaciones: {}, abstencion: false, motivo_abstencion: '', banderas: {}, comentario: '', ajustes: [], paciente: { comprension: null, efecto: null, vetos: [] } }
+const VACIA = { puntuaciones: {}, abstencion: false, motivo_abstencion: '', banderas: {}, comentario: '', ajustes: [], paciente: { efecto: null, vetos: [] } }
 
 function desdeServidor(val) {
   if (!val) return { ...VACIA }
   return {
     puntuaciones: val.puntuaciones || {}, abstencion: !!val.abstencion, motivo_abstencion: val.motivo_abstencion || '',
     banderas: val.banderas || {}, comentario: val.comentario || '', ajustes: val.ajustes || [],
-    paciente: val.paciente || { comprension: null, efecto: null, vetos: [] },
+    paciente: val.paciente || { efecto: null, vetos: [] },
   }
 }
 
@@ -113,10 +115,11 @@ export default function Concepto({ sesion, conceptoId }) {
     return g && g.mediana != null && mio && Math.abs(Number(mio) - Number(g.mediana)) >= 2
   })
   const puntuadoTodo = paciente
-    ? !!(v.paciente?.comprension && v.paciente?.efecto)
+    ? dims.every((d) => v.puntuaciones[d.clave]) && !!v.paciente?.efecto
     : dims.every((d) => v.puntuaciones[d.clave])
   const hayAjuste = (v.ajustes || []).some((a) => a.parte || a.motivo || a.redaccion) || (v.comentario || '').trim().length > 0
-  const listo = v.abstencion || (puntuadoTodo && (!(necesitaAjuste || apartado) || hayAjuste))
+  // Al paciente no se le pide justificar un 1-2: se le pregunta, pero nunca se le bloquea.
+  const listo = v.abstencion || (puntuadoTodo && (paciente || !(necesitaAjuste || apartado) || hayAjuste))
 
   const avanzar = async () => {
     clearTimeout(temporizador.current)
@@ -156,19 +159,22 @@ export default function Concepto({ sesion, conceptoId }) {
 
   // ---------------------------------------------------------------- paciente
   if (paciente) {
-    const p = v.paciente || { comprension: null, efecto: null, vetos: [] }
+    const p = v.paciente || { efecto: null, vetos: [] }
     const ponerPaciente = (parche) => cambiar((prev) => ({ paciente: { ...(prev.paciente || {}), ...parche } }))
     return (
       <main className="pantalla">
         <Progreso hechas={hechasAntes} total={items.length} texto={`${posicion + 1} de ${items.length}`} />
         <Lectura concepto={c} nombres={bloque.nombres} paciente />
         <div className="tarjeta blanca">
-          <div className="dimension">
-            <div className="nombre">¿Se entiende?</div>
-            <div className="likert" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }} role="radiogroup" aria-label="¿Se entiende?">
-              {COMPRENSION.map(([k, t]) => <button key={k} type="button" role="radio" aria-checked={p.comprension === k} aria-pressed={p.comprension === k} className={k === 'no' ? 'bajo' : ''} onClick={() => ponerPaciente({ comprension: k })}><span className="txt" style={{ fontSize: '0.9rem' }}>{t}</span></button>)}
+          {dims.map((d) => (
+            <div className="dimension" key={d.clave}>
+              <div className="nombre">{d.nombre}</div>
+              <p className="afirmacion">{d.afirmacion}</p>
+              {d.ayuda && <p className="ayuda">{d.ayuda}</p>}
+              <Likert nombre={d.nombre} valor={v.puntuaciones[d.clave] ?? null}
+                onCambio={(n) => cambiar((prev) => ({ puntuaciones: { ...prev.puntuaciones, [d.clave]: n } }))} />
             </div>
-          </div>
+          ))}
           <div className="dimension">
             <div className="nombre">¿Cómo te deja?</div>
             <div className="likert" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }} role="radiogroup" aria-label="¿Cómo te deja?">

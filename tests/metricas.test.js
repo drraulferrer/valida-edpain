@@ -4,7 +4,8 @@ import {
   paciente, scvi, tasaValidez, umbralIcvi, estable,
 } from '../src/lib/metricas.js'
 
-const DIMS = ['relevancia', 'claridad', 'representatividad', 'comprensibilidad']
+const DIMS = ['relevancia', 'claridad', 'representatividad']
+const DIMS_PAC = ['comprensibilidad', 'palabras', 'orden']
 
 function fila(puntuaciones, extra = {}) {
   return { panelista: 'PAN-01', perfil: 'experto', ronda: 1, completa: true, abstencion: false,
@@ -110,9 +111,17 @@ describe('clasificación de un concepto', () => {
   })
   it('el panel de paciente manda en comprensibilidad cuando hay ≥ 3', () => {
     const filas = Array.from({ length: 6 }, (_, i) => todas(4, { panelista: `PAN-0${i}` }))
-    const pac = (c, n) => fila({}, { panelista: `PAC-0${n}`, perfil: 'paciente', paciente: { comprension: c, efecto: 'igual', vetos: [] } })
-    expect(concepto([...filas, pac('si', 1), pac('si', 2), pac('si', 3)], DIMS).clase).toBe('valido')
-    expect(concepto([...filas, pac('no', 1), pac('no', 2), pac('casi', 3)], DIMS).clase).toBe('revisar')
+    // El paciente puntúa sus dimensiones en la misma Likert 1-4 que el experto.
+    const pac = (v, n) => fila(Object.fromEntries(DIMS_PAC.map((d) => [d, v])),
+      { panelista: `PAC-0${n}`, perfil: 'paciente', paciente: { efecto: 'igual', vetos: [] } })
+    expect(concepto([...filas, pac(4, 1), pac(4, 2), pac(3, 3)], DIMS, null, null, DIMS_PAC).clase).toBe('valido')
+    expect(concepto([...filas, pac(1, 1), pac(2, 2), pac(2, 3)], DIMS, null, null, DIMS_PAC).clase).toBe('revisar')
+  })
+  it('con menos pacientes que el mínimo, el panel experto decide solo', () => {
+    const filas = Array.from({ length: 6 }, (_, i) => todas(4, { panelista: `PAN-0${i}` }))
+    const pac = fila(Object.fromEntries(DIMS_PAC.map((d) => [d, 1])),
+      { panelista: 'PAC-01', perfil: 'paciente', paciente: { efecto: 'igual', vetos: [] } })
+    expect(concepto([...filas, pac], DIMS, null, null, DIMS_PAC).clase).toBe('valido')
   })
   it('solo cuenta la ronda pedida', () => {
     const r1 = Array.from({ length: 6 }, (_, i) => todas(2, { panelista: `PAN-0${i}`, ronda: 1 }))
@@ -123,15 +132,40 @@ describe('clasificación de un concepto', () => {
 })
 
 describe('paciente', () => {
-  it('un veto basta', () => {
-    const filas = [
-      { paciente: { comprension: 'si', efecto: 'calma', vetos: [] } },
-      { paciente: { comprension: 'si', efecto: 'calma', vetos: ['culpa'] } },
-      { paciente: { comprension: 'si', efecto: 'calma', vetos: [] } },
-    ]
-    const p = paciente(filas)
+  const pac = (v, vetos = []) => ({ puntuaciones: Object.fromEntries(DIMS_PAC.map((d) => [d, v])),
+                                    paciente: { efecto: 'calma', vetos } })
+
+  it('resume cada ítem con I-CVI y V de Aiken, igual que el panel experto', () => {
+    const p = paciente([pac(4), pac(4), pac(3)], null, DIMS_PAC)
+    expect(p.n).toBe(3)
+    expect(p.por_dimension.comprensibilidad.icvi).toBe(1)
+    expect(p.por_dimension.palabras.V).toBeGreaterThan(0.8)
     expect(p.comprension).toBe(1)
+    expect(p.supera).toBe(true)
+  })
+
+  it('un veto basta para no superar, por alto que sea el acuerdo', () => {
+    const p = paciente([pac(4), pac(4, ['culpa']), pac(4)], null, DIMS_PAC)
+    expect(p.comprension).toBe(1)
+    expect(p.vetos).toEqual(['culpa'])
     expect(p.supera).toBe(false)
+  })
+
+  it('basta con que un ítem no llegue al umbral', () => {
+    const filas = [
+      { puntuaciones: { comprensibilidad: 4, palabras: 1, orden: 4 }, paciente: { efecto: 'calma', vetos: [] } },
+      { puntuaciones: { comprensibilidad: 4, palabras: 1, orden: 4 }, paciente: { efecto: 'calma', vetos: [] } },
+      { puntuaciones: { comprensibilidad: 4, palabras: 2, orden: 4 }, paciente: { efecto: 'calma', vetos: [] } },
+    ]
+    const p = paciente(filas, null, DIMS_PAC)
+    expect(p.por_dimension.comprensibilidad.icvi).toBe(1)
+    expect(p.por_dimension.palabras.icvi).toBe(0)
+    expect(p.supera).toBe(false)
+  })
+
+  it('deduce las dimensiones de las puntuaciones si no se le pasan', () => {
+    const p = paciente([pac(4), pac(4), pac(4)])
+    expect(Object.keys(p.por_dimension).sort()).toEqual([...DIMS_PAC].sort())
   })
 })
 

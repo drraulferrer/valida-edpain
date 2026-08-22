@@ -1,6 +1,6 @@
 # ARRANQUE DE SESIÓN — valida.edpain.com
 
-> Léelo entero antes de tocar nada. Última actualización: **22-ago-2026** (sesión de construcción).
+> Léelo entero antes de tocar nada. Última actualización: **22-ago-2026** (sesión 3: Resend, panel de paciente).
 
 ## 1 · Qué es
 
@@ -19,11 +19,18 @@ aleatorios permanentes; decisión del 22-ago justificada en la spec §3.8), `con
 
 ## 2 · Decisiones cerradas
 
-- **Instrumento** (decisión del 22-ago): el panel experto puntúa **3 dimensiones** en Likert 1-4 sin
-  punto medio —relevancia · claridad · representatividad— y la **comprensibilidad la juzga solo el
-  panel de paciente** con su instrumento. Todo en `valida.dimensiones` (datos, no código; la fila
-  `comprensibilidad` tiene `quien = 'paciente'`). Representatividad absorbe corrección + evidencia
-  del instrumento antiguo.
+- **Instrumento** (decisión del 22-ago, revisada esa misma noche): el panel experto puntúa
+  **3 dimensiones** en Likert 1-4 sin punto medio —relevancia · claridad · representatividad— y la
+  **comprensibilidad la juzga solo el panel de paciente**, ahora también en **Likert 1-4 de acuerdo**
+  y con **tres ítems**: `comprensibilidad` («se entiende»), `palabras` (vocabulario) y `orden`
+  (organización). Todo en `valida.dimensiones` (datos, no código; las tres filas tienen
+  `quien = 'paciente'`). Representatividad absorbe corrección + evidencia del instrumento antiguo.
+  Base de los tres ítems y de la escala, en el comentario largo del `insert` al final de
+  `supabase/schema.sql`: dominios de *understandability* del **PEMAT-P** (Shoemaker, Wolf & Brach
+  2014) y validación con panel de pacientes en Likert de 4 puntos + CVI (Cho et al. 2023; ETHIC,
+  Cocchi et al. 2023), sobre la escala de 4 puntos sin punto medio de Lynn / Polit & Beck que ya
+  usaba el panel experto. **El efecto afectivo («cómo te deja») y las banderas de veto NO son
+  dimensiones**: no entran en el CVI, son la red de seguridad (un solo veto obliga a reescribir).
 - **Exhaustividad** se pregunta por módulo (`valida.cobertura`), no por concepto.
 - **Métrica de decisión**: I-CVI (Lynn; 1,00 con n ≤ 5, 0,78 con n ≥ 6) + kappa*. **Comparabilidad**:
   V de Aiken con IC 95 % ≥ 0,70 (como `consenso_metricas.py` y Di-Bonaventura 2026). Las dos en
@@ -45,6 +52,8 @@ aleatorios permanentes; decisión del 22-ago justificada en la spec §3.8), `con
 | Clave de la **dirección editorial** (código `DIR-00`) | Llavero de macOS: `security find-generic-password -s valida-edpain-direccion -w` |
 | Clave del **panelista de prueba** `PRU-01` (experto, D01+D02, capacidad 40) | Llavero: `security find-generic-password -s valida-edpain-prueba -w` |
 | Clave anon de Supabase (pública por diseño) | `.env` (gitignored) → `VITE_SUPABASE_ANON_KEY`; también `supabase projects api-keys --project-ref mmwytewpfnckymjxldye` |
+| **API key de Resend** (envío de avisos) | Llavero: `security find-generic-password -s valida-edpain-resend -w` · permiso «Sending access», limitada a edpain.com |
+| Remitente de los avisos (opcional) | Llavero: `valida-edpain-remitente`; por defecto `Estudio EdPain <estudio@edpain.com>` |
 | SQL contra la base | `supabase db query --linked --project-ref mmwytewpfnckymjxldye "select …"` (o `-f fichero.sql`) |
 
 Si una clave de panelista se pierde: panel de dirección → Panelistas → «Nueva clave» (la anterior deja
@@ -147,11 +156,10 @@ update valida.panelistas set activo = false where codigo = 'PRU-01';
   faltan. Se calculan al vuelo (`valida_dir_avisos`) y **solo salen si quedan pendientes**: quien termina su
   bloque deja de recibirlos sin que nadie los cancele. `valida_dir_marcar_avisos` evita repetirlos; ampliar
   el plazo los reinicia.
-- **Envío**: `pipeline/avisos.py` (`--simular` para ver a quién y con qué texto). Con un SMTP en el Llavero
-  (`valida-edpain-smtp` = `servidor|puerto|usuario|clave|remitente`) los manda y los marca, y se puede poner
-  en cron. **Sin SMTP configurado no hay envío automático**: el panel los prepara uno a uno con «Preparar
-  correo». Para tenerlo del todo automático hace falta una cuenta en Resend (u otro proveedor), verificar
-  edpain.com y guardar la API key; Cloudflare Email Routing solo recibe.
+- **Envío**: `pipeline/avisos.py` (`--simular` para ver a quién y con qué texto; `--probar-envio CORREO`
+  para mandar uno de prueba sin tocar la base). **Ya está montado sobre Resend** (ver §5f): coge la API key
+  del Llavero, manda por la API HTTP y marca los avisos para que no se repitan. Si algún día se cambia de
+  proveedor, sigue aceptando un SMTP en `valida-edpain-smtp` = `servidor|puerto|usuario|clave|remitente`.
 
 ## 5e · Control de reintentos en la convocatoria (22-ago, noche)
 
@@ -168,6 +176,40 @@ correo, disciplina y el salto de puntuación entre los dos envíos («pasó de 0
 caso honrado: quien se equivocó al marcar una casilla aparece ahí y se le puede dar de alta a mano desde
 Panelistas. También queda el recuento en Estudio.
 El código de pruebas queda exento (si no, no se podría ensayar el circuito).
+
+## 5f · Correo saliente con Resend (22-ago, sesión 3)
+
+Los avisos ya se pueden mandar solos. Montaje:
+
+- **Dominio `edpain.com` verificado en Resend**, región **Ireland (eu-west-1)** —el estudio es RGPD, así
+  que el envío no sale de la UE—. Cuenta `doctorraulferrer@gmail.com`.
+- **DNS en Cloudflare** (importados de una vez con «Importar» y un fichero de zona BIND, que es mucho más
+  fiable que el formulario de «Agregar registro»):
+
+  | Tipo | Nombre | Contenido |
+  |---|---|---|
+  | TXT | `resend._domainkey` | clave pública DKIM (RSA 1024) |
+  | MX 10 | `send` | `feedback-smtp.eu-west-1.amazonses.com` |
+  | TXT | `send` | `v=spf1 include:amazonses.com ~all` |
+  | TXT | `_dmarc` | `v=DMARC1; p=none;` |
+
+- **Los MX de la raíz NO se tocan.** Resend pone sus registros bajo `send.edpain.com`, así que Cloudflare
+  Email Routing sigue recibiendo en `estudio@edpain.com` y las respuestas de los panelistas llegan igual.
+  Comprobado con `dig +short MX edpain.com` (siguen los `route*.mx.cloudflare.net`).
+- **API key** `valida-edpain-avisos`, permiso **«Sending access»** y limitada a **edpain.com** (no puede
+  gestionar dominios ni crear otras claves). Vive en el Llavero como `valida-edpain-resend`, nunca en el repo.
+- **Sin seguimiento de aperturas ni de clics**: no hay subdominio de tracking (`links.edpain.com` no existe)
+  y los avisos se mandan en **texto plano**, así que no hay reescritura de enlaces ni píxel de apertura.
+  Es deliberado: rastrear quién abre sería tratamiento de datos personales no declarado en la hoja de
+  información.
+- **Comprobar que la clave sigue viva sin mandar nada**: un `POST /emails` con un remitente ajeno responde
+  `422` (validación) si la clave es buena y `401` si no lo es.
+
+```bash
+python3 pipeline/avisos.py --simular                      # a quién y con qué texto
+python3 pipeline/avisos.py --probar-envio tu@correo.com   # un correo de prueba, sin tocar la base
+python3 pipeline/avisos.py                                # envía de verdad y marca
+```
 
 ## 6 · Gotchas encontrados construyéndolo (22-ago)
 
@@ -192,6 +234,19 @@ El código de pruebas queda exento (si no, no se podría ensayar el circuito).
 - **El número de `controversia: true` es 70, no 120**: contar con `grep` sobre todo el repo incluye
   las copias de `propuestas/`. Contar solo `conceptos/`.
 - El corpus tarda ~26 s en cargar y validar (`kb.cargar_todo`); `importar.py` lo paga cada vez.
+- **`valida_dir_estudio` tenía una línea copiada de `valida_dir_panelista`** (`plazo_dias_propio`, que es
+  columna de `panelistas`, no de `estudios`): «Guardar configuración» fallaba SIEMPRE con
+  `column "plazo_dias_propio" does not exist`. plpgsql no valida el cuerpo al crear la función, así que
+  el error solo aparece al ejecutarla. Arreglado. En el mismo repaso: `codigo_pruebas` estaba en el
+  formulario pero la función nunca lo escribía (se guardaba en silencio sin guardarse).
+- **«Asignar pacientes» no estaba roto: no había a quién asignar.** Con 0 panelistas de perfil paciente
+  devolvía `asignadas: 0` y un mensaje neutro, que se lee como «el botón no hace nada». Ahora la RPC
+  devuelve también `panelistas_activos` y `capacidad_libre`, y la pantalla distingue los tres casos
+  (nadie de alta · todos a tope de capacidad · asignado bien).
+- **Los formularios del panel de Cloudflare y de Resend se resisten a la automatización**: los `<select>`
+  son listboxes de Radix que ignoran los clics sintéticos y el `Esc` cierra el diálogo entero. Para DNS,
+  usar «Importar» con un fichero de zona BIND; para los desplegables, clic real por coordenadas y
+  comprobar el estado leyendo `[role=combobox]` antes de enviar.
 
 ## 7 · Pendientes (ordenados)
 
@@ -213,6 +268,25 @@ El código de pruebas queda exento (si no, no se podría ensayar el circuito).
    sola; ejecutar después `Asignar expertos` en Cobertura para rellenar jueces de los conceptos nuevos.
 
 ## 8 · Dónde lo dejamos
+
+### Sesión 3 (22-ago-2026, noche) · Resend, panel de paciente y dos bugs
+
+- **Resend en marcha** (§5f): dominio verificado, DNS en Cloudflare, API key acotada en el Llavero y
+  `pipeline/avisos.py` reescrito para mandar por la API HTTP de Resend (el SMTP sigue como alternativa).
+- **Dos bugs reales del panel de dirección**: la línea `plazo_dias_propio` que rompía «Guardar
+  configuración» y el `codigo_pruebas` que no se guardaba (§6).
+- **«Asignar pacientes»**: no había ningún panelista de perfil paciente dado de alta en la base real, así
+  que el botón asignaba 0 sin explicar nada. Ahora lo dice y remite al alta.
+- **Panel de paciente**: ve **solo** el texto llano. Se le retiró el título del concepto (que es la
+  afirmación técnica del corpus) de la pantalla del concepto, de la lista del bloque y del propio JSON que
+  manda el servidor (`concepto_json` y `valida_bloque`), para no anclar el juicio de comprensibilidad al
+  lenguaje profesional que precisamente se está poniendo a prueba. En su bloque los textos se numeran
+  («Texto 1»), sin código de concepto.
+- **Comprensibilidad en Likert 1-4** y en tres ítems (PEMAT-P), con I-CVI y V de Aiken calculados por el
+  mismo código que las dimensiones expertas. `metricas.paciente()` ya no puntúa `sí/casi/no`.
+- 80 tests en verde, build limpio, sin secretos en el bundle.
+
+
 
 ### Sesión 2 (22-ago-2026, tarde) · decisiones y calibración
 

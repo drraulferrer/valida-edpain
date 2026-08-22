@@ -10,11 +10,13 @@ export default function Lectura({ concepto: c, nombres = {}, completo = false, p
   const mod = nombres[c.modulo] || c.modulo
   const mapas = mapasDe(c)
 
+  // El panel de paciente ve SOLO el texto escrito para él. Ni el título (que es la
+  // afirmación técnica del corpus) ni el texto profesional: leerlos antes anclaría el
+  // juicio de comprensibilidad al lenguaje que precisamente se está poniendo a prueba.
   if (paciente) {
     return (
       <article>
         <div className="miga"><span>{dom}</span><span className="sep">·</span><span>{mod}</span></div>
-        <h1 className="titulo-concepto">{c.titulo}</h1>
         <Texto md={c.explicacion_paciente} />
       </article>
     )

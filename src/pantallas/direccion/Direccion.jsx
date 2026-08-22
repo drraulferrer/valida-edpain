@@ -24,13 +24,13 @@ const PESTANAS = [
   ['estudio', 'Estudio', Estudio],
 ]
 
-function clasificar(datos, dimsExpertas) {
+function clasificar(datos, dimsExpertas, dimsPaciente) {
   if (!datos) return new Map()
   const { estudio, conceptos, valoraciones } = datos
   const porConcepto = agrupar(valoraciones, (v) => v.concepto_id)
   return new Map((conceptos || []).map((c) => [
     c.id,
-    metricas.concepto(porConcepto.get(c.id) || [], dimsExpertas, estudio.umbrales, estudio.ronda_actual),
+    metricas.concepto(porConcepto.get(c.id) || [], dimsExpertas, estudio.umbrales, estudio.ronda_actual, dimsPaciente),
   ]))
 }
 
@@ -87,7 +87,11 @@ export default function Direccion({ ruta }) {
     () => (datos?.estudio?.dimensiones || []).filter((d) => d.quien !== 'paciente').map((d) => d.clave),
     [datos],
   )
-  const clases = useMemo(() => clasificar(datos, dimsExpertas), [datos, dimsExpertas])
+  const dimsPaciente = useMemo(
+    () => (datos?.estudio?.dimensiones || []).filter((d) => d.quien === 'paciente').map((d) => d.clave),
+    [datos],
+  )
+  const clases = useMemo(() => clasificar(datos, dimsExpertas, dimsPaciente), [datos, dimsExpertas, dimsPaciente])
   const nombres = useMemo(
     () => Object.fromEntries(Object.entries(datos?.catalogo || {}).map(([k, v]) => [k, v.nombre])),
     [datos],

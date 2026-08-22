@@ -21,9 +21,17 @@ const DIMENSIONES = [
   { clave: 'representatividad', orden: 3, nombre: 'Representatividad', quien: 'experto', sobre_texto: ['explicacion_profesional', 'referencias', 'certeza'],
     afirmacion: 'El contenido refleja fielmente la evidencia disponible y el conocimiento actual, de acuerdo con el nivel de certeza indicado.',
     ayuda: 'La exigencia dependerá del tipo de afirmación que se esté evaluando.' },
-  { clave: 'comprensibilidad', orden: 4, nombre: 'Comprensibilidad', quien: 'paciente', sobre_texto: ['explicacion_paciente'],
-    afirmacion: 'La explicación dirigida a pacientes se entiende sin conocimientos previos y mantiene el mismo significado que el texto profesional.',
-    ayuda: 'Esta dimensión solo la evaluará el panel de personas con dolor.' },
+  // Comprensibilidad: tres ítems en la misma Likert 1-4, uno por dominio de
+  // comprensibilidad del PEMAT-P. Mismo texto que el seed de supabase/schema.sql.
+  { clave: 'comprensibilidad', orden: 4, nombre: 'Se entiende', quien: 'paciente', sobre_texto: ['explicacion_paciente'],
+    afirmacion: 'He entendido qué me quiere decir este texto la primera vez que lo he leído.',
+    ayuda: 'No preguntamos si estás de acuerdo con lo que dice, ni si es verdad: eso lo miran otros. Solo si se entiende.' },
+  { clave: 'palabras', orden: 5, nombre: 'Las palabras', quien: 'paciente', sobre_texto: ['explicacion_paciente'],
+    afirmacion: 'Las palabras que usa son palabras que entiendo sin que nadie me las explique.',
+    ayuda: 'Si hay algún término que te deja fuera, aunque lo demás se entienda, baja la puntuación y escríbelo abajo.' },
+  { clave: 'orden', orden: 6, nombre: 'El orden', quien: 'paciente', sobre_texto: ['explicacion_paciente'],
+    afirmacion: 'Está ordenado de forma que he podido seguirlo de principio a fin sin perderme.',
+    ayuda: 'Piensa en si una frase lleva a la siguiente, o si has tenido que volver atrás para entenderlo.' },
 ]
 
 const CATALOGO = {
@@ -163,7 +171,7 @@ export function crearDemo() {
   }
   const direccion = (clave) => { const p = quien(clave); if (p.perfil !== 'direccion') { const e = new Error('Solo la dirección editorial.'); e.codigo = '42501'; throw e } return p }
   const recorte = (c, perfil) => perfil === 'paciente'
-    ? { id: c.id, dominio: c.dominio, modulo: c.modulo, titulo: c.titulo, explicacion_paciente: c.explicacion_paciente, hash: c.hash }
+    ? { id: c.id, dominio: c.dominio, modulo: c.modulo, explicacion_paciente: c.explicacion_paciente, hash: c.hash }
     : { ...c }
   const nombres = Object.fromEntries(Object.entries(CATALOGO).map(([k, v]) => [k, v.nombre]))
   const codigoDe = (id) => panelistas.find((p) => p.id === id)?.codigo
@@ -244,7 +252,7 @@ export function crearDemo() {
       const items = asignaciones.filter((a) => a.panelista_id === p.id && a.ronda === ronda_actual).sort((a, b) => a.orden - b.orden).map((a) => {
         const c = conceptos.find((x) => x.id === a.concepto_id)
         const v = valoraciones.find((x) => x.panelista_id === p.id && x.concepto_id === a.concepto_id && x.ronda === ronda_actual)
-        return { id: c.id, dominio: c.dominio, modulo: c.modulo, titulo: c.titulo, orden: a.orden, estado: a.estado, completa: !!v?.completa, abstencion: !!v?.abstencion, cambiado: false }
+        return { id: c.id, dominio: c.dominio, modulo: c.modulo, titulo: p.perfil === 'paciente' ? null : c.titulo, orden: a.orden, estado: a.estado, completa: !!v?.completa, abstencion: !!v?.abstencion, cambiado: false }
       })
       return clon({ ronda: ronda_actual, items, nombres, cobertura: cobertura.filter((x) => x.panelista_id === p.id && x.ronda === ronda_actual), plazo: plazoDe(p.id) })
     },
@@ -276,7 +284,7 @@ export function crearDemo() {
       for (const v of Object.values(punt)) if (![1, 2, 3, 4].includes(Number(v))) { const e = new Error('Puntuación fuera de rango.'); e.codigo = '22023'; throw e }
       const abst = !!datos.abstencion
       let completa
-      if (p.perfil === 'paciente') completa = abst || (!!datos.paciente?.comprension && !!datos.paciente?.efecto)
+      if (p.perfil === 'paciente') completa = abst || (DIMENSIONES.filter((d) => d.quien === 'paciente').every((d) => punt[d.clave] != null) && !!datos.paciente?.efecto)
       else completa = abst || DIMENSIONES.filter((d) => d.quien !== 'paciente').every((d) => punt[d.clave] != null)
       if (completa && !abst && p.perfil !== 'paciente' && Object.values(punt).some((x) => x <= 2) && !(datos.ajustes || []).length && !datos.comentario) completa = false
       let v = valoraciones.find((x) => x.panelista_id === p.id && x.concepto_id === concepto_id && x.ronda === ronda_actual)
@@ -422,7 +430,9 @@ export function crearDemo() {
           .filter((x) => x.carga < (x.p.capacidad || 80)).sort((a, b) => (b.competente - a.competente) || (a.carga - b.carga))
         for (const cand of candidatos) { if (faltan <= 0) break; asignaciones.push({ panelista_id: cand.p.id, concepto_id: c.id, ronda: ronda_actual, orden: asignaciones.filter((a) => a.panelista_id === cand.p.id).length + 1, estado: 'pendiente' }); abrirPlazo(cand.p.id); faltan -= 1; nuevas += 1 }
       }
-      return { asignadas: nuevas, ronda: ronda_actual, sin_jueces_suficientes: 0 }
+      const activos = panelistas.filter((p) => p.perfil === perfil_objetivo && p.activo)
+      const libre = activos.reduce((t, p) => t + Math.max(0, (p.capacidad || 80) - asignaciones.filter((a) => a.panelista_id === p.id && a.ronda === ronda_actual).length), 0)
+      return { asignadas: nuevas, ronda: ronda_actual, sin_jueces_suficientes: 0, panelistas_activos: activos.length, capacidad_libre: libre }
     },
     valida_dir_ronda({ clave, conceptos: ids }) {
       direccion(clave)

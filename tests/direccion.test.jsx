@@ -130,6 +130,27 @@ describe('Panel de dirección', () => {
     expect(screen.getByText('V de Aiken mínima por n jueces')).toBeTruthy()
     expect(screen.getByText('0.932')).toBeTruthy()
   })
+
+  // El fallo que motivó el arreglo: sin pacientes dados de alta, «Asignar pacientes»
+  // devolvía 0 y no decía nada, así que parecía que el botón estaba roto.
+  it('«Asignar pacientes» sin pacientes de alta explica qué falta hacer', async () => {
+    const estado = cofre.demo._estado
+    for (const p of estado.panelistas.filter((x) => x.perfil === 'paciente')) p.activo = false
+    render(<Direccion ruta={ruta('cobertura')} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Asignar pacientes' }))
+    const aviso = await screen.findByRole('alert')
+    expect(aviso.textContent).toContain('No hay ningún panelista con perfil «paciente» activo')
+    expect(aviso.textContent).toContain('Alta de panelista')
+    for (const p of estado.panelistas.filter((x) => x.perfil === 'paciente')) p.activo = true
+  })
+
+  it('«Asignar pacientes» con pacientes activos dice a cuántos ha repartido', async () => {
+    render(<Direccion ruta={ruta('cobertura')} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Asignar pacientes' }))
+    const ok = await screen.findByRole('status')
+    expect(ok.textContent).toMatch(/valoraciones nuevas de paciente/)
+    expect(ok.textContent).toMatch(/1 pacientes activos/)
+  })
 })
 
 describe('aCsv', () => {

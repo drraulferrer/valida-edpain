@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react'
 import { crearDemo, CLAVES_DEMO } from '../src/lib/demo.js'
+
+// El título del primer concepto de la demo: el paciente NO debe verlo en ninguna parte.
+const DEMO_TITULO_TECNICO = 'El dolor es una experiencia, no una medida del daño en los tejidos'
 
 // La api real se sustituye por el backend de demostración en memoria: mismas funciones,
 // mismos errores, sin red. Cada test arranca con una demo nueva.
@@ -178,17 +181,41 @@ describe('flujo del paciente', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Guardar y seguir' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Empezar' }))
     fireEvent.click(await screen.findByRole('link', { name: 'Empezar' }))
-    expect(await screen.findByRole('radiogroup', { name: '¿Se entiende?' })).toBeTruthy()
+    // Las tres dimensiones de comprensibilidad, en la misma Likert 1-4 que el experto.
+    expect(await screen.findByRole('radiogroup', { name: 'Se entiende' })).toBeTruthy()
+    expect(screen.getByRole('radiogroup', { name: 'Las palabras' })).toBeTruthy()
+    expect(screen.getByRole('radiogroup', { name: 'El orden' })).toBeTruthy()
+    // Y NADA del material profesional: ni el texto, ni el título (que es la afirmación técnica).
     expect(screen.queryByText('Explicación profesional')).toBeNull()
-    fireEvent.click(screen.getByRole('radio', { name: 'Se entiende a la primera' }))
+    expect(screen.queryByText(DEMO_TITULO_TECNICO)).toBeNull()
+    for (const dim of ['Se entiende', 'Las palabras', 'El orden']) {
+      fireEvent.click(within(screen.getByRole('radiogroup', { name: dim })).getByRole('radio', { name: /Totalmente de acuerdo/ }))
+    }
     fireEvent.click(screen.getByRole('radio', { name: 'Igual que antes de leerlo' }))
     fireEvent.click(screen.getByLabelText('Suena a que la culpa es mía'))
     fireEvent.click(await screen.findByRole('button', { name: 'Guardar y siguiente' }))
     await waitFor(() => {
       const v = demo._estado.valoraciones.find((x) => x.panelista_id === 2)
       expect(v?.completa).toBe(true)
-      expect(v.paciente).toEqual({ comprension: 'si', efecto: 'igual', vetos: ['culpa'] })
+      expect(v.puntuaciones).toEqual({ comprensibilidad: 4, palabras: 4, orden: 4 })
+      expect(v.paciente).toEqual({ efecto: 'igual', vetos: ['culpa'] })
     })
+  })
+
+  it('no puede cerrar el texto sin puntuar las tres dimensiones', async () => {
+    await entrarComo(CLAVES_DEMO.paciente)
+    expect(await screen.findByText('Unos datos sobre ti')).toBeTruthy()
+    rellenarIdentidad('paciente2@ejemplo.org')
+    fireEvent.change(screen.getByLabelText('Edad'), { target: { value: '45-59' } })
+    fireEvent.change(screen.getByLabelText('Años que llevas con dolor'), { target: { value: '7' } })
+    fireEvent.click(screen.getByLabelText(/He leído la información, he podido preguntar/))
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar y seguir' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Empezar' }))
+    fireEvent.click(await screen.findByRole('link', { name: 'Empezar' }))
+    const seEntiende = await screen.findByRole('radiogroup', { name: 'Se entiende' })
+    fireEvent.click(within(seEntiende).getByRole('radio', { name: /Totalmente de acuerdo/ }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Igual que antes de leerlo' }))
+    expect(screen.getByRole('button', { name: 'Guardar y siguiente' }).disabled).toBe(true)
   })
 })
 

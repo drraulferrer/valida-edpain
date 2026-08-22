@@ -2,11 +2,12 @@ import { useState } from 'react'
 import * as api from '../../lib/api.js'
 import Lectura from '../../componentes/Lectura.jsx'
 import { Histograma } from '../../componentes/Likert.jsx'
-import { Sem, Vacio, fecha, histogramaDe, n2, pct } from './comun.jsx'
+import { Sem, Vacio, fecha, histogramaDe, n2 } from './comun.jsx'
 
 // Expediente de un concepto: métricas por dimensión, todas las valoraciones y, a petición,
 // el texto completo (dirección sí puede leerlo entero).
 export default function ConsensoDetalle({ concepto: c, clasif: k, valoraciones, dimensiones, dimsExpertas, nombres, clave, onCerrar }) {
+  const dimsPaciente = (dimensiones || []).filter((d) => d.quien === 'paciente').map((d) => d.clave)
   const [texto, setTexto] = useState(null)
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState('')
@@ -58,12 +59,15 @@ export default function ConsensoDetalle({ concepto: c, clasif: k, valoraciones, 
           {dimsExpertas.map((d) => <Dimension key={d} nombre={nombreDim[d] || d} d={k?.por_dimension?.[d]} />)}
           <h3 style={{ marginTop: '1rem' }}>Panel de paciente</h3>
           {k?.paciente?.n ? (
-            <div className="cuadricula-celdas">
-              <div className="celda"><b>{k.paciente.n}</b>n</div>
-              <div className="celda"><b>{pct(k.paciente.comprension)}</b>se entiende</div>
-              <div className="celda"><b>{k.paciente.peor}</b>«me deja peor»</div>
-              <div className="celda"><b>{k.paciente.vetos.length}</b>vetos</div>
-            </div>
+            <>
+              {dimsPaciente.map((d) => <Dimension key={d} nombre={nombreDim[d] || d} d={k.paciente.por_dimension?.[d]} />)}
+              <div className="cuadricula-celdas">
+                <div className="celda"><b>{k.paciente.n}</b>n</div>
+                <div className="celda"><b>{k.paciente.peor}</b>«me deja peor»</div>
+                <div className="celda"><b>{k.paciente.vetos.length}</b>vetos</div>
+              </div>
+              {k.paciente.vetos.length > 0 && <p className="aviso-caja">Un veto de paciente obliga a reescribir el texto llano, puntúe como puntúe el resto del panel.</p>}
+            </>
           ) : <Vacio>Sin respuestas de pacientes en esta ronda.</Vacio>}
         </div>
         <div>
@@ -74,7 +78,7 @@ export default function ConsensoDetalle({ concepto: c, clasif: k, valoraciones, 
           {pacientes.length > 0 && (
             <>
               <h3 style={{ marginTop: '1rem' }}>Respuestas de pacientes ({pacientes.length})</h3>
-              {pacientes.map((v) => <RespuestaPaciente key={v.id} v={v} />)}
+              {pacientes.map((v) => <RespuestaPaciente key={v.id} v={v} dimsPaciente={dimsPaciente} nombreDim={nombreDim} />)}
             </>
           )}
         </div>
@@ -146,7 +150,7 @@ function Valoracion({ v, dimsExpertas, nombreDim }) {
   )
 }
 
-function RespuestaPaciente({ v }) {
+function RespuestaPaciente({ v, dimsPaciente = [], nombreDim }) {
   const p = v.paciente || {}
   return (
     <div className="tarjeta" style={{ margin: '0.5rem 0' }}>
@@ -157,7 +161,8 @@ function RespuestaPaciente({ v }) {
       </div>
       {!v.abstencion && (
         <p style={{ margin: '0.3rem 0' }}>
-          Se entiende: <b>{p.comprension || '—'}</b> · Cómo te deja: <b>{p.efecto || '—'}</b>
+          {dimsPaciente.map((d) => `${nombreDim?.[d] || d} ${v.puntuaciones?.[d] ?? '—'}`).join(' · ')}
+          {dimsPaciente.length > 0 && ' · '}Cómo te deja: <b>{p.efecto || '—'}</b>
           {(p.vetos || []).length > 0 && <> · Vetos: <b>{p.vetos.join(', ')}</b></>}
         </p>
       )}

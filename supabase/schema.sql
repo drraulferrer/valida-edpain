@@ -656,7 +656,9 @@ end $$;
 create or replace function valida.concepto_json(c valida.conceptos, perfil text) returns jsonb
 language sql stable as $$
   select case when perfil = 'paciente' then
-    jsonb_build_object('id', c.id, 'dominio', c.dominio, 'modulo', c.modulo, 'titulo', c.titulo,
+    -- Sin `titulo`: el título es la afirmación técnica del corpus y anclaría el juicio de
+    -- comprensibilidad al texto profesional. El panel de paciente juzga el texto llano solo.
+    jsonb_build_object('id', c.id, 'dominio', c.dominio, 'modulo', c.modulo,
                        'explicacion_paciente', c.explicacion_paciente, 'hash', c.hash)
   else
     jsonb_build_object('id', c.id, 'dominio', c.dominio, 'modulo', c.modulo, 'titulo', c.titulo,
@@ -682,8 +684,11 @@ declare
 begin
   p := valida.quien(clave);
   select * into e from valida.estudios where id = p.estudio_id;
+  -- El panel de paciente no ve el título técnico en la lista de su bloque, por la misma
+  -- razón que no lo ve en la pantalla del concepto: es la afirmación profesional.
   select coalesce(jsonb_agg(jsonb_build_object(
-      'id', c.id, 'dominio', c.dominio, 'modulo', c.modulo, 'titulo', c.titulo,
+      'id', c.id, 'dominio', c.dominio, 'modulo', c.modulo,
+      'titulo', case when p.perfil = 'paciente' then null else c.titulo end,
       'orden', a.orden, 'estado', a.estado,
       'completa', coalesce(v.completa, false), 'abstencion', coalesce(v.abstencion, false),
       'cambiado', c.cambiado_desde_valoracion and v.id is not null and v.hash_concepto <> c.hash
@@ -782,10 +787,14 @@ begin
     end if;
   end loop;
 
-  -- Completa = abstención, o todas las dimensiones de su perfil puntuadas (experto),
-  -- o las tres respuestas del instrumento de paciente.
+  -- Completa = abstención, o todas las dimensiones de su perfil puntuadas.
+  -- El panel de paciente puntúa sus dimensiones en la MISMA escala 1-4 que el experto
+  -- (`puntuaciones`) y además responde el efecto afectivo, que no es una escala de acuerdo.
   if p.perfil = 'paciente' then
-    completa := abst or (datos->'paciente'->>'comprension') is not null and (datos->'paciente'->>'efecto') is not null;
+    completa := abst or (
+      not exists (select 1 from valida.dimensiones d
+                   where d.estudio_id = e.id and d.quien in ('paciente','ambos') and punt->>d.clave is null)
+      and (datos->'paciente'->>'efecto') is not null);
   else
     completa := abst or not exists (
       select 1 from valida.dimensiones d
@@ -960,11 +969,11 @@ begin
       fraccion = coalesce((datos->>'fraccion')::numeric, fraccion), suelo = coalesce((datos->>'suelo')::int, suelo),
       k_jueces = coalesce((datos->>'k_jueces')::int, k_jueces), k_paciente = coalesce((datos->>'k_paciente')::int, k_paciente),
       capacidad = coalesce((datos->>'capacidad')::int, capacidad),
-     plazo_dias_propio = case when datos ? 'plazo_dias_propio' then nullif(datos->>'plazo_dias_propio', '')::int else plazo_dias_propio end,
       capacidad_paciente = coalesce((datos->>'capacidad_paciente')::int, capacidad_paciente),
       umbrales = coalesce(datos->'umbrales', umbrales), notas = coalesce(datos->>'notas', notas),
       inscripcion_abierta = coalesce((datos->>'inscripcion_abierta')::boolean, inscripcion_abierta),
       codigo_invitacion = case when datos ? 'codigo_invitacion' then nullif(trim(datos->>'codigo_invitacion'), '') else codigo_invitacion end,
+      codigo_pruebas = case when datos ? 'codigo_pruebas' then nullif(trim(datos->>'codigo_pruebas'), '') else codigo_pruebas end,
       tope_solicitudes_dia = coalesce((datos->>'tope_solicitudes_dia')::int, tope_solicitudes_dia),
       fehring_minimo = coalesce((datos->>'fehring_minimo')::int, fehring_minimo),
       investigador_principal = coalesce(datos->>'investigador_principal', investigador_principal),
@@ -1151,6 +1160,9 @@ begin
   insert into valida.eventos (panelista_id, tipo, detalle) values (d.id, 'asignacion',
     jsonb_build_object('perfil', perfil_objetivo, 'ronda', r, 'nuevas', n_asignadas));
   return jsonb_build_object('asignadas', n_asignadas, 'ronda', r,
+    'panelistas_activos', (select count(*) from valida.panelistas p
+                            where p.estudio_id = e.id and p.perfil = perfil_objetivo and p.activo),
+    'capacidad_libre', (select coalesce(sum(g.cap - g.n), 0) from carga g),
     'sin_jueces_suficientes', (
       select count(*) from valida.conceptos co
        where co.estudio_id = e.id and co.incluido and co.activo
@@ -1439,6 +1451,64 @@ begin
   end loop;
   return jsonb_build_object('ok', true);
 end $$;
+
+-- ---------------------------------------------------------------------------
+-- INSTRUMENTO DEL PANEL DE PACIENTE (comprensibilidad), en la MISMA escala 1-4 de
+-- acuerdo sin punto medio que el panel experto, para poder calcular I-CVI y V de Aiken
+-- con el mismo código (`src/lib/metricas.js`).
+--
+-- Por qué tres ítems y no uno. La comprensibilidad de un material dirigido a pacientes
+-- no es un juicio único: el PEMAT-P (Shoemaker, Wolf & Brach, Patient Educ Couns 2014;
+-- doi:10.1016/j.pec.2014.05.027) la operacionaliza como «understandability» con ítems
+-- separados de propósito, vocabulario y organización, estructura de dos factores
+-- confirmada en sus adaptaciones (C-PEMAT-P, doi:10.2196/39808; versión turca,
+-- doi:10.5152/FNJN.2023.22196). Aquí se comprimen en tres afirmaciones, una por dominio.
+--
+-- Por qué Likert 1-4 y CVI. Es como se validan los materiales educativos CON pacientes:
+-- Cho et al. (Can J Kidney Health Dis 2023; doi:10.1177/20543581221150676) validaron 10
+-- materiales con 105 pacientes en hemodiálisis puntuando en Likert de 4 puntos y
+-- calculando el CVI en cada ronda; ETHIC (Cocchi et al., Healthcare 2023;
+-- doi:10.3390/healthcare11081154) hizo lo propio con un panel de ciudadanos. La escala de
+-- 4 puntos sin punto medio y el I-CVI son los de Lynn (1986) y Polit & Beck (2006), los
+-- mismos que ya usa el panel experto de este estudio.
+--
+-- El efecto afectivo («cómo te deja») y las banderas de veto NO son dimensiones: no son
+-- escalas de acuerdo y no entran en el CVI. Son la red de seguridad específica de la
+-- educación en dolor (miedo, culpa, invalidación) y viven en `valoraciones.paciente`.
+--
+-- Se siembran de forma idempotente: si la dirección editorial reescribe una afirmación,
+-- reaplicar el esquema NO la pisa.
+-- ---------------------------------------------------------------------------
+insert into valida.dimensiones (estudio_id, clave, orden, nombre, afirmacion, ayuda, sobre_texto, quien)
+select e.id, x.clave, x.orden, x.nombre, x.afirmacion, x.ayuda, array['explicacion_paciente'], 'paciente'
+  from valida.estudios e,
+       (values
+         ('comprensibilidad', 4, 'Se entiende',
+          'He entendido qué me quiere decir este texto la primera vez que lo he leído.',
+          'No preguntamos si estás de acuerdo con lo que dice, ni si es verdad: eso lo miran otros. Solo si se entiende.'),
+         ('palabras', 5, 'Las palabras',
+          'Las palabras que usa son palabras que entiendo sin que nadie me las explique.',
+          'Si hay algún término que te deja fuera, aunque lo demás se entienda, baja la puntuación y escríbelo abajo.'),
+         ('orden', 6, 'El orden',
+          'Está ordenado de forma que he podido seguirlo de principio a fin sin perderme.',
+          'Piensa en si una frase lleva a la siguiente, o si has tenido que volver atrás para entenderlo.')
+       ) as x(clave, orden, nombre, afirmacion, ayuda)
+ on conflict (estudio_id, clave) do nothing;
+
+-- La fila antigua de `comprensibilidad` describía una dimensión que juzgaba el experto.
+-- Se reencuadra una sola vez (idempotente por el WHERE).
+update valida.dimensiones
+   set nombre = 'Se entiende',
+       afirmacion = 'He entendido qué me quiere decir este texto la primera vez que lo he leído.',
+       ayuda = 'No preguntamos si estás de acuerdo con lo que dice, ni si es verdad: eso lo miran otros. Solo si se entiende.'
+ where clave = 'comprensibilidad'
+   and afirmacion like 'La explicacion dirigida a pacientes%';
+update valida.dimensiones
+   set nombre = 'Se entiende',
+       afirmacion = 'He entendido qué me quiere decir este texto la primera vez que lo he leído.',
+       ayuda = 'No preguntamos si estás de acuerdo con lo que dice, ni si es verdad: eso lo miran otros. Solo si se entiende.'
+ where clave = 'comprensibilidad'
+   and afirmacion like 'La explicaci_n dirigida a pacientes%';
 
 -- ---------------------------------------------------------------------------
 -- Permisos: solo las funciones public.valida_* son ejecutables por la API.

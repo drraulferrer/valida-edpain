@@ -48,14 +48,32 @@ export default function Cobertura({ datos, clave, nombres, recargar }) {
   const { estudio } = datos
   const minimoPanel = estudio.umbrales?.minimo_panel ?? 5
 
+  // Asignar no «falla» cuando no hay a quién asignar: devuelve 0 y parece que el botón no
+  // hace nada. Por eso se distingue el caso y se dice qué falta hacer.
   const asignar = async (perfil) => {
     setOcupado(perfil)
     setMensaje('')
     setError('')
     try {
       const r = await api.dirAsignar(clave, perfil, MAX_GENERALISTAS)
-      const sin = r?.sin_jueces_suficientes ? ` Sin ${perfil === 'paciente' ? 'pacientes' : 'jueces'} suficientes: ${r.sin_jueces_suficientes}.` : ''
-      setMensaje(`Asignadas ${r?.asignadas ?? 0} valoraciones nuevas de ${perfil} en la ronda ${r?.ronda ?? estudio.ronda_actual}.${sin}`)
+      const quienes = perfil === 'paciente' ? 'pacientes' : 'expertos'
+      if (!r?.panelistas_activos) {
+        setError(`No hay ningún panelista con perfil «${perfil}» activo, así que no hay a quién asignar nada. `
+          + (perfil === 'paciente'
+            ? 'Da de alta a las personas con dolor en Panelistas → «Alta de panelista» eligiendo perfil «paciente», o ábreles la inscripción en Estudio, y vuelve aquí.'
+            : 'Da de alta a los expertos en Panelistas → «Alta de panelista» y vuelve aquí.'))
+        return
+      }
+      if (!r.asignadas && !r.capacidad_libre) {
+        setError(`Los ${r.panelistas_activos} ${quienes} activos ya están a tope de capacidad: no cabe ni una valoración más. `
+          + `Sube la capacidad en Estudio → «Capacidad por ${perfil}» o da de alta a más ${quienes}.`)
+        return
+      }
+      const sin = r.sin_jueces_suficientes
+        ? ` Todavía les faltan ${quienes} a ${r.sin_jueces_suficientes} conceptos.`
+        : ` Todos los conceptos tienen ya sus ${quienes}.`
+      setMensaje(`Asignadas ${r.asignadas} valoraciones nuevas de ${perfil} en la ronda ${r.ronda ?? estudio.ronda_actual}, `
+        + `repartidas entre ${r.panelistas_activos} ${quienes} activos.${sin}`)
       await recargar()
     } catch (e) {
       setError(e.message)

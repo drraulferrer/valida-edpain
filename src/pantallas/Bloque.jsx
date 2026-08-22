@@ -43,7 +43,7 @@ export default function Bloque({ sesion }) {
   if (!items.length) {
     return (
       <main className="pantalla">
-        <h1>Todavía no tienes conceptos asignados</h1>
+        <h1>Todavía no tienes {paciente ? 'textos' : 'conceptos'} asignados</h1>
         <p className="silencio">La dirección editorial los asigna cuando el panel está completo. Te avisará. Tu clave seguirá valiendo.</p>
       </main>
     )
@@ -52,8 +52,8 @@ export default function Bloque({ sesion }) {
   return (
     <main className="pantalla">
       <p className="etiqueta acento">Ronda {bloque.ronda} · tu bloque</p>
-      <h1>{items.length} conceptos en {modulos.length} {modulos.length === 1 ? 'módulo' : 'módulos'}</h1>
-      <AvisoPlazo plazo={bloque.plazo} pendientes={items.length - hechas} />
+      <h1>{items.length} {paciente ? 'textos' : 'conceptos'} en {modulos.length} {modulos.length === 1 ? 'módulo' : 'módulos'}</h1>
+      <AvisoPlazo plazo={bloque.plazo} pendientes={items.length - hechas} cosa={paciente ? 'textos' : 'conceptos'} />
       <Progreso hechas={hechas} total={items.length} texto={todoHecho ? 'completado' : `${items.length - hechas} por hacer`} />
       <div className="acciones" style={{ marginTop: 0 }}>
         {siguiente && <a className="boton" href={`#/c/${encodeURIComponent(siguiente.id)}`}>{hechas ? 'Continuar' : 'Empezar'}</a>}
@@ -71,14 +71,14 @@ export default function Bloque({ sesion }) {
               <span className="n">{bloque.nombres[m.dominio] || m.dominio} · {m.items.filter((x) => x.estado !== 'pendiente').length}/{m.items.length}</span>
             </h3>
             <ul className="lista-conceptos">
-              {m.items.map((it) => (
+              {m.items.map((it, i) => (
                 <li key={it.id}>
                   <a href={`#/c/${encodeURIComponent(it.id)}`}>
                     <span className={`est ${it.estado}${it.estado === 'pendiente' && !it.completa && it.cambiado ? ' parcial' : ''}`} aria-hidden="true">
                       {it.estado === 'hecha' ? '✓' : it.estado === 'abstenida' ? '–' : ''}
                     </span>
-                    <span className="t">{it.titulo}{it.cambiado ? <span className="etiqueta aviso" style={{ marginLeft: '0.5rem' }}>ha cambiado</span> : null}</span>
-                    <span className="id">{it.id}</span>
+                    <span className="t">{it.titulo || `Texto ${i + 1}`}{it.cambiado ? <span className="etiqueta aviso" style={{ marginLeft: '0.5rem' }}>ha cambiado</span> : null}</span>
+                    {!paciente && <span className="id">{it.id}</span>}
                   </a>
                 </li>
               ))}
