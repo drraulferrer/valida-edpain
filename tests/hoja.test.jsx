@@ -10,7 +10,7 @@ const ESTUDIO = {
   investigador_principal: 'Dr. Raúl Ferrer-Peña',
   contacto_email: 'estudio@edpain.com',
   grupo_autoria: 'Grupo del Estudio EdPain',
-  region_datos: 'eu-west-2 (Londres, Reino Unido)',
+  region_datos: 'eu-west-3 (París, Francia)',
 }
 
 function abrir(props = {}) {
@@ -44,12 +44,17 @@ describe('hoja de información · lo que exige el art. 13 RGPD', () => {
     expect(t).toMatch(/Delegado de protección de datos/)
   })
 
-  it('declara la transferencia internacional cuando la base está fuera del EEE', () => {
-    expect(abrir({ perfil: 'paciente' })).toMatch(/transferencia internacional/)
-    cleanup()
-    const dentro = abrir({ perfil: 'paciente', estudio: { ...ESTUDIO, region_datos: 'eu-west-1 (Irlanda)' } })
-    expect(dentro).not.toMatch(/transferencia internacional/)
-    expect(dentro).toMatch(/Dentro de la Unión Europea/)
+  it('la base está en la UE: no declara transferencia internacional', () => {
+    const t = abrir({ perfil: 'paciente' })
+    expect(t).toMatch(/eu-west-3 \(París, Francia\)/)
+    expect(t).not.toMatch(/transferencia internacional/)
+    expect(t).toMatch(/Dentro de la Unión Europea/)
+  })
+
+  it('pero si alguien la mueve fuera del EEE, la hoja lo declara sola', () => {
+    const t = abrir({ perfil: 'paciente', estudio: { ...ESTUDIO, region_datos: 'eu-west-2 (Londres, Reino Unido)' } })
+    expect(t).toMatch(/transferencia internacional/)
+    expect(t).toMatch(/decisión de adecuación/)
   })
 })
 

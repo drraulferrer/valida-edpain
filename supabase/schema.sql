@@ -71,8 +71,9 @@ alter table valida.estudios add column if not exists codigo_pruebas text;
 alter table valida.estudios add column if not exists responsable_tratamiento text;
 alter table valida.estudios add column if not exists dpd_contacto text;
 -- Dónde viven de verdad los datos, para que la hoja no lo diga de memoria. `region_datos` es
--- la región del proyecto de Supabase (hoy eu-west-2 = Londres, Reino Unido).
-alter table valida.estudios add column if not exists region_datos text not null default 'eu-west-2 (Londres, Reino Unido)';
+-- la región del proyecto de Supabase. Se migró de eu-west-2 (Londres) a eu-west-3 (París) el
+-- 22-ago para que los datos de salud no salgan de la UE.
+alter table valida.estudios add column if not exists region_datos text not null default 'eu-west-3 (París, Francia)';
 -- Interruptor propio para el panel de paciente: se abre y se cierra por separado del de
 -- expertos, porque casi nunca se reclutan a la vez ni al mismo ritmo.
 alter table valida.estudios add column if not exists inscripcion_pacientes_abierta boolean not null default false;

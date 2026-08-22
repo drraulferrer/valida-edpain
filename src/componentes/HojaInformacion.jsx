@@ -15,7 +15,7 @@ export default function HojaInformacion({ estudio = {}, perfil = 'experto', valo
   // el investigador principal, que es lo mínimo defendible pero conviene concretar.
   const responsable = estudio.responsable_tratamiento || `${ip} (investigador principal)`
   const dpd = estudio.dpd_contacto || ''
-  const region = estudio.region_datos || 'eu-west-2 (Londres, Reino Unido)'
+  const region = estudio.region_datos || 'eu-west-3 (París, Francia)'
   // Si la base no está en el EEE hay que decir que es una transferencia internacional y con
   // qué garantía se ampara. Reino Unido tiene decisión de adecuación de la Comisión Europea.
   const fueraDelEee = /reino unido|united kingdom|londres|london|estados unidos|ee\.?uu/i.test(region)
