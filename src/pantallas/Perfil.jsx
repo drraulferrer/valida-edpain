@@ -317,7 +317,8 @@ function PerfilPaciente({ sesion, refrescar }) {
       <h1>Unos datos sobre ti</h1>
       <p className="silencio">
         Sirven para describir en la publicación al grupo de personas con dolor que ha participado —siempre en conjunto, nunca
-        una por una— y para avisarte de cada ronda. Es la única vez que te preguntamos esto.
+        una por una— y para avisarte de cada ronda. Van en <b>dos pasos</b> y son unos ocho minutos: es la única vez que te
+        preguntamos esto.
       </p>
       {error && <p className="error" role="alert">{error}</p>}
       <FormularioPaciente inicial={previo} estudio={sesion.estudio} onEnviar={enviar} enviando={guardando}

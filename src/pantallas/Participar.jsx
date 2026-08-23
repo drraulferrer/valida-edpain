@@ -145,8 +145,9 @@ export default function Participar({ onEntrar, ruta }) {
               </p>
               <p className="silencio">
                 Después te preguntamos por tu dolor, tus tratamientos y qué te han dicho que tienes. Es para poder describir en la
-                publicación a qué personas les resultaron claros estos textos —siempre en conjunto, nunca una por una—. Se tarda
-                unos cinco minutos y es la única vez.
+                publicación a qué personas les resultaron claros estos textos —siempre en conjunto, nunca una por una—. Va en
+                <b> dos pasos</b>: el primero es corto y sirve para saber si encajas; el segundo son las preguntas de siempre en
+                los estudios de dolor. Entre los dos, unos ocho minutos, y es la única vez.
               </p>
               <p className="silencio">
                 Investigador principal: {publico.investigador_principal}. Dudas: <a href={`mailto:${publico.contacto_email}`}>{publico.contacto_email}</a>.
