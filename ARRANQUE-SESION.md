@@ -554,8 +554,9 @@ PATH pelado), y las cuatro habrían fallado en silencio:
    - ~~**Responsable del tratamiento**~~ **DECIDIDO**: es el investigador principal, Dr. Raúl
      Ferrer-Peña, a título personal. Ya está puesto. Sin DPD, porque no hay institución detrás.
    - ~~**La base de datos está en Londres**~~ **RESUELTO**: migrada a eu-west-3 (París) el 22-ago (§5h).
-   - **Plazo de conservación**: la hoja dice cinco años tras la publicación. Confirmarlo con el comité,
-     que a veces fija otro.
+   - ~~**Plazo de conservación**~~ **CONFIRMADO por el CEIm el 23-ago**: cinco años tras la
+     publicación, que es lo que ya dice la hoja. Falta la referencia del dictamen para
+     `estudios.comite_etica`, que hoy está vacío y por eso la hoja no lo muestra.
 
 2. **Decisiones tomadas el 22-ago** (spec §3.8): 3 dimensiones expertas + comprensibilidad solo paciente;
    fracción 12 %; suelo 8; nivel de calidad 0,85/IC 0,75; cribado ≥ 2 señales. Pendiente solo confirmar
