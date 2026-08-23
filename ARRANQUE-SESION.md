@@ -49,6 +49,11 @@ aleatorios permanentes; decisión del 22-ago justificada en la spec §3.8), `con
   registrador). Vercel queda como opción: tu cuenta está logueada en Chrome pero la app de GitHub de
   Vercel solo ve `el-gremio`; ampliar ese permiso es un OAuth que tienes que hacer tú.
 - **Semilla** del estudio: `edpain-validez-2026` (en `valida.estudios`). No se cambia.
+- **Parámetros vigentes del panel experto** (23-ago), que se apartan a propósito de la spec y
+  conviene no «corregir» sin pensarlo: **Fehring mínimo 8** (el corte publicado es 5; el panel se
+  quiso más exigente), **capacidad 120** conceptos por experto (la spec calculaba con 80, aquí son
+  6-8 h por cabeza) y **k = 7 jueces**, que sí se devolvió al valor de la spec el 23-ago porque
+  estaba en 5 con `minimo_panel` también en 5: una sola caída dejaba el concepto «insuficiente».
 
 ## 3 · Claves (ninguna está en el repositorio)
 
@@ -89,8 +94,14 @@ npm run deploy                           # publica en GitHub Pages (exige árbol
    (eficacia, referencia 4·4·3 por el título sin acotar). Están importados con `incluido = false` y
    estrato `calibracion` (`importar.py --extra`), así que **no cuentan en ningún estrato ni se asignan**.
    Para cambiarlos: `valida_dir_calibracion` por RPC (sin pantalla aún).
-2. **Alta del panel**: Dirección → Panelistas → Alta (código, perfil, disciplina, dominios,
-   capacidad). Guarda la clave que devuelve: no se vuelve a ver.
+2. **Alta del panel**. Dos vías, y la decidida el 23-ago es la primera:
+   - **Convocatoria** (`#/participar`, código `EDPAIN26`): se dan de alta solos, el servidor
+     comprueba el criterio y les asigna el bloque en el acto. El texto para mandar, con la lista de
+     comprobación previa, en **`convocatoria-expertos.md`**. Objetivo: **32 expertos** (25 es el
+     mínimo aritmético para 414 × 7 valoraciones a 120 por cabeza; 32 deja margen de caídas).
+   - **A mano**: Dirección → Panelistas → Alta (código, perfil, disciplina, dominios, capacidad).
+     Guarda la clave que devuelve: no se vuelve a ver. La casilla «es un panelista de prueba» lo
+     marca como ensayo y permite borrarlo después con todo su rastro.
 3. **Asignar**: Dirección → Cobertura → «Asignar expertos» (k = 7, máx. 3 generalistas por concepto) y
    «Asignar pacientes» (k = 3). Es idempotente: rellena solo lo que falta. Repetir tras cada alta.
 4. **Ronda 1** abierta: los panelistas entran con su clave. El panel de dirección muestra progreso,
