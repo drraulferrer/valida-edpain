@@ -455,9 +455,20 @@ el Llavero, y el panel corre en un navegador. Lo que hace el panel es dejar cons
 `estudio_cerrado`— y el script mira si hay alguno posterior al último evento `respaldo`. Una línea
 de cron **cada hora** basta: si no se ha cerrado nada, no hace nada.
 
+El disparador es un **LaunchAgent**, `~/Library/LaunchAgents/com.edpain.valida.respaldo.plist`,
+cada hora:
+
+```bash
+launchctl print gui/$UID/com.edpain.valida.respaldo | head -5      # ¿está cargado?
+launchctl kickstart -k gui/$UID/com.edpain.valida.respaldo         # forzarlo ahora
+launchctl bootout  gui/$UID/com.edpain.valida.respaldo             # quitarlo
 ```
-17 * * * * cd ~/valida-edpain && /usr/bin/python3 pipeline/respaldo.py >> ~/valida-edpain-respaldos/respaldo.log 2>&1
-```
+
+**Y no cron.** En macOS cron corre fuera de la sesión de inicio y `security find-generic-password`
+le falla, así que el respaldo moría en «No encuentro la clave de dirección» **sin que nadie lo
+viera**. Se descubrió porque la línea de cron falló a las 12:17:00 en punto del 23-ago y el log lo
+delató. Un LaunchAgent corre dentro de la sesión y sí llega al Llavero: probado disparándolo con un
+cierre de ronda simulado y viendo aparecer el `.tar.gz.enc`.
 
 - Guarda **todas** las tablas de `valida` —las pregunta al catálogo, no hay lista escrita a mano,
   así que una tabla nueva entra sola— más `public.respuestas_consenso` si está.

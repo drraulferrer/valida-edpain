@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.edpain.valida.respaldo</string>
+
+  <!-- Un LaunchAgent y no cron: cron corre fuera de la sesión de inicio y no llega al Llavero,
+       así que el respaldo moría en «No encuentro la clave de dirección» sin que nadie lo viera. -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>/Users/raulferrer/valida-edpain/pipeline/respaldo.py</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/raulferrer/valida-edpain</string>
+
+  <!-- Cada hora. Solo respalda si se ha cerrado una ronda; si no, sale en dos segundos. -->
+  <key>StartInterval</key>
+  <integer>3600</integer>
+
+  <!-- Si el Mac estaba apagado o dormido a la hora que tocaba, se ejecuta al despertar. -->
+  <key>RunAtLoad</key>
+  <false/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/raulferrer/valida-edpain-respaldos/respaldo.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/raulferrer/valida-edpain-respaldos/respaldo.log</string>
+</dict>
+</plist>

@@ -23,10 +23,15 @@ en claro contradiría la hoja de información que firma cada participante.
 
     security add-generic-password -a $USER -s valida-edpain-respaldo -w '<contraseña larga>'
 
-PARA QUE SE DISPARE SOLO, una línea de cron en este Mac:
+PARA QUE SE DISPARE SOLO: un **LaunchAgent**, no cron.
 
-    17 * * * * cd ~/valida-edpain && /usr/bin/python3 pipeline/respaldo.py \\
-      >> ~/valida-edpain-respaldos/respaldo.log 2>&1
+    launchctl bootstrap gui/$UID ~/Library/LaunchAgents/com.edpain.valida.respaldo.plist
+    launchctl kickstart -k gui/$UID/com.edpain.valida.respaldo   # forzarlo ahora
+
+**cron no vale en macOS para esto**: corre fuera de la sesión de inicio y `security
+find-generic-password` le falla, así que el respaldo moría en «No encuentro la clave de
+dirección» sin que nadie lo viera. Un LaunchAgent corre dentro de la sesión y sí llega al
+Llavero. Comprobado el 23-ago: la línea de cron falló a las 12:17:00 en punto.
 
 El log NO va en `dist/`: cada `vite build` vacía esa carpeta y se llevaría por delante el
 historial de los respaldos justo cuando hiciera falta mirarlo.
@@ -58,6 +63,10 @@ from importar import Api, ErrorApi, clave_direccion, leer_env  # noqa: E402
 # Línea a línea: con la salida a un fichero de log, Python la almacena y el log se queda vacío
 # durante los minutos que tarda el volcado. Desde cron eso es indistinguible de un cuelgue.
 sys.stdout.reconfigure(line_buffering=True)
+
+
+def sello_horario() -> str:
+    return datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S")
 
 RAIZ = Path(__file__).resolve().parent.parent
 # Fuera del repositorio: lleva datos personales y no puede acabar en Git ni en el bundle.
@@ -187,6 +196,7 @@ def main() -> int:
     ap.add_argument("--estado", action="store_true", help="dice si toca respaldo y no hace nada más")
     args = ap.parse_args()
 
+    print(f"\n═══ {sello_horario()} ═══")
     env = leer_env()
     api = Api(env["VITE_SUPABASE_URL"], env["VITE_SUPABASE_ANON_KEY"], clave_direccion())
     try:
