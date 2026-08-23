@@ -348,7 +348,7 @@ export function crearDemo() {
           tiene_paciente: !!c.explicacion_paciente,
           jueces: asignaciones.filter((a) => a.concepto_id === c.id && a.ronda === ronda_actual && panelistas.find((p) => p.id === a.panelista_id)?.perfil === 'experto').length,
           pacientes: asignaciones.filter((a) => a.concepto_id === c.id && a.ronda === ronda_actual && panelistas.find((p) => p.id === a.panelista_id)?.perfil === 'paciente').length })),
-        valoraciones: valoraciones.map((v) => ({ ...v, panelista: codigoDe(v.panelista_id), perfil: panelistas.find((p) => p.id === v.panelista_id)?.perfil, panelista_id: undefined })),
+        valoraciones: valoraciones.map((v) => ({ ...v, panelista: codigoDe(v.panelista_id), perfil: panelistas.find((p) => p.id === v.panelista_id)?.perfil, es_prueba: !!panelistas.find((p) => p.id === v.panelista_id)?.es_prueba, panelista_id: undefined })),
         respaldo: (() => {
           const ultimo = [...eventos].reverse().find((x) => x.tipo === 'respaldo')
           const cierre = [...eventos].reverse().find((x) => ['ronda_nueva', 'estudio_cerrado'].includes(x.tipo))

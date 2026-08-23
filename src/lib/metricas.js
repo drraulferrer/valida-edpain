@@ -125,7 +125,9 @@ export function dimension(puntuaciones, u) {
 
 export function concepto(valoraciones, dimensiones, u, ronda, dimensionesPaciente) {
   const t = umbrales(u)
-  const filas = valoraciones.filter((v) => v.completa && (ronda == null || v.ronda === ronda))
+  // Fuera las de panelistas de prueba: son ensayos de la dirección y meterlas en el I-CVI
+  // corrompería el resultado publicado. Se descartan aquí, en el único sitio que decide.
+  const filas = valoraciones.filter((v) => v.completa && !v.es_prueba && (ronda == null || v.ronda === ronda))
   const expertas = filas.filter((v) => v.perfil !== 'paciente' && !v.abstencion)
   const pacientes = filas.filter((v) => v.perfil === 'paciente' && !v.abstencion && v.paciente)
 

@@ -1341,7 +1341,10 @@ begin
                     where a.concepto_id = c.id and a.ronda = e.ronda_actual and p.perfil = 'paciente')
       ) order by c.id), '[]') from valida.conceptos c where c.estudio_id = e.id and c.incluido),
     'valoraciones', (select coalesce(jsonb_agg(jsonb_build_object(
-        'id', v.id, 'panelista', p.codigo, 'perfil', p.perfil, 'concepto_id', v.concepto_id, 'ronda', v.ronda,
+        -- `es_prueba` viaja con cada valoración para que el análisis pueda descartarlas: una
+        -- valoración de ensayo metida en el I-CVI corrompe el resultado del estudio.
+        'id', v.id, 'panelista', p.codigo, 'perfil', p.perfil, 'es_prueba', p.es_prueba,
+        'concepto_id', v.concepto_id, 'ronda', v.ronda,
         'hash_concepto', v.hash_concepto, 'puntuaciones', v.puntuaciones, 'abstencion', v.abstencion,
         'motivo_abstencion', v.motivo_abstencion, 'banderas', v.banderas, 'comentario', v.comentario,
         'ajustes', v.ajustes, 'paciente', v.paciente, 'completa', v.completa, 'tiempo_ms', v.tiempo_ms,

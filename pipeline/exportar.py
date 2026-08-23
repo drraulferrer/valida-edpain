@@ -43,12 +43,12 @@ def main() -> int:
             # Las dimensiones de paciente (comprensibilidad, palabras, orden) salen en `dims`
             # como cualquier otra: son Likert 1-4. Del bloque `paciente` solo quedan el efecto
             # afectivo y los vetos, que no son escalas de acuerdo.
-            w.writerow(["valoracion_id", "panelista", "perfil", "concepto_id", "ronda", "hash_concepto", *dims,
+            w.writerow(["valoracion_id", "panelista", "perfil", "es_prueba", "concepto_id", "ronda", "hash_concepto", *dims,
                         "abstencion", "motivo_abstencion", "banderas", "comentario", "n_ajustes",
                         "paciente_efecto", "paciente_vetos", "completa", "tiempo_ms", "actualizada_en"])
             for v in datos["valoraciones"]:
                 p = v.get("paciente") or {}
-                w.writerow([v["id"], v["panelista"], v["perfil"], v["concepto_id"], v["ronda"], v["hash_concepto"],
+                w.writerow([v["id"], v["panelista"], v["perfil"], v.get("es_prueba", False), v["concepto_id"], v["ronda"], v["hash_concepto"],
                             *[(v.get("puntuaciones") or {}).get(d) for d in dims],
                             v["abstencion"], v.get("motivo_abstencion"), json.dumps(v.get("banderas") or {}, ensure_ascii=False),
                             v.get("comentario"), len(v.get("ajustes") or []), p.get("efecto"),

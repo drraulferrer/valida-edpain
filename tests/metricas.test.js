@@ -131,6 +131,23 @@ describe('clasificación de un concepto', () => {
   })
 })
 
+describe('valoraciones de prueba', () => {
+  // Un ensayo de la dirección metido en el I-CVI corrompe el resultado publicado.
+  it('no entran en la clasificación', () => {
+    const reales = Array.from({ length: 6 }, (_, i) => todas(4, { panelista: `PAN-0${i}` }))
+    const prueba = Array.from({ length: 6 }, (_, i) => todas(1, { panelista: `PRU-0${i}`, es_prueba: true }))
+    expect(concepto(reales, DIMS).clase).toBe('valido')
+    // Seis valoraciones de prueba con un 1 en todo: si contaran, esto sería «revisar».
+    expect(concepto([...reales, ...prueba], DIMS).clase).toBe('valido')
+    expect(concepto([...reales, ...prueba], DIMS).n).toBe(6)
+  })
+
+  it('un concepto valorado SOLO por cuentas de prueba queda pendiente, no válido', () => {
+    const prueba = Array.from({ length: 6 }, (_, i) => todas(4, { panelista: `PRU-0${i}`, es_prueba: true }))
+    expect(concepto(prueba, DIMS).clase).toBe('pendiente')
+  })
+})
+
 describe('paciente', () => {
   const pac = (v, vetos = []) => ({ puntuaciones: Object.fromEntries(DIMS_PAC.map((d) => [d, v])),
                                     paciente: { efecto: 'calma', vetos } })

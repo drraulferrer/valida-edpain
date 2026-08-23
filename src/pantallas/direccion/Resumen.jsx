@@ -15,7 +15,13 @@ function resumir(datos, clases, dimsExpertas) {
   const porEstrato = Object.fromEntries(ESTRATOS.map((e) => [e, contar(activos, (c) => (c.estratos || []).includes(e))]))
   const juecesMedia = media(activos.map((c) => c.jueces || 0))
   const pocosJueces = contar(activos, (c) => (c.jueces || 0) < minimoPanel)
-  const completas = contar(valoraciones, (v) => v.completa && v.ronda === ronda)
+  const completas = contar(valoraciones, (v) => v.completa && v.ronda === ronda && !v.es_prueba)
+  // Las cuentas de prueba se descartan del análisis (metricas.js). Se cuentan aparte para
+  // decirlo: si no, ves «414 pendientes» habiendo valorado y no entiendes dónde han ido.
+  const pruebas = {
+    panelistas: contar(panelistas, (p) => p.es_prueba),
+    valoraciones: contar(valoraciones, (v) => v.completa && v.es_prueba),
+  }
   const asignadas = (panelistas || []).reduce((s, p) => s + (p.asignadas || 0), 0)
   const activosExperto = contar(panelistas, (p) => p.activo && p.perfil === 'experto')
   const activosPaciente = contar(panelistas, (p) => p.activo && p.perfil === 'paciente')
@@ -43,7 +49,7 @@ function resumir(datos, clases, dimsExpertas) {
     .filter((d) => d.incluidos > 0)
 
   return { activos: activos.length, porEstrato, juecesMedia, pocosJueces, minimoPanel, completas, asignadas,
-    activosExperto, activosPaciente, tasa, porClase, scvi: s, dominios }
+    activosExperto, activosPaciente, tasa, porClase, scvi: s, dominios, pruebas }
 }
 
 export default function Resumen({ datos, clases, dimsExpertas }) {
@@ -57,6 +63,14 @@ export default function Resumen({ datos, clases, dimsExpertas }) {
 
   return (
     <section>
+      {r.pruebas.panelistas > 0 && (
+        <p className="aviso-caja">
+          Hay <b>{r.pruebas.panelistas} panelista{r.pruebas.panelistas === 1 ? '' : 's'} de prueba</b> en el estudio
+          {r.pruebas.valoraciones > 0 && <>, con <b>{r.pruebas.valoraciones} valoracion{r.pruebas.valoraciones === 1 ? '' : 'es'}</b></>}.
+          Todo eso queda <b>fuera</b> de las cifras de abajo y de la clasificación: un ensayo metido en el I-CVI corrompería el
+          resultado. Se borran con todo su rastro desde Panelistas.
+        </p>
+      )}
       <div className="kpis">
         <div className="kpi">
           <div className="v">{r.activos}</div>
