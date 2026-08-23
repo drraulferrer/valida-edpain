@@ -83,6 +83,7 @@ export default function Estudio({ datos, clave, recargar }) {
 
   return (
     <section>
+      <Respaldo respaldo={datos.respaldo} />
       <div className="kpis">
         <div className="kpi"><div className="v">{estudio.ronda_actual}</div><div className="l">Ronda actual</div><div className="s">de {estudio.umbrales?.rondas_max ?? '—'} como máximo</div></div>
         <div className="kpi"><div className="v" style={{ fontSize: '1.1rem' }}>{estudio.semilla || '—'}</div><div className="l">Semilla</div><div className="s">commit {estudio.corpus_commit || '—'}</div></div>
@@ -255,5 +256,40 @@ function Campo({ id, etiqueta, f, cambiar, tipo = 'text', paso, ayuda }) {
       <input id={`estudio-${id}`} type={tipo} step={paso} value={f[id]} onChange={(e) => cambiar(id, e.target.value)} />
       {ayuda && <p className="ayuda">{ayuda}</p>}
     </div>
+  )
+}
+
+// El respaldo lo hace `pipeline/respaldo.py` en el Mac de la dirección: el navegador no puede
+// lanzarlo. Lo que sí puede es enseñar si está al día, que es lo que evita descubrir un mes
+// después que las respuestas de la ronda 1 no tenían copia.
+function Respaldo({ respaldo }) {
+  if (!respaldo) return null
+  const { ultimo, pendiente_desde: pendiente } = respaldo
+  const orden = 'python3 pipeline/respaldo.py'
+
+  if (pendiente) {
+    return (
+      <div className="aviso-caja" role="status">
+        <b>Se cerró una ronda el {fecha(pendiente)} y todavía no hay copia de seguridad posterior.</b>{' '}
+        Las respuestas de una ronda no se pueden repetir. En el Mac del estudio: <code>{orden}</code>.
+        {ultimo && <> El último respaldo es del {fecha(ultimo.en)}.</>}
+      </div>
+    )
+  }
+  if (!ultimo) {
+    return (
+      <p className="silencio">
+        Sin copias de seguridad todavía. Se hacen solas al cerrar cada ronda; para forzar una:{' '}
+        <code>{orden} --ahora</code>.
+      </p>
+    )
+  }
+  const d = ultimo.detalle || {}
+  return (
+    <p className="silencio">
+      Última copia de seguridad: <b>{fecha(ultimo.en)}</b>
+      {d.filas ? ` · ${d.filas} filas en ${d.tablas} tablas` : ''}
+      {d.fichero ? ` · ${d.fichero}` : ''} · cifrada, fuera del repositorio. Al día.
+    </p>
   )
 }

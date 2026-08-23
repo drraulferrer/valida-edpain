@@ -349,6 +349,13 @@ export function crearDemo() {
           jueces: asignaciones.filter((a) => a.concepto_id === c.id && a.ronda === ronda_actual && panelistas.find((p) => p.id === a.panelista_id)?.perfil === 'experto').length,
           pacientes: asignaciones.filter((a) => a.concepto_id === c.id && a.ronda === ronda_actual && panelistas.find((p) => p.id === a.panelista_id)?.perfil === 'paciente').length })),
         valoraciones: valoraciones.map((v) => ({ ...v, panelista: codigoDe(v.panelista_id), perfil: panelistas.find((p) => p.id === v.panelista_id)?.perfil, panelista_id: undefined })),
+        respaldo: (() => {
+          const ultimo = [...eventos].reverse().find((x) => x.tipo === 'respaldo')
+          const cierre = [...eventos].reverse().find((x) => ['ronda_nueva', 'estudio_cerrado'].includes(x.tipo))
+          const pendiente = cierre && (!ultimo || eventos.indexOf(cierre) > eventos.indexOf(ultimo))
+          return { ultimo: ultimo ? { en: ultimo.en, detalle: ultimo.detalle || {} } : null,
+                   pendiente_desde: pendiente ? cierre.en : null }
+        })(),
         asignaciones: asignaciones.map((a) => ({ panelista: codigoDe(a.panelista_id), concepto_id: a.concepto_id, ronda: a.ronda, orden: a.orden, estado: a.estado })),
         cobertura: cobertura.map((x) => ({ ...x, panelista: codigoDe(x.panelista_id), panelista_id: undefined })),
         rondas, avisos: avisosEnviados.map((a) => ({ ...a, panelista: codigoDe(a.panelista_id) })),

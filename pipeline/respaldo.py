@@ -40,6 +40,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -50,11 +51,30 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from importar import Api, ErrorApi, clave_direccion, leer_env  # noqa: E402
 
+# Línea a línea: con la salida a un fichero de log, Python la almacena y el log se queda vacío
+# durante los minutos que tarda el volcado. Desde cron eso es indistinguible de un cuelgue.
+sys.stdout.reconfigure(line_buffering=True)
+
 RAIZ = Path(__file__).resolve().parent.parent
 # Fuera del repositorio: lleva datos personales y no puede acabar en Git ni en el bundle.
 DESTINO = Path.home() / "valida-edpain-respaldos"
 SERVICIO_LLAVERO = "valida-edpain-respaldo"
 ITERACIONES = 200_000
+
+
+def binario(nombre: str) -> str:
+    """Ruta absoluta de una herramienta. **cron arranca con un PATH pelado**
+    (`/usr/bin:/bin:/usr/sbin:/sbin`) y `supabase` vive en `~/.local/bin`, así que buscarlo por
+    PATH funciona en el terminal y falla en el cron, que es donde nadie lo mira. Se resuelve aquí
+    y se aborta con un mensaje claro si de verdad no está."""
+    hallado = shutil.which(nombre)
+    if hallado:
+        return hallado
+    for carpeta in (Path.home() / ".local/bin", Path("/opt/homebrew/bin"), Path("/usr/local/bin")):
+        candidato = carpeta / nombre
+        if candidato.exists():
+            return str(candidato)
+    sys.exit(f"✗ No se encuentra `{nombre}`. Si esto sale del cron, es que su PATH no lo alcanza.")
 
 
 def proyecto() -> str:
@@ -67,7 +87,7 @@ def proyecto() -> str:
 
 def contrasena() -> str:
     try:
-        clave = subprocess.run(["security", "find-generic-password", "-s", SERVICIO_LLAVERO, "-w"],
+        clave = subprocess.run([binario("security"), "find-generic-password", "-s", SERVICIO_LLAVERO, "-w"],
                                capture_output=True, text=True, check=True).stdout.strip()
     except (subprocess.CalledProcessError, FileNotFoundError):
         sys.exit(f"✗ Falta la contraseña de respaldo en el Llavero. Créala con:\n"
@@ -80,11 +100,15 @@ def contrasena() -> str:
 def consulta(ref: str, sql: str) -> list[dict]:
     """Una consulta por el CLI. Reintenta: el «login role» de Supabase falla a la primera a menudo."""
     for intento in range(1, 5):
-        r = subprocess.run(["supabase", "db", "query", sql, "--linked", "--project-ref", ref, "-o", "json"],
+        r = subprocess.run([binario("supabase"), "db", "query", sql, "--linked", "--project-ref", ref, "-o", "json"],
                            capture_output=True, text=True, cwd=str(RAIZ))
         if r.returncode == 0:
             try:
-                return json.loads(r.stdout)["rows"]
+                # El CLI devuelve dos formas según si cree que le habla un agente: un objeto
+                # `{"rows": [...]}` envuelto, o la lista pelada. Desde cron es lo segundo, y
+                # dar por hecha la primera reventaba justo donde nadie mira.
+                salida = json.loads(r.stdout)
+                return salida["rows"] if isinstance(salida, dict) else salida
             except (ValueError, KeyError):
                 pass
         if intento == 4:
@@ -126,7 +150,7 @@ def cifrar(carpeta: Path, salida: Path, clave: str) -> None:
         with tarfile.open(comprimido, "w:gz") as tar:
             tar.add(carpeta, arcname="datos")
         entorno = {**os.environ, "RESPALDO_PASS": clave}
-        r = subprocess.run(["openssl", "enc", "-aes-256-cbc", "-pbkdf2", "-iter", str(ITERACIONES),
+        r = subprocess.run([binario("openssl"), "enc", "-aes-256-cbc", "-pbkdf2", "-iter", str(ITERACIONES),
                             "-salt", "-pass", "env:RESPALDO_PASS", "-in", str(comprimido), "-out", str(salida)],
                            capture_output=True, text=True, env=entorno)
         if r.returncode != 0:
@@ -138,7 +162,7 @@ def cifrar(carpeta: Path, salida: Path, clave: str) -> None:
 def comprobar(salida: Path, clave: str, recuento: dict[str, int]) -> None:
     """Abrir lo que se acaba de escribir. Un respaldo que no se ha probado no es un respaldo."""
     entorno = {**os.environ, "RESPALDO_PASS": clave}
-    r = subprocess.run(["openssl", "enc", "-d", "-aes-256-cbc", "-pbkdf2", "-iter", str(ITERACIONES),
+    r = subprocess.run([binario("openssl"), "enc", "-d", "-aes-256-cbc", "-pbkdf2", "-iter", str(ITERACIONES),
                         "-pass", "env:RESPALDO_PASS", "-in", str(salida)],
                        capture_output=True, env=entorno)
     if r.returncode != 0:

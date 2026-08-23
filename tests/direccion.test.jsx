@@ -153,6 +153,35 @@ describe('Panel de dirección', () => {
   })
 })
 
+describe('aviso de copia de seguridad', () => {
+  // El `afterEach` de arriba vive dentro de su describe y no llega hasta aquí.
+  afterEach(cleanup)
+  const ruta = (t) => ({ partes: ['direccion', t], hash: `#/direccion/${t}` })
+
+  it('sin copias, lo dice sin alarmar', async () => {
+    render(<Direccion ruta={ruta('estudio')} />)
+    expect(await screen.findByText(/Sin copias de seguridad todavía/)).toBeTruthy()
+  })
+
+  it('tras cerrar una ronda y sin copia posterior, avisa de que hay respuestas sin respaldar', async () => {
+    cofre.demo._estado.eventos.push({ tipo: 'ronda_nueva', en: '2026-09-10T10:00:00Z', detalle: {} })
+    render(<Direccion ruta={ruta('estudio')} />)
+    const aviso = await screen.findByRole('status')
+    expect(aviso.textContent).toMatch(/Se cerró una ronda/)
+    expect(aviso.textContent).toMatch(/no se pueden repetir/)
+    expect(aviso.textContent).toMatch(/pipeline\/respaldo\.py/)
+  })
+
+  it('con una copia posterior al cierre, dice que está al día', async () => {
+    cofre.demo._estado.eventos.push({ tipo: 'respaldo', en: '2026-09-10T11:00:00Z',
+      detalle: { filas: 900, tablas: 16, fichero: 'respaldo-2026-09-10-1100.tar.gz.enc' } })
+    render(<Direccion ruta={ruta('estudio')} />)
+    expect(await screen.findByText(/Al día/)).toBeTruthy()
+    expect(screen.getByText(/900 filas en 16 tablas/)).toBeTruthy()
+    expect(screen.queryByText(/Se cerró una ronda/)).toBeNull()
+  })
+})
+
 describe('aCsv', () => {
   it('escapa comas, comillas y saltos de línea y serializa objetos', () => {
     const csv = aCsv([{ a: 'x, y', b: 'di "hola"', c: 'l1\nl2', d: { k: 1 }, e: null }], ['a', 'b', 'c', 'd', 'e'])
