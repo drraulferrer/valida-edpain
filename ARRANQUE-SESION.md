@@ -77,6 +77,7 @@ python3 pipeline/exportar.py --csv       # baja todo a panel/respuestas/ (fuera 
 python3 pipeline/humo.py                 # ¿responden todas las RPC? (pasar tras cada schema.sql)
 python3 pipeline/respaldo.py --estado    # ¿toca respaldo? (no toca nada)
 python3 pipeline/respaldo.py --ahora     # respaldo cifrado ya mismo
+python3 pipeline/restaurar.py --ultimo --a <ref> --simular   # qué haría una restauración
 python3 pipeline/avisos.py --simular     # a quién avisaría hoy y con qué texto
 supabase db query -f supabase/schema.sql --linked --project-ref nnelofgevsvdaiaryjbk   # reaplicar esquema (idempotente)
 npm run deploy                           # publica en GitHub Pages (exige árbol limpio y verify en verde)
@@ -383,8 +384,8 @@ EEE evitable. Se migró a `eu-west-3` (París): estado miembro y el más cercano
 
 **Cómo, sin Docker ni `pg_dump`** (no hay ninguno de los dos en este Mac):
 
-1. Volcado tabla a tabla con `supabase db query` a JSON → `~/valida-edpain-migracion/datos/`
-   (`volcar.sh`). 902 filas, 4,6 MB.
+1. Volcado tabla a tabla con `supabase db query` a JSON. 902 filas, 4,6 MB. (Aquel script de
+   usar y tirar es hoy `pipeline/respaldo.py`.)
 2. Verificado el volcado antes de tocar nada: recuentos, los `clave_hash` de los tres panelistas y
    la **semilla del muestreo**, que es lo único irrecuperable —si cambia, cambia la muestra—.
 3. Supabase free solo deja **2 proyectos activos**, así que hubo que **pausar** el viejo. Pausar no
@@ -400,11 +401,10 @@ EEE evitable. Se migró a `eu-west-3` (París): estado miembro y el más cercano
 
 **El proyecto de Londres se borró el 23-ago**, una vez comprobado que la plataforma, la web y el
 circuito de `consenso.py` funcionaban solos contra París. La única copia de seguridad de la base es
-ahora `~/valida-edpain-migracion/respaldo-AAAA-MM-DD.tar.gz.enc`, **cifrado con AES-256** porque
-lleva nombres, correos y los hash de las claves; la contraseña está en el Llavero
-(`valida-edpain-respaldo`) y las instrucciones para abrirlo y restaurarlo, en el `LEEME.md` de esa
-carpeta. `./volcar.sh` genera uno nuevo y borra el volcado en claro; conviene pasarlo antes de cada
-ronda, porque las respuestas del panel no se pueden repetir.
+ahora `~/valida-edpain-respaldos/respaldo-AAAA-MM-DD-hhmmss.tar.gz.enc`, **cifrado con AES-256**
+porque lleva nombres, correos y los hash de las claves; la contraseña está en el Llavero
+(`valida-edpain-respaldo`). Se hace solo al cerrar cada ronda (§5i) y se restaura con
+`pipeline/restaurar.py`.
 
 6. **`.env` y el sitio publicado** apuntaban todavía al proyecto viejo, así que desde que se pausó,
    `valida.edpain.com` respondía «TypeError: Failed to fetch» en cuanto tocaba la base: la URL se
@@ -458,6 +458,23 @@ de cron **cada hora** basta: si no se ha cerrado nada, no hace nada.
   oro si se cerró una ronda y no hay copia posterior.
 - Tarda **5-7 minutos**: cada tabla es una llamada al CLI y cada una paga su «Initialising login
   role». Da igual para algo que corre una vez por ronda.
+
+**Restaurar**: `pipeline/restaurar.py`, la otra mitad. Descifra, vacía las tablas y las reconstruye
+con `jsonb_populate_recordset`; al terminar comprueba filas tabla a tabla, la **semilla** y la
+**huella de los conceptos**. Se puede reejecutar entero sin miedo, porque empieza vaciando.
+
+```bash
+python3 pipeline/restaurar.py --ultimo --a <ref> --simular   # ver qué haría
+python3 pipeline/restaurar.py --ultimo --a <ref>             # hacerlo
+```
+
+El respaldo **no lleva la estructura**: antes hay que crear el esquema en el destino
+(`supabase/schema.sql` y `~/educacion-en-dolor/build/consenso_buzon.sql`). Probado de verdad el
+23-ago restaurando sobre la propia base: 927 filas, semilla y huella idénticas.
+
+**Lo que se restaura no incluye el evento de su propio respaldo** —se registra después de volcar—,
+así que tras una restauración el panel puede decir que toca respaldo aunque acabe de hacerse. Se
+corrige solo en la siguiente pasada.
 
 **Cuatro cosas que solo se ven probándolo con el entorno de verdad del cron** (`env -i` con el
 PATH pelado), y las cuatro habrían fallado en silencio:

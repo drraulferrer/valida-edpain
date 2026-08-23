@@ -37,7 +37,7 @@ ABRIR UNA COPIA:
       -pass pass:"$(security find-generic-password -s valida-edpain-respaldo -w)" \\
       -in respaldo-AAAA-MM-DD-hhmm.tar.gz.enc | tar -xzf -
 
-Restaurarla en un proyecto vacío: ver `~/valida-edpain-migracion/LEEME.md`.
+Restaurarla: `python3 pipeline/restaurar.py --ultimo --a <ref>`.
 """
 from __future__ import annotations
 
