@@ -25,7 +25,11 @@ en claro contradiría la hoja de información que firma cada participante.
 
 PARA QUE SE DISPARE SOLO, una línea de cron en este Mac:
 
-    0 * * * * cd ~/valida-edpain && /usr/bin/python3 pipeline/respaldo.py >> dist/respaldo.log 2>&1
+    17 * * * * cd ~/valida-edpain && /usr/bin/python3 pipeline/respaldo.py \\
+      >> ~/valida-edpain-respaldos/respaldo.log 2>&1
+
+El log NO va en `dist/`: cada `vite build` vacía esa carpeta y se llevaría por delante el
+historial de los respaldos justo cuando hiciera falta mirarlo.
 
 ABRIR UNA COPIA:
 

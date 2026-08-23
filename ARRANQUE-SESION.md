@@ -75,7 +75,8 @@ python3 pipeline/importar.py --simular   # qué haría la importación (≈ 30 s
 python3 pipeline/importar.py             # importa/reimporta (idempotente, nunca borra)
 python3 pipeline/exportar.py --csv       # baja todo a panel/respuestas/ (fuera de Git)
 python3 pipeline/humo.py                 # ¿responden todas las RPC? (pasar tras cada schema.sql)
-(cd ~/valida-edpain-migracion && ./volcar.sh)   # respaldo cifrado de toda la base
+python3 pipeline/respaldo.py --estado    # ¿toca respaldo? (no toca nada)
+python3 pipeline/respaldo.py --ahora     # respaldo cifrado ya mismo
 python3 pipeline/avisos.py --simular     # a quién avisaría hoy y con qué texto
 supabase db query -f supabase/schema.sql --linked --project-ref nnelofgevsvdaiaryjbk   # reaplicar esquema (idempotente)
 npm run deploy                           # publica en GitHub Pages (exige árbol limpio y verify en verde)
@@ -434,6 +435,41 @@ ronda, porque las respuestas del panel no se pueden repetir.
 - Al recrearlo salió un agujero que arrastraba el DDL original: Supabase concede `all privileges` a
   `anon` sobre lo que se cree en `public`, y ahí va **TRUNCATE, que no pasa por el RLS**. Con la clave
   pública de los cuadernos se podía vaciar el buzón. Arreglado en `build/consenso_buzon.sql`.
+
+## 5i · El respaldo se dispara al cerrar cada ronda (23-ago)
+
+`pipeline/respaldo.py`. **El panel no puede lanzarlo**: el respaldo necesita el CLI de Supabase y
+el Llavero, y el panel corre en un navegador. Lo que hace el panel es dejar constancia —
+`valida_dir_ronda` y `valida_dir_cerrar` ya escribían los eventos `ronda_nueva` y
+`estudio_cerrado`— y el script mira si hay alguno posterior al último evento `respaldo`. Una línea
+de cron **cada hora** basta: si no se ha cerrado nada, no hace nada.
+
+```
+17 * * * * cd ~/valida-edpain && /usr/bin/python3 pipeline/respaldo.py >> ~/valida-edpain-respaldos/respaldo.log 2>&1
+```
+
+- Guarda **todas** las tablas de `valida` —las pregunta al catálogo, no hay lista escrita a mano,
+  así que una tabla nueva entra sola— más `public.respuestas_consenso` si está.
+- `.tar.gz` cifrado con **AES-256** en `~/valida-edpain-respaldos/`, fuera del repositorio.
+  Contraseña en el Llavero (`valida-edpain-respaldo`).
+- **Se comprueba solo**: descifra lo que acaba de escribir y cuenta las filas contra la base. Si no
+  cuadra, aborta y no lo da por bueno.
+- Deja un evento `respaldo`, y **Dirección → Estudio enseña el estado**: «al día», o un aviso en
+  oro si se cerró una ronda y no hay copia posterior.
+- Tarda **5-7 minutos**: cada tabla es una llamada al CLI y cada una paga su «Initialising login
+  role». Da igual para algo que corre una vez por ronda.
+
+**Cuatro cosas que solo se ven probándolo con el entorno de verdad del cron** (`env -i` con el
+PATH pelado), y las cuatro habrían fallado en silencio:
+
+1. **cron arranca con `PATH=/usr/bin:/bin:/usr/sbin:/sbin`** y `supabase` vive en `~/.local/bin`.
+   El script resuelve los binarios por ruta absoluta en vez de fiarse del PATH.
+2. **El CLI devuelve dos formas de JSON** según si cree que le habla un agente: `{"rows": [...]}`
+   envuelto en el terminal, y la lista pelada desde cron. Dar por hecha la primera revienta.
+3. **Python almacena la salida** cuando escribe a un fichero: el log se quedaba vacío durante los
+   minutos del volcado, indistinguible de un cuelgue. `line_buffering=True`.
+4. **El log NO puede ir en `dist/`**: cada `vite build` vacía esa carpeta. Va junto a los
+   respaldos. (`avisos.py` documentaba la misma ruta y también se ha corregido.)
 
 ## 6 · Gotchas encontrados construyéndolo (22-ago)
 

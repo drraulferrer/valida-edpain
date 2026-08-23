@@ -36,7 +36,10 @@ panel de dirección.
 
 PARA QUE SEA AUTOMÁTICO DE VERDAD, una línea de cron en este Mac:
 
-    0 9 * * * cd ~/valida-edpain && /usr/bin/python3 pipeline/avisos.py >> dist/avisos.log 2>&1
+    0 9 * * * cd ~/valida-edpain && /usr/bin/python3 pipeline/avisos.py \\
+      >> ~/valida-edpain-respaldos/avisos.log 2>&1
+
+(El log fuera de `dist/`: esa carpeta la vacía cada `vite build`.)
 """
 from __future__ import annotations
 
