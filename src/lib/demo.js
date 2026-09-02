@@ -435,16 +435,27 @@ export function crearDemo() {
       return { ok: true }
     },
     valida_dir_concepto({ clave, concepto_id }) { direccion(clave); return clon(conceptos.find((c) => c.id === concepto_id)) },
-    valida_dir_alta({ clave, codigo, perfil, disciplina, dominios, capacidad, notas, es_prueba }) {
+    valida_dir_alta({ clave, codigo, perfil, disciplina, dominios, capacidad, notas, es_prueba, email, nombre, apellidos }) {
       direccion(clave)
       if (!/^[A-Z]{2,4}-\d{2,3}$/.test(codigo)) { const e = new Error('Código con formato PAN-17.'); e.codigo = '22023'; throw e }
       if (panelistas.some((p) => p.codigo === codigo)) { const e = new Error('Ese código ya existe.'); e.codigo = '22023'; throw e }
       const nueva = `${Math.random().toString(36).slice(2, 6)}-${Math.random().toString(36).slice(2, 6)}-${Math.random().toString(36).slice(2, 6)}`
       const id = Math.max(...panelistas.map((p) => p.id)) + 1
       panelistas.push({ id, codigo, clave: nueva, perfil, disciplina, anios: null, dominios_competencia: dominios || [], capacidad, activo: true, perfil_completado: false, calibracion_hecha: false, alta_en: new Date().toISOString(), ultimo_acceso: null, notas, es_prueba: !!es_prueba })
-      return { id, codigo, clave: nueva }
+      // El correo va aparte, como en la base real, y su presencia decide si se manda la clave.
+      const correo = String(email || '').trim().toLowerCase()
+      if (correo) identidades.push({ panelista_id: id, codigo, nombre: nombre || '', apellidos: apellidos || '', email: correo })
+      return { id, codigo, clave: nueva, correo_enviado: !!correo, email: correo || null }
     },
-    valida_dir_reclave({ clave, codigo }) { direccion(clave); const p = panelistas.find((x) => x.codigo === codigo); if (!p) { const e = new Error('No existe.'); e.codigo = '22023'; throw e }; p.clave = `nuev-${Math.random().toString(36).slice(2, 6)}-${Math.random().toString(36).slice(2, 6)}`; return { codigo, clave: p.clave } },
+    valida_dir_reclave({ clave, codigo }) {
+      direccion(clave)
+      const p = panelistas.find((x) => x.codigo === codigo)
+      if (!p) { const e = new Error('No existe.'); e.codigo = '22023'; throw e }
+      p.clave = `nuev-${Math.random().toString(36).slice(2, 6)}-${Math.random().toString(36).slice(2, 6)}`
+      // Como en la base: si tiene correo en su ficha, la clave nueva se le manda sola.
+      const ident = identidades.find((i) => i.panelista_id === p.id)
+      return { codigo, clave: p.clave, correo_enviado: !!ident?.email, email: ident?.email || null }
+    },
     valida_dir_panelista({ clave, codigo, datos }) { direccion(clave); const p = panelistas.find((x) => x.codigo === codigo); if (!p) return { ok: false }; for (const k of ['activo', 'capacidad', 'dominios_competencia', 'disciplina', 'notas']) if (datos[k] !== undefined) p[k] = datos[k]; return { ok: true } },
     valida_dir_asignar({ clave, perfil_objetivo }) {
       direccion(clave)

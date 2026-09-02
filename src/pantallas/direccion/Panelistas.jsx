@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import * as api from '../../lib/api.js'
 import { MS_MUY_RAPIDO, MiniBarra, PATRON_CODIGO, PERFILES, Vacio, entradasCatalogo, mmss, relativo } from './comun.jsx'
-import { esExpertoFehring, puntuacionFehring, resumenPerfil } from '../../lib/perfil.js'
+import { RE_EMAIL, esExpertoFehring, puntuacionFehring, resumenPerfil } from '../../lib/perfil.js'
 
 const ORDEN_PERFIL = { direccion: 0, experto: 1, paciente: 2 }
 const NOMBRE_ESTADO = { pendiente: 'pendiente', hecha: 'hecha', abstenida: 'abstenida' }
@@ -33,10 +33,10 @@ export default function Panelistas({ datos, clave, nombres, recargar }) {
   }
 
   const reclave = (p) => {
-    if (!window.confirm(`¿Generar una clave nueva para ${p.codigo}? La anterior dejará de funcionar en el acto.`)) return
+    if (!window.confirm(`¿Generar una clave nueva para ${p.codigo}? La anterior dejará de funcionar en el acto, y si tiene correo en su ficha se le mandará la nueva automáticamente.`)) return
     ejecutar(`reclave-${p.codigo}`, async () => {
       const r = await api.dirReclave(clave, p.codigo)
-      setClaveNueva({ codigo: r.codigo || p.codigo, clave: r.clave })
+      setClaveNueva({ codigo: r.codigo || p.codigo, clave: r.clave, correo_enviado: r.correo_enviado, email: r.email })
     })
   }
 
@@ -100,7 +100,7 @@ export default function Panelistas({ datos, clave, nombres, recargar }) {
         {identidades && <Identidades lista={identidades} />}
       </div>
 
-      <Alta datos={datos} clave={clave} onAlta={async (r) => { setClaveNueva({ codigo: r.codigo, clave: r.clave }); await recargar() }} />
+      <Alta datos={datos} clave={clave} onAlta={async (r) => { setClaveNueva({ codigo: r.codigo, clave: r.clave, correo_enviado: r.correo_enviado, email: r.email }); await recargar() }} />
     </section>
   )
 }
@@ -263,15 +263,28 @@ function ClaveUnaVez({ claveNueva, onCerrar }) {
     <div className="tarjeta blanca">
       <h3>Clave para {claveNueva.codigo}</h3>
       <p><span className="clave-nueva">{claveNueva.clave}</span></p>
-      <p className="aviso-caja">Cópiala ahora y envíasela al panelista. No se puede recuperar: si se pierde, habrá que generar otra.</p>
+      {claveNueva.correo_enviado ? (
+        <p className="ok-caja">
+          Se le ha mandado a <b>{claveNueva.email}</b>, con la clave y las instrucciones de cómo rellenar el perfil y cómo puntuar.
+          No hace falta que hagas nada más. Si el correo rebota, tendrás que generar otra clave: esta ya no se puede volver a ver.
+        </p>
+      ) : (
+        <p className="aviso-caja">
+          <b>No se ha mandado por correo</b> (el alta iba sin dirección). Cópiala ahora y envíasela tú: no se puede recuperar, y si
+          se pierde habrá que generar otra.
+        </p>
+      )}
       <div className="acciones" style={{ marginTop: 0 }}>
-        <button type="button" className="boton secundario pequeno" onClick={onCerrar}>Ya la he copiado</button>
+        <button type="button" className="boton secundario pequeno" onClick={onCerrar}>
+          {claveNueva.correo_enviado ? 'Entendido' : 'Ya la he copiado'}
+        </button>
       </div>
     </div>
   )
 }
 
-const FORMULARIO_VACIO = { codigo: '', perfil: 'experto', disciplina: '', dominios: [], capacidad: '', notas: '', es_prueba: false }
+const FORMULARIO_VACIO = { codigo: '', perfil: 'experto', disciplina: '', dominios: [], capacidad: '', notas: '', es_prueba: false,
+  nombre: '', apellidos: '', email: '' }
 
 function Alta({ datos, clave, onAlta }) {
   const [f, setF] = useState(FORMULARIO_VACIO)
@@ -289,10 +302,14 @@ function Alta({ datos, clave, onAlta }) {
     if (!PATRON_CODIGO.test(codigo)) { setError('El código tiene la forma PAN-17: de dos a cuatro letras, guion y dos o tres cifras.'); return }
     const capacidad = f.capacidad === '' ? null : Number(f.capacidad)
     if (capacidad != null && (!Number.isInteger(capacidad) || capacidad <= 0)) { setError('La capacidad es un número entero positivo, o se deja vacía.'); return }
+    const correo = f.email.trim()
+    if (correo && !RE_EMAIL.test(correo)) { setError('El correo no tiene un formato válido.'); return }
     setEnviando(true)
     setError('')
     try {
-      const r = await api.dirAlta(clave, codigo, f.perfil, f.disciplina.trim() || null, f.dominios, capacidad, f.notas.trim() || null, f.es_prueba)
+      const r = await api.dirAlta(clave, codigo, f.perfil, f.disciplina.trim() || null, f.dominios, capacidad,
+        f.notas.trim() || null, f.es_prueba,
+        { nombre: f.nombre.trim(), apellidos: f.apellidos.trim(), email: f.email.trim().toLowerCase() })
       setF(FORMULARIO_VACIO)
       await onAlta(r)
     } catch (err) {
@@ -338,6 +355,28 @@ function Alta({ datos, clave, onAlta }) {
               <span>{d.nombre}<span className="sub">{id}</span></span>
             </label>
           ))}
+        </div>
+      </div>
+      <div className="campo">
+        <span className="rotulo">Correo y nombre <span className="silencio">(opcional, pero sin correo no recibe ni la clave ni los avisos de plazo)</span></span>
+        <p className="ayuda">
+          Si pones un correo, al dar de alta se le manda <b>en el acto</b> su clave y las instrucciones: cómo rellenar el perfil,
+          cómo se puntúa y qué plazo tiene. La clave solo existe en claro en ese instante, así que si no se manda ahora hay que
+          copiarla a mano de la pantalla siguiente.
+        </p>
+        <div className="panel-dos">
+          <div className="campo">
+            <label htmlFor="alta-email">Correo</label>
+            <input id="alta-email" type="email" value={f.email} onChange={(e) => cambiar('email', e.target.value)} placeholder="persona@centro.es" />
+          </div>
+          <div className="campo">
+            <label htmlFor="alta-nombre">Nombre</label>
+            <input id="alta-nombre" type="text" value={f.nombre} onChange={(e) => cambiar('nombre', e.target.value)} />
+          </div>
+          <div className="campo">
+            <label htmlFor="alta-apellidos">Apellidos</label>
+            <input id="alta-apellidos" type="text" value={f.apellidos} onChange={(e) => cambiar('apellidos', e.target.value)} />
+          </div>
         </div>
       </div>
       <div className="campo">

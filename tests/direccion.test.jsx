@@ -23,8 +23,9 @@ vi.mock('../src/lib/api.js', async () => {
     normalizarClave: (t) => (t || '').trim(),
     dirDatos: via('valida_dir_datos', (clave) => ({ clave })),
     dirConcepto: via('valida_dir_concepto', (clave, concepto_id) => ({ clave, concepto_id })),
-    dirAlta: via('valida_dir_alta', (clave, codigo, perfil, disciplina, dominios, capacidad, notas) =>
-      ({ clave, codigo, perfil, disciplina, dominios, capacidad, notas })),
+    dirAlta: via('valida_dir_alta', (clave, codigo, perfil, disciplina, dominios, capacidad, notas, es_prueba, identidad = {}) =>
+      ({ clave, codigo, perfil, disciplina, dominios, capacidad, notas, es_prueba,
+         email: identidad.email || null, nombre: identidad.nombre || null, apellidos: identidad.apellidos || null })),
     dirReclave: via('valida_dir_reclave', (clave, codigo) => ({ clave, codigo })),
     dirPanelista: via('valida_dir_panelista', (clave, codigo, datos) => ({ clave, codigo, datos })),
     dirAsignar: via('valida_dir_asignar', (clave, perfil_objetivo, max_generalistas = 3) => ({ clave, perfil_objetivo, max_generalistas })),
@@ -179,6 +180,40 @@ describe('aviso de copia de seguridad', () => {
     expect(await screen.findByText(/Al día/)).toBeTruthy()
     expect(screen.getByText(/900 filas en 16 tablas/)).toBeTruthy()
     expect(screen.queryByText(/Se cerró una ronda/)).toBeNull()
+  })
+})
+
+describe('alta de panelista con correo', () => {
+  const rellenar = async ({ codigo, email }) => {
+    cleanup()   // sin esto, los render se acumulan y rompen hasta los tests de más abajo
+    render(<Direccion ruta={ruta('panelistas')} />)
+    fireEvent.change(await screen.findByLabelText('Código'), { target: { value: codigo } })
+    if (email) fireEvent.change(screen.getByLabelText('Correo'), { target: { value: email } })
+    fireEvent.click(screen.getByRole('button', { name: /Dar de alta/ }))
+  }
+
+  it('con correo: lo guarda y dice que la clave se ha mandado', async () => {
+    await rellenar({ codigo: 'PAN-77', email: 'nueva@ejemplo.org' })
+    expect(await screen.findByText(/Se le ha mandado a/)).toBeTruthy()
+    expect(screen.getByText('nueva@ejemplo.org')).toBeTruthy()
+    expect(cofre.demo._estado.identidades.some((i) => i.codigo === 'PAN-77' && i.email === 'nueva@ejemplo.org')).toBe(true)
+  })
+
+  it('sin correo: avisa de que hay que copiarla a mano', async () => {
+    await rellenar({ codigo: 'PAN-78' })
+    expect(await screen.findByText(/No se ha mandado por correo/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Ya la he copiado' })).toBeTruthy()
+  })
+
+  // Lo que importa no es qué mensaje sale —el `type="email"` ya frena el envío antes de llegar
+  // a la validación en JS— sino que NO se cree el panelista y no se enseñe ninguna clave.
+  it('un correo mal escrito no llega a crear el panelista', async () => {
+    const antes = cofre.demo._estado.panelistas.length
+    await rellenar({ codigo: 'PAN-79', email: 'esto-no-es-un-correo' })
+    await new Promise((r) => setTimeout(r, 150))
+    expect(cofre.demo._estado.panelistas.length).toBe(antes)
+    expect(screen.queryByText(/Clave para PAN-79/)).toBeNull()
+    cleanup()
   })
 })
 

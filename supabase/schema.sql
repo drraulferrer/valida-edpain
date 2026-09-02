@@ -1083,6 +1083,111 @@ begin
   return jsonb_build_object('ok', true);
 end $$;
 
+-- ---------------------------------------------------------------------------
+-- CORREO DESDE LA BASE
+--
+-- Por qué aquí y no en un script del Mac, como los avisos de plazo: **la clave de un
+-- panelista solo existe en claro durante el instante del alta**; después solo se guarda su
+-- hash. Un script posterior no podría mandarla, y guardarla en una cola para mandarla luego
+-- sería dejar una credencial en claro esperando. Así que el correo de bienvenida sale en la
+-- misma transacción que la crea.
+--
+-- La API key de Resend vive cifrada en el Vault de Supabase, no en el navegador ni en el
+-- repositorio. Solo la leen estas funciones, que son SECURITY DEFINER y exigen clave de
+-- dirección: `anon` no puede llegar al Vault ni disparar un envío.
+--
+--     select vault.create_secret('re_…', 'resend_api_key', '…');
+--
+-- `pg_net` es ASÍNCRONO: `net.http_post` encola y devuelve un id, no espera a Resend. Por eso
+-- el alta nunca falla por culpa del correo —la clave se enseña igual en pantalla— y el
+-- resultado del envío se consulta después en `net._http_response` con ese id.
+-- ---------------------------------------------------------------------------
+create or replace function valida.remitente(e valida.estudios) returns text
+language sql immutable as $$
+  select coalesce(nullif(trim(e.grupo_autoria), ''), 'Estudio EdPain')
+         || ' <' || coalesce(nullif(trim(e.contacto_email), ''), 'estudio@edpain.com') || '>'
+$$;
+
+create or replace function valida.enviar_correo(destino text, asunto text, cuerpo text)
+returns bigint language plpgsql security definer set search_path = valida, public, extensions, pg_temp as $$
+declare api_key text; id bigint;
+begin
+  if coalesce(destino, '') = '' then return null; end if;
+  select decrypted_secret into api_key from vault.decrypted_secrets where name = 'resend_api_key';
+  if api_key is null then
+    raise warning 'no hay `resend_api_key` en el Vault: no se manda nada';
+    return null;
+  end if;
+  select net.http_post(
+      url := 'https://api.resend.com/emails',
+      headers := jsonb_build_object('Authorization', 'Bearer ' || api_key,
+                                    'Content-Type', 'application/json'),
+      body := jsonb_build_object('from', (select valida.remitente(x) from valida.estudios x order by x.id limit 1),
+                                 'to', jsonb_build_array(destino),
+                                 'reply_to', (select x.contacto_email from valida.estudios x order by x.id limit 1),
+                                 'subject', asunto, 'text', cuerpo)
+    ) into id;
+  return id;
+end $$;
+
+-- El correo de bienvenida. Lleva la clave y, sobre todo, QUÉ hay que hacer con ella: sin esto
+-- el panelista recibe doce caracteres y ninguna instrucción.
+create or replace function valida.correo_bienvenida(p valida.panelistas, e valida.estudios, clave_nueva text, nombre text)
+returns text language sql stable as $$
+  select concat(
+    'Hola', case when coalesce(nombre,'') <> '' then ' ' || nombre else '' end, ':', chr(10), chr(10),
+    case when p.perfil = 'paciente'
+      then 'Gracias por entrar en el panel de personas con dolor del estudio EdPain. Vas a leer textos escritos para personas con dolor y a decirnos si se entienden.'
+      else 'Gracias por aceptar formar parte del panel experto del estudio EdPain. Vas a valorar, concepto a concepto, una base de conocimiento sobre educación en dolor.'
+    end, chr(10), chr(10),
+    '── TU ACCESO ──', chr(10),
+    'Código: ', p.codigo, chr(10),
+    'Clave:  ', clave_nueva, chr(10), chr(10),
+    'Entra en https://valida.edpain.com y escribe la clave. No hace falta cuenta ni contraseña: la clave es tu acceso y tu anonimato.', chr(10),
+    'GUARDA ESTE CORREO: la clave no se puede recuperar. Si la pierdes, responde a este mensaje y te generamos otra.', chr(10), chr(10),
+    '── LO PRIMERO: UNOS DATOS SOBRE TI ──', chr(10),
+    case when p.perfil = 'paciente'
+      then concat('Antes de empezar te preguntamos por tu dolor: cuánto tiempo llevas, dónde te duele, qué te han dicho que tienes, ',
+                  'qué has probado y tres preguntas sobre la información escrita de salud. Son unos cinco minutos y es la única vez. ',
+                  'Sirve para poder describir en la publicación a qué personas les resultaron claros estos textos.', chr(10),
+                  'No hay respuestas mejores ni peores, y los campos marcados como opcionales puedes dejarlos en blanco.')
+      else concat('Antes de empezar hay un perfil: titulación, formación en dolor, años de experiencia, ámbito de trabajo, ',
+                  'publicaciones e investigación. Sirve para describir al panel en la publicación, como piden las guías CREDES. ',
+                  'Si declaras publicaciones sobre educación en dolor, hace falta al menos un DOI para poder verificarlas.')
+    end, chr(10), chr(10),
+    '── CÓMO SE PUNTÚA ──', chr(10),
+    case when p.perfil = 'paciente'
+      then concat('De cada texto respondes tres afirmaciones en una escala de 1 a 4, de «nada de acuerdo» a «totalmente de acuerdo»:', chr(10),
+                  '  · Se entiende  — lo he entendido a la primera.', chr(10),
+                  '  · Las palabras — son palabras que entiendo sin que me las expliquen.', chr(10),
+                  '  · El orden     — he podido seguirlo sin perderme.', chr(10), chr(10),
+                  'Después dices cómo te deja el texto, y tienes una lista de frases del tipo «suena a que la culpa es mía». ',
+                  'Si alguna te pasa con un texto, márcala: UNA SOLA MARCA TUYA OBLIGA A REESCRIBIRLO. No hace falta explicar por qué.', chr(10), chr(10),
+                  'No tienes que saber si lo que dice es verdad: de eso se ocupa otro grupo. Tú nos dices si se entiende.')
+      else concat('De cada concepto puntúas tres dimensiones en una escala de 1 a 4 sin punto medio (1 nada de acuerdo · 4 totalmente):', chr(10),
+                  '  · Relevancia       — merece estar en la base, tal y como está planteado y ubicado.', chr(10),
+                  '  · Claridad         — el texto profesional está redactado de forma inequívoca.', chr(10),
+                  '  · Representatividad— refleja la evidencia disponible, según el nivel de certeza indicado.', chr(10), chr(10),
+                  'Si pones un 1 o un 2 en algo, la plataforma te pide una redacción alternativa o un comentario: sin eso el concepto ',
+                  'no cuenta como valorado. Es lo que convierte una puntuación baja en algo que se puede arreglar.', chr(10), chr(10),
+                  'Puedes ABSTENERTE en cualquier concepto que caiga fuera de tu campo. La abstención no cuenta en contra de nadie y ',
+                  'queda fuera del denominador: es preferible a puntuar a ciegas.', chr(10), chr(10),
+                  'La comprensibilidad NO la puntúas tú: la juzga un panel de personas con dolor con su propio instrumento.')
+    end, chr(10), chr(10),
+    '── PLAZOS Y RITMO ──', chr(10),
+    'Tienes ', e.plazo_dias, ' días para tu bloque de esta ronda, ampliables si lo pides. Cada respuesta se guarda sola: ',
+    'puedes parar cuando quieras y volver con tu clave desde cualquier dispositivo.', chr(10), chr(10),
+    case when p.perfil = 'paciente'
+      then concat('Se te reconocerá la participación en la publicación, como grupo y sin nombres.')
+      else concat('Quien complete todas las rondas entra en el ', coalesce(e.grupo_autoria, 'Grupo del Estudio EdPain'),
+                  ' en las publicaciones que se deriven, con nombre y apellidos, según los criterios de autoría de grupo del ICMJE.')
+    end, chr(10), chr(10),
+    'Cualquier duda, responde a este correo.', chr(10), chr(10),
+    coalesce(e.investigador_principal, 'Dr. Raúl Ferrer-Peña'), chr(10),
+    'Investigador principal · Estudio EdPain'
+  )
+$$;
+
 -- Alta de panelista: devuelve la clave EN CLARO una sola vez. No se vuelve a poder leer.
 --
 -- `es_prueba` marca al panelista como ensayo del circuito: no cuenta como panel real y la
@@ -1090,38 +1195,72 @@ end $$;
 -- el único borrado que hace la plataforma. Hasta ahora solo se podía crear un panelista de
 -- prueba por la convocatoria con `codigo_pruebas`, y esa vía solo crea expertos: no había
 -- forma de ensayar el circuito del panel de paciente sin ensuciar el panel real.
-create or replace function public.valida_dir_alta(clave text, codigo text, perfil text, disciplina text, dominios text[], capacidad int, notas text, es_prueba boolean default false) returns jsonb
-language plpgsql security definer set search_path = valida, public, pg_temp as $$
-declare d valida.panelistas; nueva text; nuevo_id int;
+create or replace function public.valida_dir_alta(clave text, codigo text, perfil text, disciplina text, dominios text[], capacidad int, notas text, es_prueba boolean default false, email text default null, nombre text default null, apellidos text default null) returns jsonb
+language plpgsql security definer set search_path = valida, public, extensions, pg_temp as $$
+declare d valida.panelistas; e valida.estudios; p valida.panelistas; nueva text; nuevo_id int; correo text; envio bigint;
 begin
   d := valida.direccion(clave);
+  select * into e from valida.estudios where id = d.estudio_id;
   if codigo !~ '^[A-Z]{2,4}-[0-9]{2,3}$' then
     raise exception 'código con formato PAN-17' using errcode = '22023';
+  end if;
+  correo := lower(trim(coalesce(valida_dir_alta.email, '')));
+  if correo <> '' and correo !~ '^[^@[:space:]]+@[^@[:space:]]+\.[A-Za-z]{2,}$' then
+    raise exception 'el correo no tiene un formato válido' using errcode = '22023';
   end if;
   nueva := valida.clave_nueva();
   insert into valida.panelistas (estudio_id, codigo, clave_hash, perfil, disciplina, dominios_competencia, capacidad, notas, es_prueba)
   values (d.estudio_id, codigo, valida.hash_clave(nueva), perfil, disciplina, coalesce(dominios, '{}'), capacidad, notas,
           coalesce(valida_dir_alta.es_prueba, false))
   returning id into nuevo_id;
+
+  -- El correo va a `identidades`, separado de las valoraciones como el de todos los demás.
+  -- Sin él, un panelista dado de alta a mano no recibe ni la clave ni los avisos de plazo.
+  if correo <> '' then
+    perform valida.guardar_identidad(nuevo_id, jsonb_build_object(
+      'nombre', coalesce(valida_dir_alta.nombre, ''), 'apellidos', coalesce(valida_dir_alta.apellidos, ''),
+      'email', correo));
+    select * into p from valida.panelistas where id = nuevo_id;
+    envio := valida.enviar_correo(correo,
+      case when perfil = 'paciente' then 'Tu acceso al panel de personas con dolor · Estudio EdPain'
+           else 'Tu acceso al panel experto · Estudio EdPain' end,
+      valida.correo_bienvenida(p, e, nueva, valida_dir_alta.nombre));
+  end if;
+
   insert into valida.eventos (panelista_id, tipo, detalle) values (d.id, 'alta_panelista',
-    jsonb_build_object('codigo', codigo, 'perfil', perfil, 'es_prueba', coalesce(valida_dir_alta.es_prueba, false)));
-  return jsonb_build_object('id', nuevo_id, 'codigo', codigo, 'clave', nueva);
+    jsonb_build_object('codigo', codigo, 'perfil', perfil, 'es_prueba', coalesce(valida_dir_alta.es_prueba, false),
+                       'correo', correo <> '', 'envio', envio));
+  return jsonb_build_object('id', nuevo_id, 'codigo', codigo, 'clave', nueva,
+                            'correo_enviado', envio is not null, 'email', nullif(correo, ''));
 end $$;
 
--- La firma antigua (7 argumentos) se retira para que PostgREST no tenga dos candidatas.
+-- Las firmas antiguas se retiran para que PostgREST no tenga varias candidatas.
 drop function if exists public.valida_dir_alta(text, text, text, text, text[], int, text);
+drop function if exists public.valida_dir_alta(text, text, text, text, text[], int, text, boolean);
 
 -- Regenerar la clave de un panelista (si la perdió). La anterior deja de valer.
 create or replace function public.valida_dir_reclave(clave text, codigo text) returns jsonb
-language plpgsql security definer set search_path = valida, public, pg_temp as $$
-declare d valida.panelistas; nueva text;
+language plpgsql security definer set search_path = valida, public, extensions, pg_temp as $$
+declare d valida.panelistas; e valida.estudios; p valida.panelistas; nueva text; correo text; quien text; envio bigint;
 begin
   d := valida.direccion(clave);
+  select * into e from valida.estudios where id = d.estudio_id;
   nueva := valida.clave_nueva();
   update valida.panelistas set clave_hash = valida.hash_clave(nueva) where panelistas.codigo = valida_dir_reclave.codigo;
   if not found then raise exception 'panelista no encontrado' using errcode = '22023'; end if;
-  insert into valida.eventos (panelista_id, tipo, detalle) values (d.id, 'reclave', jsonb_build_object('codigo', codigo));
-  return jsonb_build_object('codigo', codigo, 'clave', nueva);
+  -- La clave nueva tampoco se vuelve a ver: si hay correo en su ficha, se manda ahora o nunca.
+  -- Alias obligatorio: sin él, `codigo` es ambiguo entre el parámetro y la columna y la función
+  -- revienta con 42702. Es el mismo tropiezo que ya dieron `valida_guardar` y `valida_dir_marcar_avisos`.
+  select * into p from valida.panelistas x where x.codigo = valida_dir_reclave.codigo;
+  select i.email, i.nombre into correo, quien from valida.identidades i where i.panelista_id = p.id;
+  if coalesce(correo, '') <> '' then
+    envio := valida.enviar_correo(correo, 'Tu nueva clave de acceso · Estudio EdPain',
+      valida.correo_bienvenida(p, e, nueva, quien));
+  end if;
+  insert into valida.eventos (panelista_id, tipo, detalle) values (d.id, 'reclave',
+    jsonb_build_object('codigo', codigo, 'correo', coalesce(correo,'') <> '', 'envio', envio));
+  return jsonb_build_object('codigo', codigo, 'clave', nueva,
+                            'correo_enviado', envio is not null, 'email', nullif(correo, ''));
 end $$;
 
 create or replace function public.valida_dir_panelista(clave text, codigo text, datos jsonb) returns jsonb

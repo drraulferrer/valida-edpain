@@ -155,9 +155,16 @@ update valida.panelistas set activo = false where codigo = 'PRU-01';
   autoría de grupo); se dice en el formulario y en la hoja.
 - **Correo del estudio**: `estudio@edpain.com` → drraulferrer@gmail.com por **Cloudflare Email Routing**
   (regla activa, MX y SPF propagados el 22-ago; el gmail no aparece en ninguna parte de la web).
-- **Envío de la clave**: la pantalla de alta ofrece copiarla y «Preparar el correo» (mailto con la clave, el
-  enlace y el contacto ya escritos). **No hay envío automático desde el servidor**: haría falta un proveedor
-  (Resend/SES) con dominio verificado y una clave API; Cloudflare Email Routing solo recibe.
+- **Envío de la clave: automático desde la base** (23-ago). El alta acepta correo, nombre y apellidos, y
+  manda **en el acto** la clave con las instrucciones —cómo rellenar el perfil, cómo se puntúa, qué plazo hay—,
+  con texto distinto para experto y para paciente. La reclave hace lo mismo con la clave nueva.
+  **Por qué desde la base y no desde un script del Mac como los avisos**: la clave solo existe en claro durante
+  el instante del alta; después solo se guarda su hash. Un script posterior no podría mandarla, y guardarla en
+  una cola sería dejar una credencial en claro esperando.
+  Lo hace `valida.enviar_correo` con **pg_net** (asíncrono: encola y devuelve un id, así que el alta nunca falla
+  por culpa del correo) y la API key de Resend **cifrada en el Vault de Supabase**, no en el navegador ni en el
+  repo. Comprobar un envío: `select status_code, content from net._http_response order by id desc limit 5;`.
+  Sin correo en el alta, la pantalla lo dice y hay que copiar la clave a mano.
 - **Código de pruebas** (`estudios.codigo_pruebas`): funciona aunque la inscripción esté cerrada, marca al
   panelista `es_prueba` y la dirección lo borra con todo su rastro (`valida_dir_borrar_prueba`).
 
