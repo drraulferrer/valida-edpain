@@ -232,7 +232,11 @@ textarea { min-height: 6rem; resize: vertical; font-family: var(--sans); }
 input.clave { font-family: var(--mono); font-size: 1.4rem; letter-spacing: 0.08em; text-align: center; padding: 0.8rem; }
 .casillas { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0.35rem 1rem; }
 .casilla { display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.35rem 0; cursor: pointer; }
-.casilla input { margin-top: 0.25rem; accent-color: var(--acento); width: 1.15rem; height: 1.15rem; }
+/* Solo la casilla en sí: `\.casilla input` a secas encogía a 1,15 rem cualquier campo de texto
+   que hubiera dentro, como el de detalle de las banderas, que salía como un cuadradito. */
+.casilla input[type="checkbox"], .casilla input[type="radio"] {
+  margin-top: 0.25rem; accent-color: var(--acento); width: 1.15rem; height: 1.15rem; flex: none;
+}
 .casilla .sub { display: block; font-size: 0.85rem; color: var(--tinta-3); }
 .error { color: var(--peligro); background: var(--peligro-suave); padding: 0.7rem 1rem; border-radius: var(--radio-ui); margin: 0.75rem 0; }
 .aviso-caja { color: var(--tinta); background: var(--aviso-suave); padding: 0.7rem 1rem; border-radius: var(--radio-ui); margin: 0.75rem 0; }
@@ -304,7 +308,7 @@ input.clave { font-family: var(--mono); font-size: 1.4rem; letter-spacing: 0.08e
 @media (max-width: 560px) { .ajuste .fila { grid-template-columns: 1fr; } }
 .banderas .casilla { border: 1px solid var(--linea); border-radius: 10px; padding: 0.55rem 0.75rem; margin: 0.4rem 0; background: var(--papel); }
 .banderas .casilla.veto { border-color: var(--peligro); }
-.banderas input[type="text"] { margin-top: 0.4rem; }
+.banderas input[type="text"] { margin-top: 0.4rem; width: 100%; display: block; }
 
 /* --- lista del bloque --------------------------------------------------------- */
 .modulo-bloque { margin: 1.25rem 0; }

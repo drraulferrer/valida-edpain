@@ -13,9 +13,11 @@ export const BANDERAS = [
 
 export default function Banderas({ valor, onCambio }) {
   const v = valor || {}
+  // Marcar y escribir son dos cosas distintas: una bandera marcada SIN texto es válida, así que
+  // la cadena vacía no puede significar «desmarcada». Solo `false` la quita.
   const poner = (clave, dato) => {
     const nueva = { ...v }
-    if (dato === false || dato === '' || dato == null) delete nueva[clave]
+    if (dato === false || dato == null) delete nueva[clave]
     else nueva[clave] = dato
     onCambio(nueva)
   }
@@ -26,14 +28,16 @@ export default function Banderas({ valor, onCambio }) {
         return (
           <label key={b.clave} className={`casilla${b.veto ? ' veto' : ''}`}>
             <input type="checkbox" checked={activa}
-              onChange={(e) => poner(b.clave, e.target.checked ? (b.detalle ? (typeof v[b.clave] === 'string' ? v[b.clave] : '') || ' ' : true) : false)} />
+              onChange={(e) => poner(b.clave, e.target.checked ? (b.detalle ? (typeof v[b.clave] === 'string' ? v[b.clave] : '') : true) : false)} />
             <span style={{ flex: 1 }}>
               {b.etiqueta}
               {b.ayuda && <span className="sub">{b.ayuda}</span>}
               {activa && b.detalle && (
+                // Sin `.trim()` en el value: recortaba el espacio en cuanto se tecleaba, así que no
+                // se podían escribir dos palabras. Se recorta al guardar, no al escribir.
                 <input type="text" placeholder={b.detalle} aria-label={b.detalle}
-                  value={typeof v[b.clave] === 'string' ? v[b.clave].trim() : ''}
-                  onChange={(e) => poner(b.clave, e.target.value || ' ')} />
+                  value={typeof v[b.clave] === 'string' ? v[b.clave] : ''}
+                  onChange={(e) => poner(b.clave, e.target.value)} />
               )}
             </span>
           </label>
